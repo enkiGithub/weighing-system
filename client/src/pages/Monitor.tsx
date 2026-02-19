@@ -1,368 +1,370 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useCallback, Suspense, useMemo } from "react";
+import { Canvas } from "@react-three/fiber";
+import { OrbitControls, Html } from "@react-three/drei";
+import * as THREE from "three";
 import { trpc } from "@/lib/trpc";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, AlertTriangle, CheckCircle2, Activity } from "lucide-react";
-import { cn } from "@/lib/utils";
-import type { CabinetGroup } from "../../../drizzle/schema";
+import { Loader2, CheckCircle2, AlertTriangle, AlertOctagon, Activity } from "lucide-react";
+import { CabinetGroup3D } from "@/components/three/CabinetGroup3D";
+import type { CabinetGroupModelParams } from "@/components/three/CabinetGroup3D";
+import { SceneSetup } from "@/components/three/SceneSetup";
 
-interface CabinetGroupLayout {
-  cabinetGroupId: number;
-  positionX: number;
-  positionY: number;
-  positionZ: number;
-  rotationX: number;
-  rotationY: number;
-  rotationZ: number;
-  scaleX: number;
-  scaleY: number;
-  scaleZ: number;
+// Types matching editor
+interface LayoutInstance {
+  instanceId: string;
+  type: "cabinetGroup";
+  cabinetGroupId: number | null;
+  transform: {
+    position: { x: number; y: number; z: number };
+    rotation: { x: number; y: number; z: number };
+    scale: { x: number; y: number; z: number };
+  };
+  model: CabinetGroupModelParams;
+  meta: { label: string; remark: string };
+}
+
+interface LayoutData {
+  scene: {
+    gridSize: number;
+    unit: string;
+    cameraDefault: {
+      position: { x: number; y: number; z: number };
+      target: { x: number; y: number; z: number };
+    };
+  };
+  instances: LayoutInstance[];
+}
+
+// Monitor Instance Component
+function MonitorInstance({
+  instance,
+  groupData,
+  onHover,
+  onLeave,
+}: {
+  instance: LayoutInstance;
+  groupData?: { name: string; status: string; currentWeight: number; initialWeight: number; alarmThreshold: number };
+  onHover: (inst: LayoutInstance, gd: any) => void;
+  onLeave: () => void;
+}) {
+  const [hovered, setHovered] = useState(false);
+  const status = (groupData?.status as "normal" | "warning" | "alarm") || "normal";
+
+  return (
+    <group
+      position={[instance.transform.position.x, instance.transform.position.y, instance.transform.position.z]}
+      rotation={[instance.transform.rotation.x, instance.transform.rotation.y, instance.transform.rotation.z]}
+      scale={[instance.transform.scale.x, instance.transform.scale.y, instance.transform.scale.z]}
+    >
+      <CabinetGroup3D
+        model={instance.model}
+        status={status}
+        selected={false}
+        hovered={hovered}
+        onPointerOver={(e: any) => {
+          e.stopPropagation();
+          setHovered(true);
+          if (groupData) onHover(instance, groupData);
+        }}
+        onPointerOut={() => {
+          setHovered(false);
+          onLeave();
+        }}
+      />
+      {/* Floating label always visible */}
+      <Html
+        position={[0, instance.model.cabinetHeight + 0.25, 0]}
+        center
+        distanceFactor={8}
+        style={{ pointerEvents: "none" }}
+      >
+        <div className={`rounded-lg px-3 py-2 text-center whitespace-nowrap backdrop-blur-md border shadow-lg transition-all ${
+          hovered ? "scale-110" : ""
+        } ${
+          status === "alarm"
+            ? "bg-red-950/90 border-red-500/50 shadow-red-500/20"
+            : status === "warning"
+            ? "bg-amber-950/90 border-amber-500/50 shadow-amber-500/20"
+            : "bg-slate-900/90 border-cyan-500/30 shadow-cyan-500/10"
+        }`}>
+          <div className={`text-xs font-semibold ${
+            status === "alarm" ? "text-red-400" : status === "warning" ? "text-amber-400" : "text-cyan-400"
+          }`}>
+            {instance.meta.label || groupData?.name || "未绑定"}
+          </div>
+          {groupData && (
+            <div className={`text-lg font-bold mt-0.5 ${
+              status === "alarm" ? "text-red-300" : status === "warning" ? "text-amber-300" : "text-cyan-300"
+            }`}>
+              {(groupData.currentWeight / 1000).toFixed(2)}
+              <span className="text-[10px] font-normal ml-0.5 opacity-70">kg</span>
+            </div>
+          )}
+          {!groupData && instance.cabinetGroupId && (
+            <div className="text-[10px] text-slate-500 mt-0.5">数据加载中...</div>
+          )}
+        </div>
+      </Html>
+
+      {/* Alarm pulse effect */}
+      {status === "alarm" && (
+        <mesh position={[0, instance.model.cabinetHeight / 2, 0]}>
+          <sphereGeometry args={[
+            Math.max(instance.model.columns * instance.model.cabinetWidth, instance.model.cabinetHeight) * 0.8,
+            16, 16
+          ]} />
+          <meshBasicMaterial color="#ef4444" transparent opacity={0.05} side={THREE.DoubleSide} />
+        </mesh>
+      )}
+    </group>
+  );
 }
 
 export default function Monitor() {
-  const { data: cabinets, isLoading } = trpc.cabinetGroups.list.useQuery(undefined, {
-    refetchInterval: 3000, // 每3秒刷新一次
+  const [hoveredInfo, setHoveredInfo] = useState<{
+    instance: LayoutInstance;
+    groupData: any;
+  } | null>(null);
+
+  // Queries with auto-refresh
+  const activeLayoutQuery = trpc.layoutEditor.vaultLayouts.getActive.useQuery(undefined, {
+    refetchInterval: 10000,
   });
-  const { data: activeLayout } = trpc.layoutEditor.vaultLayouts.getActive.useQuery();
-  const { data: groupLayouts } = trpc.layoutEditor.cabinetGroupLayouts.listByVaultLayout.useQuery(
-    { vaultLayoutId: activeLayout?.id || 0 },
-    { enabled: !!activeLayout?.id }
-  );
-  const [hoveredCabinet, setHoveredCabinet] = useState<number | null>(null);
-  const [rotation, setRotation] = useState({ x: 20, y: 0 });
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [layoutMap, setLayoutMap] = useState<Map<number, CabinetGroupLayout>>(new Map());
+  const cabinetGroupsQuery = trpc.cabinetGroups.list.useQuery(undefined, {
+    refetchInterval: 5000,
+  });
 
-  // 构建布局映射
-  useEffect(() => {
-    if (groupLayouts && Array.isArray(groupLayouts)) {
-      const map = new Map();
-      groupLayouts.forEach((layout) => {
-        map.set(layout.cabinetGroupId, layout);
-      });
-      setLayoutMap(map);
-    } else {
-      setLayoutMap(new Map());
+  // Parse layout data
+  const layoutData = useMemo<LayoutData | null>(() => {
+    if (!activeLayoutQuery.data?.layoutData) return null;
+    try {
+      const data = JSON.parse(activeLayoutQuery.data.layoutData) as LayoutData;
+      if (!data.scene) return null;
+      if (!data.instances) data.instances = [];
+      return data;
+    } catch {
+      return null;
     }
-  }, [groupLayouts]);
+  }, [activeLayoutQuery.data]);
 
-  // 鼠标拖拽旋转3D视图
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
+  // Cabinet groups map
+  const cabinetGroupsMap = useMemo(() => {
+    const map = new Map<number, any>();
+    (cabinetGroupsQuery.data || []).forEach((g: any) => {
+      map.set(g.id, g);
+    });
+    return map;
+  }, [cabinetGroupsQuery.data]);
 
-    let isDragging = false;
-    let startX = 0;
-    let startY = 0;
-    let currentRotation = { ...rotation };
-
-    const handleMouseDown = (e: MouseEvent) => {
-      isDragging = true;
-      startX = e.clientX;
-      startY = e.clientY;
-      currentRotation = { ...rotation };
+  // Statistics
+  const stats = useMemo(() => {
+    if (!layoutData) return { total: 0, normal: 0, warning: 0, alarm: 0 };
+    let normal = 0, warning = 0, alarm = 0;
+    layoutData.instances.forEach(inst => {
+      if (!inst.cabinetGroupId) return;
+      const g = cabinetGroupsMap.get(inst.cabinetGroupId);
+      if (!g) return;
+      if (g.status === "alarm") alarm++;
+      else if (g.status === "warning") warning++;
+      else normal++;
+    });
+    return {
+      total: layoutData.instances.filter(i => i.cabinetGroupId).length,
+      normal, warning, alarm,
     };
+  }, [layoutData, cabinetGroupsMap]);
 
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!isDragging) return;
-      const deltaX = e.clientX - startX;
-      const deltaY = e.clientY - startY;
-      setRotation({
-        x: Math.max(-45, Math.min(45, currentRotation.x - deltaY * 0.3)),
-        y: currentRotation.y + deltaX * 0.3,
-      });
-    };
+  const handleHover = useCallback((inst: LayoutInstance, groupData: any) => {
+    setHoveredInfo({ instance: inst, groupData });
+  }, []);
 
-    const handleMouseUp = () => {
-      isDragging = false;
-    };
+  const handleLeave = useCallback(() => {
+    setHoveredInfo(null);
+  }, []);
 
-    container.addEventListener("mousedown", handleMouseDown);
-    window.addEventListener("mousemove", handleMouseMove);
-    window.addEventListener("mouseup", handleMouseUp);
-
-    return () => {
-      container.removeEventListener("mousedown", handleMouseDown);
-      window.removeEventListener("mousemove", handleMouseMove);
-      window.removeEventListener("mouseup", handleMouseUp);
-    };
-  }, [rotation]);
-
-  if (isLoading) {
+  if (activeLayoutQuery.isLoading) {
     return (
-      <div className="flex h-[calc(100vh-8rem)] items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <div className="flex items-center justify-center h-[calc(100vh-4rem)]">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="h-8 w-8 animate-spin text-cyan-400" />
+          <p className="text-sm text-slate-400">加载布局数据...</p>
+        </div>
       </div>
     );
   }
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "normal":
-        return "bg-success/20 border-success";
-      case "warning":
-        return "bg-warning/20 border-warning";
-      case "alarm":
-        return "bg-destructive/20 border-destructive";
-      default:
-        return "bg-muted border-border";
-    }
-  };
+  if (!layoutData || layoutData.instances.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-[calc(100vh-4rem)]">
+        <div className="text-center space-y-3">
+          <Activity className="h-12 w-12 text-slate-500 mx-auto" />
+          <h2 className="text-xl font-semibold text-slate-300">暂无激活布局</h2>
+          <p className="text-sm text-slate-500">请在布局编辑器中创建并激活一个保管库布局</p>
+        </div>
+      </div>
+    );
+  }
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case "normal":
-        return <CheckCircle2 className="h-4 w-4 text-success" />;
-      case "warning":
-        return <AlertTriangle className="h-4 w-4 text-warning" />;
-      case "alarm":
-        return <AlertTriangle className="h-4 w-4 text-destructive" />;
-      default:
-        return <Activity className="h-4 w-4 text-muted-foreground" />;
-    }
-  };
-
-  const getStatusText = (status: string) => {
-    switch (status) {
-      case "normal":
-        return "正常";
-      case "warning":
-        return "警告";
-      case "alarm":
-        return "报警";
-      default:
-        return "未知";
-    }
-  };
-
-  // 计算3D布局位置
-  const calculate3DPosition = (cabinet: CabinetGroup) => {
-    const baseScale = 0.8;
-    const perspective = 1000;
-    
-    // 从编辑器布局获取位置，如果没有则使用默认位置
-    const layout = layoutMap.get(cabinet.id);
-    const posX = layout ? layout.positionX : cabinet.positionX;
-    const posY = layout ? layout.positionY : cabinet.positionY;
-    const posZ = layout ? layout.positionZ : cabinet.positionZ;
-    
-    // 应用旋转变换
-    const radX = (rotation.x * Math.PI) / 180;
-    const radY = (rotation.y * Math.PI) / 180;
-    
-    const x = posX * baseScale;
-    const y = posY * baseScale;
-    const z = posZ * baseScale;
-    
-    // 3D旋转计算
-    const rotatedX = x * Math.cos(radY) - z * Math.sin(radY);
-    const rotatedZ = x * Math.sin(radY) + z * Math.cos(radY);
-    const rotatedY = y * Math.cos(radX) - rotatedZ * Math.sin(radX);
-    const finalZ = y * Math.sin(radX) + rotatedZ * Math.cos(radX);
-    
-    // 透视投影
-    const scale = perspective / (perspective + finalZ);
-    
-    return {
-      left: `calc(50% + ${rotatedX * scale}px)`,
-      top: `calc(50% + ${rotatedY * scale}px)`,
-      transform: `scale(${scale})`,
-      zIndex: Math.round(1000 + finalZ),
-    };
-  };
+  const cam = layoutData.scene.cameraDefault;
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="h-[calc(100vh-2rem)] flex flex-col gap-3">
+      {/* Header */}
+      <div className="flex items-center justify-between shrink-0">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-foreground">实时监视</h1>
-          <p className="text-muted-foreground mt-2">
-            拖拽鼠标旋转视图，悬停查看详细信息
-            {activeLayout && <span className="ml-2 text-primary">（已加载布局：{activeLayout.name}）</span>}
+          <h1 className="text-2xl font-bold tracking-tight">实时监视</h1>
+          <p className="text-sm text-slate-400 mt-0.5">
+            {activeLayoutQuery.data?.name && `布局: ${activeLayoutQuery.data.name} · `}
+            拖拽鼠标旋转视图，悬停柜组查看详细信息
           </p>
         </div>
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2">
-            <CheckCircle2 className="h-4 w-4 text-success" />
-            <span className="text-sm text-muted-foreground">正常</span>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5">
+            <CheckCircle2 className="h-4 w-4 text-cyan-400" />
+            <span className="text-xs text-slate-300">正常</span>
           </div>
-          <div className="flex items-center gap-2">
-            <AlertTriangle className="h-4 w-4 text-warning" />
-            <span className="text-sm text-muted-foreground">警告</span>
+          <div className="flex items-center gap-1.5">
+            <AlertTriangle className="h-4 w-4 text-amber-400" />
+            <span className="text-xs text-slate-300">警告</span>
           </div>
-          <div className="flex items-center gap-2">
-            <AlertTriangle className="h-4 w-4 text-destructive" />
-            <span className="text-sm text-muted-foreground">报警</span>
+          <div className="flex items-center gap-1.5">
+            <AlertOctagon className="h-4 w-4 text-red-400" />
+            <span className="text-xs text-slate-300">报警</span>
           </div>
         </div>
       </div>
 
-      {/* 3D可视化区域 */}
-      <Card className="overflow-hidden">
-        <CardContent className="p-0">
-          <div
-            ref={containerRef}
-            className="relative h-[600px] bg-gradient-to-b from-card to-background cursor-move select-none overflow-hidden"
-            style={{
-              perspective: "1000px",
-            }}
-          >
-            {/* 网格背景 */}
-            <div
-              className="absolute inset-0 opacity-10"
-              style={{
-                backgroundImage: `
-                  linear-gradient(to right, hsl(var(--border)) 1px, transparent 1px),
-                  linear-gradient(to bottom, hsl(var(--border)) 1px, transparent 1px)
-                `,
-                backgroundSize: "40px 40px",
-                transform: `rotateX(${rotation.x}deg) rotateY(${rotation.y}deg)`,
-              }}
+      {/* 3D Scene */}
+      <div className="flex-1 rounded-xl overflow-hidden border border-slate-700/50 bg-slate-950 relative">
+        <Canvas
+          shadows
+          camera={{
+            position: [cam.position.x, cam.position.y, cam.position.z],
+            fov: 50,
+            near: 0.1,
+            far: 100,
+          }}
+          gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.2 }}
+        >
+          <Suspense fallback={null}>
+            <SceneSetup gridSize={layoutData.scene.gridSize} showGizmo={false} />
+            <OrbitControls
+              makeDefault
+              enableDamping
+              dampingFactor={0.1}
+              minDistance={2}
+              maxDistance={30}
+              maxPolarAngle={Math.PI / 2.1}
             />
-
-            {/* 保险柜组 */}
-            {cabinets?.map((cabinet) => {
-              const position = calculate3DPosition(cabinet);
-              const isHovered = hoveredCabinet === cabinet.id;
-
+            {layoutData.instances.map((inst) => {
+              const groupData = inst.cabinetGroupId ? cabinetGroupsMap.get(inst.cabinetGroupId) : undefined;
               return (
-                <div
-                  key={cabinet.id}
-                  className="absolute transition-all duration-200"
-                  style={position}
-                  onMouseEnter={() => setHoveredCabinet(cabinet.id)}
-                  onMouseLeave={() => setHoveredCabinet(null)}
-                >
-                  <div
-                    className={cn(
-                      "relative w-32 h-40 rounded-lg border-2 transition-all duration-200",
-                      getStatusColor(cabinet.status),
-                      isHovered && "scale-110 shadow-2xl"
-                    )}
-                  >
-                    {/* 柜子外观 */}
-                    <div className="absolute inset-0 rounded-lg bg-gradient-to-br from-card/80 to-card/40 backdrop-blur-sm" />
-                    
-                    {/* 状态指示器 */}
-                    <div className="absolute top-2 right-2">
-                      {getStatusIcon(cabinet.status)}
-                    </div>
-
-                    {/* 柜子信息 */}
-                    <div className="absolute inset-0 flex flex-col items-center justify-center p-3 text-center">
-                      <div className="text-sm font-semibold text-foreground mb-1">
-                        {cabinet.name}
-                      </div>
-                      <div className="text-2xl font-bold text-primary">
-                        {(cabinet.currentWeight / 1000).toFixed(2)}
-                      </div>
-                      <div className="text-xs text-muted-foreground">kg</div>
-                    </div>
-
-                    {/* 悬停详情卡片 */}
-                    {isHovered && (
-                      <div className="absolute left-full ml-4 top-0 w-64 z-50 pointer-events-none">
-                        <Card className="shadow-xl border-2 border-primary/50">
-                          <CardHeader className="pb-3">
-                            <CardTitle className="text-base flex items-center gap-2">
-                              {cabinet.name}
-                              <Badge variant={cabinet.status === "alarm" ? "destructive" : "secondary"}>
-                                {getStatusText(cabinet.status)}
-                              </Badge>
-                            </CardTitle>
-                            <CardDescription className="text-xs">
-                              ID: {cabinet.id}
-                            </CardDescription>
-                          </CardHeader>
-                          <CardContent className="space-y-2 text-sm">
-                            <div className="flex justify-between">
-                              <span className="text-muted-foreground">当前重量:</span>
-                              <span className="font-semibold">{(cabinet.currentWeight / 1000).toFixed(2)} kg</span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-muted-foreground">初始重量:</span>
-                              <span>{(cabinet.initialWeight / 1000).toFixed(2)} kg</span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-muted-foreground">变化值:</span>
-                              <span className={cn(
-                                "font-semibold",
-                                cabinet.currentWeight > cabinet.initialWeight ? "text-success" : "text-destructive"
-                              )}>
-                                {((cabinet.currentWeight - cabinet.initialWeight) / 1000).toFixed(2)} kg
-                              </span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-muted-foreground">报警阈值:</span>
-                              <span>{(cabinet.alarmThreshold / 1000).toFixed(2)} kg</span>
-                            </div>
-                            {cabinet.description && (
-                              <div className="pt-2 border-t border-border">
-                                <p className="text-xs text-muted-foreground">{cabinet.description}</p>
-                              </div>
-                            )}
-                          </CardContent>
-                        </Card>
-                      </div>
-                    )}
-                  </div>
-                </div>
+                <MonitorInstance
+                  key={inst.instanceId}
+                  instance={inst}
+                  groupData={groupData}
+                  onHover={handleHover}
+                  onLeave={handleLeave}
+                />
               );
             })}
+          </Suspense>
+        </Canvas>
 
-            {/* 空状态 */}
-            {(!cabinets || cabinets.length === 0) && (
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="text-center">
-                  <Activity className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                  <p className="text-lg font-medium text-foreground">暂无保险柜组</p>
-                  <p className="text-sm text-muted-foreground mt-2">
-                    请先在保险柜组管理中添加设备
-                  </p>
+        {/* Hover detail panel */}
+        {hoveredInfo && hoveredInfo.groupData && (
+          <div className="absolute top-4 right-4 w-64 pointer-events-none z-10">
+            <Card className="bg-slate-900/95 border-slate-700/50 backdrop-blur-md shadow-xl">
+              <CardContent className="p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-semibold text-slate-200">{hoveredInfo.groupData.name}</span>
+                  <Badge variant="outline" className={`text-[10px] ${
+                    hoveredInfo.groupData.status === "normal" ? "text-cyan-400 border-cyan-500/50" :
+                    hoveredInfo.groupData.status === "warning" ? "text-amber-400 border-amber-500/50" :
+                    "text-red-400 border-red-500/50"
+                  }`}>
+                    {hoveredInfo.groupData.status === "normal" ? "正常" : hoveredInfo.groupData.status === "warning" ? "警告" : "报警"}
+                  </Badge>
                 </div>
-              </div>
-            )}
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="bg-slate-800/50 rounded-lg p-2">
+                    <div className="text-[10px] text-slate-500">当前重量</div>
+                    <div className="text-sm font-bold text-cyan-400">{(hoveredInfo.groupData.currentWeight / 1000).toFixed(2)} kg</div>
+                  </div>
+                  <div className="bg-slate-800/50 rounded-lg p-2">
+                    <div className="text-[10px] text-slate-500">初始重量</div>
+                    <div className="text-sm font-bold text-slate-300">{(hoveredInfo.groupData.initialWeight / 1000).toFixed(2)} kg</div>
+                  </div>
+                  <div className="bg-slate-800/50 rounded-lg p-2">
+                    <div className="text-[10px] text-slate-500">变化量</div>
+                    <div className={`text-sm font-bold ${
+                      hoveredInfo.groupData.currentWeight - hoveredInfo.groupData.initialWeight > 0 ? "text-green-400" :
+                      hoveredInfo.groupData.currentWeight - hoveredInfo.groupData.initialWeight < 0 ? "text-red-400" :
+                      "text-slate-400"
+                    }`}>
+                      {((hoveredInfo.groupData.currentWeight - hoveredInfo.groupData.initialWeight) / 1000).toFixed(2)} kg
+                    </div>
+                  </div>
+                  <div className="bg-slate-800/50 rounded-lg p-2">
+                    <div className="text-[10px] text-slate-500">报警阈值</div>
+                    <div className="text-sm font-bold text-amber-400">{(hoveredInfo.groupData.alarmThreshold / 1000).toFixed(2)} kg</div>
+                  </div>
+                </div>
+                {hoveredInfo.instance.meta.remark && (
+                  <div className="text-[10px] text-slate-500 border-t border-slate-700 pt-2">
+                    备注: {hoveredInfo.instance.meta.remark}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </div>
-        </CardContent>
-      </Card>
+        )}
+      </div>
 
-      {/* 统计信息 */}
-      <div className="grid gap-4 md:grid-cols-4">
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground">总数</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-foreground">{cabinets?.length || 0}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground">正常</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-success">
-              {cabinets?.filter(c => c.status === "normal").length || 0}
+      {/* Bottom Stats */}
+      <div className="grid grid-cols-4 gap-3 shrink-0">
+        <Card className="bg-slate-900/80 border-slate-700/50">
+          <CardContent className="p-3 flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-cyan-500/10 flex items-center justify-center">
+              <Activity className="h-5 w-5 text-cyan-400" />
+            </div>
+            <div>
+              <div className="text-[10px] text-slate-500 uppercase">监控总数</div>
+              <div className="text-xl font-bold text-slate-200">{stats.total}</div>
             </div>
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground">警告</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-warning">
-              {cabinets?.filter(c => c.status === "warning").length || 0}
+        <Card className="bg-slate-900/80 border-slate-700/50">
+          <CardContent className="p-3 flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-green-500/10 flex items-center justify-center">
+              <CheckCircle2 className="h-5 w-5 text-green-400" />
+            </div>
+            <div>
+              <div className="text-[10px] text-slate-500 uppercase">正常</div>
+              <div className="text-xl font-bold text-green-400">{stats.normal}</div>
             </div>
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground">报警</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-destructive">
-              {cabinets?.filter(c => c.status === "alarm").length || 0}
+        <Card className="bg-slate-900/80 border-slate-700/50">
+          <CardContent className="p-3 flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-amber-500/10 flex items-center justify-center">
+              <AlertTriangle className="h-5 w-5 text-amber-400" />
+            </div>
+            <div>
+              <div className="text-[10px] text-slate-500 uppercase">警告</div>
+              <div className="text-xl font-bold text-amber-400">{stats.warning}</div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="bg-slate-900/80 border-slate-700/50">
+          <CardContent className="p-3 flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-red-500/10 flex items-center justify-center">
+              <AlertOctagon className="h-5 w-5 text-red-400" />
+            </div>
+            <div>
+              <div className="text-[10px] text-slate-500 uppercase">报警</div>
+              <div className="text-xl font-bold text-red-400">{stats.alarm}</div>
             </div>
           </CardContent>
         </Card>

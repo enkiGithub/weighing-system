@@ -3,8 +3,44 @@ import { z } from "zod";
 import * as db from "../db";
 import { TRPCError } from "@trpc/server";
 
+// 布局实例的JSON结构验证
+const instanceSchema = z.object({
+  instanceId: z.string(),
+  type: z.enum(["cabinetGroup"]),
+  cabinetGroupId: z.number().nullable(),
+  transform: z.object({
+    position: z.object({ x: z.number(), y: z.number(), z: z.number() }),
+    rotation: z.object({ x: z.number(), y: z.number(), z: z.number() }),
+    scale: z.object({ x: z.number(), y: z.number(), z: z.number() }),
+  }),
+  model: z.object({
+    columns: z.number().int().min(1).max(20).default(2),
+    columnSpacing: z.number().default(0.05),
+    cabinetWidth: z.number().default(0.6),
+    cabinetHeight: z.number().default(1.8),
+    cabinetDepth: z.number().default(0.5),
+    shelves: z.number().int().min(1).max(20).default(6),
+  }),
+  meta: z.object({
+    label: z.string().default(""),
+    remark: z.string().default(""),
+  }).default({ label: "", remark: "" }),
+});
+
+const layoutDataSchema = z.object({
+  scene: z.object({
+    gridSize: z.number().default(20),
+    unit: z.string().default("m"),
+    cameraDefault: z.object({
+      position: z.object({ x: z.number(), y: z.number(), z: z.number() }).default({ x: 8, y: 6, z: 8 }),
+      target: z.object({ x: z.number(), y: z.number(), z: z.number() }).default({ x: 0, y: 0, z: 0 }),
+    }).default({ position: { x: 8, y: 6, z: 8 }, target: { x: 0, y: 0, z: 0 } }),
+  }).default({ gridSize: 20, unit: "m", cameraDefault: { position: { x: 8, y: 6, z: 8 }, target: { x: 0, y: 0, z: 0 } } }),
+  instances: z.array(instanceSchema).default([]),
+});
+
 export const layoutEditorRouter = router({
-  // 柜子管理
+  // 柜子管理（最小单元）
   cabinets: router({
     list: protectedProcedure.query(async () => {
       return await db.getAllCabinets();
@@ -61,7 +97,8 @@ export const layoutEditorRouter = router({
     getById: protectedProcedure
       .input(z.object({ id: z.number() }))
       .query(async ({ input }) => {
-        return await db.getVaultLayoutById(input.id);
+        const layout = await db.getVaultLayoutById(input.id);
+        return layout || null;
       }),
 
     getActive: protectedProcedure.query(async () => {
@@ -76,6 +113,13 @@ export const layoutEditorRouter = router({
         layoutData: z.string(),
       }))
       .mutation(async ({ input, ctx }) => {
+        // 验证layoutData是合法JSON
+        try {
+          const parsed = JSON.parse(input.layoutData);
+          layoutDataSchema.parse(parsed);
+        } catch {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: '布局数据格式不正确' });
+        }
         const id = await db.createVaultLayout({
           ...input,
           createdBy: ctx.user.id,
@@ -91,6 +135,42 @@ export const layoutEditorRouter = router({
         layoutData: z.string().optional(),
       }))
       .mutation(async ({ input }) => {
+        // 如果更新了layoutData，验证绑定冲突
+        if (input.layoutData) {
+          try {
+            const parsed = JSON.parse(input.layoutData);
+            const data = layoutDataSchema.parse(parsed);
+            
+            // 检查同一布局内是否有重复绑定
+            const boundIds = data.instances
+              .filter((inst: z.infer<typeof instanceSchema>) => inst.cabinetGroupId !== null)
+              .map((inst: z.infer<typeof instanceSchema>) => inst.cabinetGroupId);
+            const uniqueIds = new Set(boundIds);
+            if (boundIds.length !== uniqueIds.size) {
+              throw new TRPCError({ 
+                code: 'BAD_REQUEST', 
+                message: '同一布局内不允许重复绑定同一个柜组资产' 
+              });
+            }
+
+            // 检查绑定的柜组是否存在
+            for (const groupId of boundIds) {
+              if (groupId !== null) {
+                const group = await db.getCabinetGroupById(groupId);
+                if (!group) {
+                  throw new TRPCError({ 
+                    code: 'BAD_REQUEST', 
+                    message: `柜组资产ID ${groupId} 不存在` 
+                  });
+                }
+              }
+            }
+          } catch (e) {
+            if (e instanceof TRPCError) throw e;
+            throw new TRPCError({ code: 'BAD_REQUEST', message: '布局数据格式不正确' });
+          }
+        }
+
         const { id, ...data } = input;
         await db.updateVaultLayout(id, data);
         return { success: true };
@@ -99,9 +179,7 @@ export const layoutEditorRouter = router({
     delete: adminProcedure
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input }) => {
-        // 删除关联的柜组布局
         await db.deleteCabinetGroupLayoutsByVaultLayout(input.id);
-        // 删除布局本身
         await db.deleteVaultLayout(input.id);
         return { success: true };
       }),
@@ -114,7 +192,7 @@ export const layoutEditorRouter = router({
       }),
   }),
 
-  // 柜组布局管理
+  // 柜组布局管理（兼容旧接口）
   cabinetGroupLayouts: router({
     listByVaultLayout: protectedProcedure
       .input(z.object({ vaultLayoutId: z.number() }))
@@ -167,7 +245,6 @@ export const layoutEditorRouter = router({
         return { success: true };
       }),
 
-    // 批量更新柜组布局（用于编辑器保存）
     batchUpdate: adminProcedure
       .input(z.object({
         vaultLayoutId: z.number(),
@@ -186,10 +263,7 @@ export const layoutEditorRouter = router({
         })),
       }))
       .mutation(async ({ input }) => {
-        // 删除现有的柜组布局
         await db.deleteCabinetGroupLayoutsByVaultLayout(input.vaultLayoutId);
-        
-        // 创建新的柜组布局
         for (const layout of input.layouts) {
           await db.createCabinetGroupLayout({
             vaultLayoutId: input.vaultLayoutId,
@@ -205,7 +279,6 @@ export const layoutEditorRouter = router({
             scaleZ: layout.scaleZ,
           });
         }
-        
         return { success: true };
       }),
   }),

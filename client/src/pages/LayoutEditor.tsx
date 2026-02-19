@@ -1,561 +1,731 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, Suspense, useMemo } from "react";
+import { Canvas } from "@react-three/fiber";
+import { OrbitControls, TransformControls, Html } from "@react-three/drei";
+import * as THREE from "three";
 import { trpc } from "@/lib/trpc";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, Plus, Trash2, Save, RotateCw, Move3d } from "lucide-react";
-import { toast } from "sonner";
+import { Slider } from "@/components/ui/slider";
+import {
+  Save, Plus, Trash2, Copy, Move, RotateCw, Maximize,
+  Search, Link2, Unlink, CheckCircle2,
+  FolderOpen, FilePlus, Loader2, Eye
+} from "lucide-react";
+import { CabinetGroup3D, DEFAULT_MODEL } from "@/components/three/CabinetGroup3D";
+import type { CabinetGroupModelParams } from "@/components/three/CabinetGroup3D";
+import { SceneSetup } from "@/components/three/SceneSetup";
+import { nanoid } from "nanoid";
 
-interface CabinetGroupLayout {
-  id?: number;
-  cabinetGroupId: number;
-  positionX: number;
-  positionY: number;
-  positionZ: number;
-  rotationX: number;
-  rotationY: number;
-  rotationZ: number;
-  scaleX: number;
-  scaleY: number;
-  scaleZ: number;
+// Types
+interface LayoutInstance {
+  instanceId: string;
+  type: "cabinetGroup";
+  cabinetGroupId: number | null;
+  transform: {
+    position: { x: number; y: number; z: number };
+    rotation: { x: number; y: number; z: number };
+    scale: { x: number; y: number; z: number };
+  };
+  model: CabinetGroupModelParams;
+  meta: { label: string; remark: string };
+}
+
+interface LayoutData {
+  scene: {
+    gridSize: number;
+    unit: string;
+    cameraDefault: {
+      position: { x: number; y: number; z: number };
+      target: { x: number; y: number; z: number };
+    };
+  };
+  instances: LayoutInstance[];
+}
+
+const defaultLayoutData: LayoutData = {
+  scene: {
+    gridSize: 20,
+    unit: "m",
+    cameraDefault: { position: { x: 8, y: 6, z: 8 }, target: { x: 0, y: 0, z: 0 } },
+  },
+  instances: [],
+};
+
+function createNewInstance(preset?: Partial<CabinetGroupModelParams>): LayoutInstance {
+  return {
+    instanceId: nanoid(8),
+    type: "cabinetGroup",
+    cabinetGroupId: null,
+    transform: {
+      position: { x: (Math.random() - 0.5) * 6, y: 0, z: (Math.random() - 0.5) * 6 },
+      rotation: { x: 0, y: 0, z: 0 },
+      scale: { x: 1, y: 1, z: 1 },
+    },
+    model: { ...DEFAULT_MODEL, ...preset },
+    meta: { label: "", remark: "" },
+  };
+}
+
+// 3D Scene Instance Component
+function SceneInstance({
+  instance,
+  isSelected,
+  transformMode,
+  onSelect,
+  onTransformChange,
+  cabinetGroupName,
+  status,
+}: {
+  instance: LayoutInstance;
+  isSelected: boolean;
+  transformMode: "translate" | "rotate" | "scale";
+  onSelect: () => void;
+  onTransformChange: (pos: THREE.Vector3, rot: THREE.Euler, scl: THREE.Vector3) => void;
+  cabinetGroupName?: string;
+  status?: "normal" | "warning" | "alarm";
+}) {
+  const groupRef = useRef<THREE.Group>(null);
+  const transformRef = useRef<any>(null);
+  const [hovered, setHovered] = useState(false);
+
+  useEffect(() => {
+    if (transformRef.current) {
+      const controls = transformRef.current;
+      const cb = () => {
+        if (groupRef.current) {
+          onTransformChange(
+            groupRef.current.position.clone(),
+            groupRef.current.rotation.clone(),
+            groupRef.current.scale.clone()
+          );
+        }
+      };
+      controls.addEventListener("objectChange", cb);
+      return () => controls.removeEventListener("objectChange", cb);
+    }
+  }, [isSelected, onTransformChange]);
+
+  const displayLabel = instance.meta.label || cabinetGroupName || `柜组 ${instance.instanceId.slice(0, 4)}`;
+
+  return (
+    <>
+      <group
+        ref={groupRef}
+        position={[instance.transform.position.x, instance.transform.position.y, instance.transform.position.z]}
+        rotation={[instance.transform.rotation.x, instance.transform.rotation.y, instance.transform.rotation.z]}
+        scale={[instance.transform.scale.x, instance.transform.scale.y, instance.transform.scale.z]}
+      >
+        <CabinetGroup3D
+          model={instance.model}
+          status={status || "normal"}
+          selected={isSelected}
+          hovered={hovered}
+          label={displayLabel}
+          onClick={(e: any) => { e.stopPropagation(); onSelect(); }}
+          onPointerOver={(e: any) => { e.stopPropagation(); setHovered(true); }}
+          onPointerOut={() => setHovered(false)}
+        />
+        {/* Floating label */}
+        <Html
+          position={[0, instance.model.cabinetHeight + 0.3, 0]}
+          center
+          distanceFactor={8}
+          style={{ pointerEvents: "none" }}
+        >
+          <div className="bg-slate-900/90 border border-cyan-500/30 rounded-md px-2 py-1 text-center whitespace-nowrap backdrop-blur-sm">
+            <div className="text-cyan-400 text-xs font-medium">{displayLabel}</div>
+            {instance.cabinetGroupId && (
+              <div className="text-slate-400 text-[10px]">ID: {instance.cabinetGroupId}</div>
+            )}
+          </div>
+        </Html>
+      </group>
+      {isSelected && groupRef.current && (
+        <TransformControls
+          ref={transformRef}
+          object={groupRef.current}
+          mode={transformMode}
+          size={0.8}
+        />
+      )}
+    </>
+  );
+}
+
+// Orbit controls that disable when transform is active
+function SceneControls({ transformActive }: { transformActive: boolean }) {
+  return (
+    <OrbitControls
+      makeDefault
+      enabled={!transformActive}
+      enableDamping
+      dampingFactor={0.1}
+      minDistance={2}
+      maxDistance={30}
+      maxPolarAngle={Math.PI / 2.1}
+    />
+  );
 }
 
 export default function LayoutEditor() {
+  const [layoutData, setLayoutData] = useState<LayoutData>(defaultLayoutData);
+  const [selectedInstanceId, setSelectedInstanceId] = useState<string | null>(null);
+  const [transformMode, setTransformMode] = useState<"translate" | "rotate" | "scale">("translate");
+  const [currentLayoutId, setCurrentLayoutId] = useState<number | null>(null);
+  const [layoutName, setLayoutName] = useState("新布局");
+  const [layoutDesc, setLayoutDesc] = useState("");
+  const [showLoadDialog, setShowLoadDialog] = useState(false);
+  const [showBindDialog, setShowBindDialog] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Queries
+  const layoutsQuery = trpc.layoutEditor.vaultLayouts.list.useQuery();
+  const cabinetGroupsQuery = trpc.cabinetGroups.list.useQuery();
   const utils = trpc.useUtils();
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [selectedLayout, setSelectedLayout] = useState<number | null>(null);
-  const [layoutName, setLayoutName] = useState("");
-  const [layoutDescription, setLayoutDescription] = useState("");
-  const [selectedCabinetGroup, setSelectedCabinetGroup] = useState<number | null>(null);
-  const [selectedGroupLayout, setSelectedGroupLayout] = useState<CabinetGroupLayout | null>(null);
-  const [groupLayouts, setGroupLayouts] = useState<CabinetGroupLayout[]>([]);
-  const [transformMode, setTransformMode] = useState<"position" | "rotation" | "scale">("position");
 
-  // 查询数据
-  const { data: vaultLayouts, isLoading: layoutsLoading } = trpc.layoutEditor.vaultLayouts.list.useQuery();
-  const { data: cabinetGroups } = trpc.cabinetGroups.list.useQuery();
-  const { data: currentLayout } = trpc.layoutEditor.vaultLayouts.getById.useQuery(
-    { id: selectedLayout! },
-    { enabled: !!selectedLayout }
-  );
-  const { data: groupLayoutsData } = trpc.layoutEditor.cabinetGroupLayouts.listByVaultLayout.useQuery(
-    { vaultLayoutId: selectedLayout! },
-    { enabled: !!selectedLayout }
-  );
-
-  // 变更操作
-  const createLayoutMutation = trpc.layoutEditor.vaultLayouts.create.useMutation({
-    onSuccess: () => {
-      utils.layoutEditor.vaultLayouts.list.invalidate();
-      toast.success("布局创建成功");
-      setLayoutName("");
-      setLayoutDescription("");
-    },
-    onError: (error) => {
-      toast.error(`创建失败: ${error.message}`);
-    },
+  // Mutations
+  const createLayout = trpc.layoutEditor.vaultLayouts.create.useMutation({
+    onSuccess: () => utils.layoutEditor.vaultLayouts.list.invalidate(),
+  });
+  const updateLayout = trpc.layoutEditor.vaultLayouts.update.useMutation({
+    onSuccess: () => utils.layoutEditor.vaultLayouts.list.invalidate(),
+  });
+  const setActiveLayout = trpc.layoutEditor.vaultLayouts.setActive.useMutation({
+    onSuccess: () => utils.layoutEditor.vaultLayouts.list.invalidate(),
   });
 
-  const updateLayoutMutation = trpc.layoutEditor.vaultLayouts.update.useMutation({
-    onSuccess: () => {
-      utils.layoutEditor.vaultLayouts.list.invalidate();
-      utils.layoutEditor.vaultLayouts.getById.invalidate();
-      toast.success("布局更新成功");
-    },
-    onError: (error) => {
-      toast.error(`更新失败: ${error.message}`);
-    },
-  });
+  const selectedInstance = layoutData.instances.find(i => i.instanceId === selectedInstanceId);
 
-  const batchUpdateMutation = trpc.layoutEditor.cabinetGroupLayouts.batchUpdate.useMutation({
-    onSuccess: () => {
-      utils.layoutEditor.cabinetGroupLayouts.listByVaultLayout.invalidate();
-      toast.success("布局保存成功");
-    },
-    onError: (error) => {
-      toast.error(`保存失败: ${error.message}`);
-    },
-  });
-
-  const deleteLayoutMutation = trpc.layoutEditor.vaultLayouts.delete.useMutation({
-    onSuccess: () => {
-      utils.layoutEditor.vaultLayouts.list.invalidate();
-      setSelectedLayout(null);
-      setGroupLayouts([]);
-      toast.success("布局删除成功");
-    },
-    onError: (error) => {
-      toast.error(`删除失败: ${error.message}`);
-    },
-  });
-
-  // 加载布局数据
-  useEffect(() => {
-    if (groupLayoutsData) {
-      setGroupLayouts(groupLayoutsData);
-    }
-  }, [groupLayoutsData]);
-
-  // 创建新布局
-  const handleCreateLayout = () => {
-    if (!layoutName.trim()) {
-      toast.error("请输入布局名称");
-      return;
-    }
-    createLayoutMutation.mutate({
-      name: layoutName,
-      description: layoutDescription,
-      layoutData: JSON.stringify([]),
-    });
-  };
-
-  // 添加柜组到布局
-  const handleAddCabinetGroup = () => {
-    if (!selectedCabinetGroup || !selectedLayout) {
-      toast.error("请选择柜组");
-      return;
-    }
-
-    const newLayout: CabinetGroupLayout = {
-      cabinetGroupId: selectedCabinetGroup,
-      positionX: 0,
-      positionY: 0,
-      positionZ: 0,
-      rotationX: 0,
-      rotationY: 0,
-      rotationZ: 0,
-      scaleX: 100,
-      scaleY: 100,
-      scaleZ: 100,
-    };
-
-    setGroupLayouts([...groupLayouts, newLayout]);
-    setSelectedCabinetGroup(null);
-  };
-
-  // 移除柜组
-  const handleRemoveGroupLayout = (index: number) => {
-    setGroupLayouts(groupLayouts.filter((_, i) => i !== index));
-    setSelectedGroupLayout(null);
-  };
-
-  // 更新变换参数
-  const handleUpdateTransform = (field: string, value: number) => {
-    if (!selectedGroupLayout) return;
-
-    const updated = { ...selectedGroupLayout, [field]: value };
-    setSelectedGroupLayout(updated);
-
-    // 同时更新列表中的数据
-    const index = groupLayouts.findIndex(
-      (g) => g.cabinetGroupId === selectedGroupLayout.cabinetGroupId
+  const boundGroupIds = useMemo(() => {
+    return new Set(
+      layoutData.instances
+        .filter(i => i.cabinetGroupId !== null)
+        .map(i => i.cabinetGroupId!)
     );
-    if (index >= 0) {
-      const newLayouts = [...groupLayouts];
-      newLayouts[index] = updated;
-      setGroupLayouts(newLayouts);
-    }
-  };
+  }, [layoutData.instances]);
 
-  // 保存布局
-  const handleSaveLayout = () => {
-    if (!selectedLayout) return;
-
-    batchUpdateMutation.mutate({
-      vaultLayoutId: selectedLayout,
-      layouts: groupLayouts,
+  const cabinetGroupsMap = useMemo(() => {
+    const map = new Map<number, { name: string; status: string; currentWeight: number; initialWeight: number }>();
+    (cabinetGroupsQuery.data || []).forEach((g: any) => {
+      map.set(g.id, { name: g.name, status: g.status, currentWeight: g.currentWeight, initialWeight: g.initialWeight });
     });
-  };
+    return map;
+  }, [cabinetGroupsQuery.data]);
 
-  // 删除布局
-  const handleDeleteLayout = () => {
-    if (!selectedLayout) return;
-    if (confirm("确定要删除此布局吗？")) {
-      deleteLayoutMutation.mutate({ id: selectedLayout });
+  const filteredCabinetGroups = useMemo(() => {
+    const groups = cabinetGroupsQuery.data || [];
+    return groups.filter((g: any) => {
+      const matchSearch = !searchQuery ||
+        g.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        g.id.toString().includes(searchQuery);
+      return matchSearch;
+    });
+  }, [cabinetGroupsQuery.data, searchQuery]);
+
+  // Handlers
+  const addInstance = useCallback((preset?: Partial<CabinetGroupModelParams>) => {
+    const inst = createNewInstance(preset);
+    setLayoutData(prev => ({ ...prev, instances: [...prev.instances, inst] }));
+    setSelectedInstanceId(inst.instanceId);
+    toast.success("已添加柜组实例");
+  }, []);
+
+  const duplicateInstance = useCallback(() => {
+    if (!selectedInstance) return;
+    const newInst: LayoutInstance = {
+      ...JSON.parse(JSON.stringify(selectedInstance)),
+      instanceId: nanoid(8),
+      cabinetGroupId: null,
+      meta: { ...selectedInstance.meta, label: selectedInstance.meta.label + " (副本)" },
+    };
+    newInst.transform.position.x += 1.5;
+    setLayoutData(prev => ({ ...prev, instances: [...prev.instances, newInst] }));
+    setSelectedInstanceId(newInst.instanceId);
+    toast.success("已复制柜组实例");
+  }, [selectedInstance]);
+
+  const deleteInstance = useCallback(() => {
+    if (!selectedInstanceId) return;
+    setLayoutData(prev => ({ ...prev, instances: prev.instances.filter(i => i.instanceId !== selectedInstanceId) }));
+    setSelectedInstanceId(null);
+    toast.success("已删除柜组实例");
+  }, [selectedInstanceId]);
+
+  const updateInstanceTransform = useCallback((instanceId: string, pos: THREE.Vector3, rot: THREE.Euler, scl: THREE.Vector3) => {
+    setLayoutData(prev => ({
+      ...prev,
+      instances: prev.instances.map(i =>
+        i.instanceId === instanceId
+          ? {
+            ...i,
+            transform: {
+              position: { x: +pos.x.toFixed(3), y: +pos.y.toFixed(3), z: +pos.z.toFixed(3) },
+              rotation: { x: +rot.x.toFixed(3), y: +rot.y.toFixed(3), z: +rot.z.toFixed(3) },
+              scale: { x: +scl.x.toFixed(3), y: +scl.y.toFixed(3), z: +scl.z.toFixed(3) },
+            },
+          }
+          : i
+      ),
+    }));
+  }, []);
+
+  const updateInstanceModel = useCallback((key: keyof CabinetGroupModelParams, value: number) => {
+    if (!selectedInstanceId) return;
+    setLayoutData(prev => ({
+      ...prev,
+      instances: prev.instances.map(i =>
+        i.instanceId === selectedInstanceId ? { ...i, model: { ...i.model, [key]: value } } : i
+      ),
+    }));
+  }, [selectedInstanceId]);
+
+  const updateInstanceMeta = useCallback((key: "label" | "remark", value: string) => {
+    if (!selectedInstanceId) return;
+    setLayoutData(prev => ({
+      ...prev,
+      instances: prev.instances.map(i =>
+        i.instanceId === selectedInstanceId ? { ...i, meta: { ...i.meta, [key]: value } } : i
+      ),
+    }));
+  }, [selectedInstanceId]);
+
+  const bindCabinetGroup = useCallback((groupId: number) => {
+    if (!selectedInstanceId) return;
+    if (boundGroupIds.has(groupId) &&
+      layoutData.instances.find(i => i.cabinetGroupId === groupId)?.instanceId !== selectedInstanceId) {
+      toast.error("该柜组资产已被绑定到其他实例");
+      return;
     }
-  };
+    const group = cabinetGroupsMap.get(groupId);
+    setLayoutData(prev => ({
+      ...prev,
+      instances: prev.instances.map(i =>
+        i.instanceId === selectedInstanceId
+          ? { ...i, cabinetGroupId: groupId, meta: { ...i.meta, label: group?.name || i.meta.label } }
+          : i
+      ),
+    }));
+    setShowBindDialog(false);
+    toast.success(`已绑定柜组资产: ${group?.name || groupId}`);
+  }, [selectedInstanceId, boundGroupIds, cabinetGroupsMap, layoutData.instances]);
 
-  // 绘制3D预览
+  const unbindCabinetGroup = useCallback(() => {
+    if (!selectedInstanceId) return;
+    setLayoutData(prev => ({
+      ...prev,
+      instances: prev.instances.map(i =>
+        i.instanceId === selectedInstanceId ? { ...i, cabinetGroupId: null } : i
+      ),
+    }));
+    toast.success("已解除绑定");
+  }, [selectedInstanceId]);
+
+  const handleSave = useCallback(async () => {
+    setIsSaving(true);
+    try {
+      const dataStr = JSON.stringify(layoutData);
+      if (currentLayoutId) {
+        await updateLayout.mutateAsync({ id: currentLayoutId, name: layoutName, description: layoutDesc, layoutData: dataStr });
+        toast.success("布局已保存");
+      } else {
+        const result = await createLayout.mutateAsync({ name: layoutName, description: layoutDesc, layoutData: dataStr });
+        setCurrentLayoutId(result.id);
+        toast.success("布局已创建");
+      }
+    } catch (e: any) {
+      toast.error(e.message || "保存失败");
+    } finally {
+      setIsSaving(false);
+    }
+  }, [layoutData, currentLayoutId, layoutName, layoutDesc, createLayout, updateLayout]);
+
+  const handleLoad = useCallback((layout: any) => {
+    try {
+      const data = JSON.parse(layout.layoutData) as LayoutData;
+      // Ensure data has required structure
+      if (!data.scene) data.scene = defaultLayoutData.scene;
+      if (!data.instances) data.instances = [];
+      setLayoutData(data);
+      setCurrentLayoutId(layout.id);
+      setLayoutName(layout.name);
+      setLayoutDesc(layout.description || "");
+      setSelectedInstanceId(null);
+      setShowLoadDialog(false);
+      toast.success(`已加载布局: ${layout.name}`);
+    } catch {
+      toast.error("布局数据解析失败");
+    }
+  }, []);
+
+  const handleActivate = useCallback(async () => {
+    if (!currentLayoutId) { toast.error("请先保存布局"); return; }
+    try {
+      await setActiveLayout.mutateAsync({ id: currentLayoutId });
+      toast.success("已设为激活布局，实时监视页面将加载此布局");
+    } catch (e: any) {
+      toast.error(e.message || "激活失败");
+    }
+  }, [currentLayoutId, setActiveLayout]);
+
+  const handleNewLayout = useCallback(() => {
+    setLayoutData(defaultLayoutData);
+    setCurrentLayoutId(null);
+    setLayoutName("新布局");
+    setLayoutDesc("");
+    setSelectedInstanceId(null);
+  }, []);
+
+  const updatePositionField = useCallback((axis: "x" | "y" | "z", value: number) => {
+    if (!selectedInstanceId) return;
+    setLayoutData(prev => ({
+      ...prev,
+      instances: prev.instances.map(i =>
+        i.instanceId === selectedInstanceId
+          ? { ...i, transform: { ...i.transform, position: { ...i.transform.position, [axis]: value } } }
+          : i
+      ),
+    }));
+  }, [selectedInstanceId]);
+
+  const updateRotationField = useCallback((axis: "x" | "y" | "z", value: number) => {
+    if (!selectedInstanceId) return;
+    setLayoutData(prev => ({
+      ...prev,
+      instances: prev.instances.map(i =>
+        i.instanceId === selectedInstanceId
+          ? { ...i, transform: { ...i.transform, rotation: { ...i.transform.rotation, [axis]: value } } }
+          : i
+      ),
+    }));
+  }, [selectedInstanceId]);
+
+  // Keyboard shortcuts
   useEffect(() => {
-    if (!canvasRef.current) return;
-
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
-    // 清空画布
-    ctx.fillStyle = "#0f172a";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    // 绘制网格
-    ctx.strokeStyle = "#1e293b";
-    ctx.lineWidth = 1;
-    for (let i = 0; i < canvas.width; i += 50) {
-      ctx.beginPath();
-      ctx.moveTo(i, 0);
-      ctx.lineTo(i, canvas.height);
-      ctx.stroke();
-    }
-    for (let i = 0; i < canvas.height; i += 50) {
-      ctx.beginPath();
-      ctx.moveTo(0, i);
-      ctx.lineTo(canvas.width, i);
-      ctx.stroke();
-    }
-
-    // 绘制柜组
-    groupLayouts.forEach((layout, index) => {
-      const isSelected = selectedGroupLayout?.cabinetGroupId === layout.cabinetGroupId;
-      const x = canvas.width / 2 + layout.positionX;
-      const y = canvas.height / 2 + layout.positionY;
-      const size = 40 * (layout.scaleX / 100);
-
-      // 绘制柜组矩形
-      ctx.fillStyle = isSelected ? "#3b82f6" : "#64748b";
-      ctx.fillRect(x - size / 2, y - size / 2, size, size);
-
-      // 绘制边框
-      ctx.strokeStyle = isSelected ? "#60a5fa" : "#475569";
-      ctx.lineWidth = isSelected ? 3 : 1;
-      ctx.strokeRect(x - size / 2, y - size / 2, size, size);
-
-      // 绘制标签
-      ctx.fillStyle = "#ffffff";
-      ctx.font = "12px sans-serif";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText(`G${layout.cabinetGroupId}`, x, y);
-    });
-  }, [groupLayouts, selectedGroupLayout, canvasRef]);
+    const handler = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (e.key === "g" || e.key === "G") setTransformMode("translate");
+      if (e.key === "r" || e.key === "R") setTransformMode("rotate");
+      if (e.key === "s" || e.key === "S") setTransformMode("scale");
+      if (e.key === "Delete" || e.key === "Backspace") deleteInstance();
+      if (e.key === "Escape") setSelectedInstanceId(null);
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [deleteInstance]);
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight text-foreground">保管库布局编辑器</h1>
-          <p className="text-muted-foreground mt-2">设计和管理保管库的整体布局配置</p>
-        </div>
-      </div>
-
-      <div className="grid gap-6 lg:grid-cols-3">
-        {/* 左侧：布局列表 */}
-        <Card className="lg:col-span-1">
-          <CardHeader>
-            <CardTitle>布局列表</CardTitle>
-            <CardDescription>创建或选择布局</CardDescription>
+    <div className="h-[calc(100vh-2rem)] flex gap-3">
+      {/* Left Panel */}
+      <div className="w-64 flex flex-col gap-3 shrink-0">
+        {/* Layout Management */}
+        <Card className="bg-slate-900/80 border-slate-700/50">
+          <CardHeader className="py-3 px-4">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <FolderOpen className="h-4 w-4 text-cyan-400" />
+              布局管理
+            </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            {layoutsLoading ? (
-              <div className="flex justify-center py-4">
-                <Loader2 className="h-6 w-6 animate-spin text-primary" />
-              </div>
-            ) : (
-              <>
-                <div className="space-y-2 max-h-64 overflow-y-auto">
-                  {vaultLayouts?.map((layout) => (
-                    <button
-                      key={layout.id}
-                      onClick={() => setSelectedLayout(layout.id)}
-                      className={`w-full text-left p-3 rounded-lg border transition-colors ${
-                        selectedLayout === layout.id
-                          ? "bg-primary/10 border-primary"
-                          : "bg-background border-border hover:bg-muted"
-                      }`}
-                    >
-                      <div className="font-medium text-sm">{layout.name}</div>
-                      <div className="text-xs text-muted-foreground">{layout.description}</div>
-                    </button>
-                  ))}
-                </div>
-
-                <div className="border-t pt-4 space-y-3">
-                  <div>
-                    <Label className="text-sm">布局名称</Label>
-                    <Input
-                      placeholder="输入布局名称"
-                      value={layoutName}
-                      onChange={(e) => setLayoutName(e.target.value)}
-                      className="mt-1"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-sm">描述</Label>
-                    <Textarea
-                      placeholder="输入布局描述"
-                      value={layoutDescription}
-                      onChange={(e) => setLayoutDescription(e.target.value)}
-                      className="mt-1 h-20"
-                    />
-                  </div>
-                  <Button
-                    onClick={handleCreateLayout}
-                    disabled={createLayoutMutation.isPending}
-                    className="w-full"
-                  >
-                    <Plus className="h-4 w-4 mr-2" />
-                    创建新布局
+          <CardContent className="px-4 pb-3 space-y-2">
+            <Input value={layoutName} onChange={e => setLayoutName(e.target.value)} placeholder="布局名称" className="h-8 text-xs bg-slate-800 border-slate-600" />
+            <div className="flex gap-1.5">
+              <Button size="sm" variant="outline" className="flex-1 h-7 text-xs" onClick={handleNewLayout}>
+                <FilePlus className="h-3 w-3 mr-1" />新建
+              </Button>
+              <Dialog open={showLoadDialog} onOpenChange={setShowLoadDialog}>
+                <DialogTrigger asChild>
+                  <Button size="sm" variant="outline" className="flex-1 h-7 text-xs">
+                    <FolderOpen className="h-3 w-3 mr-1" />加载
                   </Button>
-                </div>
-              </>
-            )}
+                </DialogTrigger>
+                <DialogContent className="bg-slate-900 border-slate-700">
+                  <DialogHeader><DialogTitle>加载布局</DialogTitle></DialogHeader>
+                  <ScrollArea className="max-h-80">
+                    <div className="space-y-2">
+                      {(layoutsQuery.data || []).map((layout: any) => (
+                        <div key={layout.id} className="p-3 rounded-lg border border-slate-700 hover:border-cyan-500/50 cursor-pointer transition-colors" onClick={() => handleLoad(layout)}>
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-medium">{layout.name}</span>
+                            {layout.isActive === 1 && <Badge variant="outline" className="text-cyan-400 border-cyan-500/50 text-[10px]">激活</Badge>}
+                          </div>
+                          <div className="text-xs text-slate-400 mt-1">更新于: {new Date(layout.updatedAt).toLocaleString()}</div>
+                        </div>
+                      ))}
+                      {(!layoutsQuery.data || layoutsQuery.data.length === 0) && <div className="text-center text-slate-400 py-4 text-sm">暂无布局</div>}
+                    </div>
+                  </ScrollArea>
+                </DialogContent>
+              </Dialog>
+            </div>
+            <div className="flex gap-1.5">
+              <Button size="sm" className="flex-1 h-7 text-xs bg-cyan-600 hover:bg-cyan-700" onClick={handleSave} disabled={isSaving}>
+                {isSaving ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Save className="h-3 w-3 mr-1" />}保存
+              </Button>
+              <Button size="sm" variant="outline" className="flex-1 h-7 text-xs" onClick={handleActivate} disabled={!currentLayoutId}>
+                <Eye className="h-3 w-3 mr-1" />激活
+              </Button>
+            </div>
           </CardContent>
         </Card>
 
-        {/* 中间和右侧：编辑区域 */}
-        {selectedLayout ? (
-          <>
-            {/* 中间：3D预览和柜组列表 */}
-            <Card className="lg:col-span-1">
-              <CardHeader>
-                <CardTitle className="text-lg">布局预览</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <canvas
-                  ref={canvasRef}
-                  width={300}
-                  height={300}
-                  className="w-full border border-border rounded-lg bg-slate-950 cursor-crosshair"
-                  onClick={(e) => {
-                    const rect = canvasRef.current?.getBoundingClientRect();
-                    if (!rect) return;
-                    const x = e.clientX - rect.left - 150;
-                    const y = e.clientY - rect.top - 150;
+        {/* Component Library */}
+        <Card className="bg-slate-900/80 border-slate-700/50 flex-1 overflow-hidden">
+          <CardHeader className="py-3 px-4">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Plus className="h-4 w-4 text-cyan-400" />组件库
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="px-4 pb-3">
+            <ScrollArea className="h-[calc(100vh-28rem)]">
+              <div className="space-y-2">
+                <p className="text-[10px] text-slate-500 uppercase tracking-wider">柜组模板</p>
+                {[
+                  { label: "单列柜组", columns: 1, shelves: 6 },
+                  { label: "双列柜组", columns: 2, shelves: 6 },
+                  { label: "三列柜组", columns: 3, shelves: 6 },
+                  { label: "四列柜组", columns: 4, shelves: 6 },
+                  { label: "高柜组 (8层)", columns: 2, shelves: 8 },
+                  { label: "矮柜组 (4层)", columns: 2, shelves: 4 },
+                ].map((tpl) => (
+                  <button key={tpl.label} className="w-full text-left p-2.5 rounded-lg border border-slate-700/50 hover:border-cyan-500/50 hover:bg-slate-800/50 transition-all group" onClick={() => addInstance({ columns: tpl.columns, shelves: tpl.shelves })}>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-medium text-slate-200 group-hover:text-cyan-400 transition-colors">{tpl.label}</span>
+                      <Plus className="h-3 w-3 text-slate-500 group-hover:text-cyan-400 transition-colors" />
+                    </div>
+                    <div className="text-[10px] text-slate-500 mt-0.5">{tpl.columns}列 × {tpl.shelves}层</div>
+                  </button>
+                ))}
 
-                    // 查找点击的柜组
-                    const clicked = groupLayouts.find((layout) => {
-                      const size = 40 * (layout.scaleX / 100);
-                      return (
-                        Math.abs(x - layout.positionX) < size / 2 &&
-                        Math.abs(y - layout.positionY) < size / 2
-                      );
-                    });
-
-                    if (clicked) {
-                      setSelectedGroupLayout(clicked);
-                    }
-                  }}
-                />
-
-                <div className="space-y-2 max-h-48 overflow-y-auto">
-                  <Label className="text-sm font-medium">柜组列表</Label>
-                  {groupLayouts.map((layout, index) => (
-                    <div
-                      key={index}
-                      onClick={() => setSelectedGroupLayout(layout)}
-                      className={`p-2 rounded-lg border cursor-pointer transition-colors ${
-                        selectedGroupLayout?.cabinetGroupId === layout.cabinetGroupId
-                          ? "bg-primary/10 border-primary"
-                          : "bg-background border-border hover:bg-muted"
-                      }`}
-                    >
+                <Separator className="bg-slate-700/50 my-3" />
+                <p className="text-[10px] text-slate-500 uppercase tracking-wider">场景实例 ({layoutData.instances.length})</p>
+                {layoutData.instances.map((inst) => {
+                  const groupInfo = inst.cabinetGroupId ? cabinetGroupsMap.get(inst.cabinetGroupId) : null;
+                  return (
+                    <button key={inst.instanceId} className={`w-full text-left p-2.5 rounded-lg border transition-all ${selectedInstanceId === inst.instanceId ? "border-cyan-500 bg-cyan-500/10" : "border-slate-700/50 hover:border-slate-600"}`} onClick={() => setSelectedInstanceId(inst.instanceId)}>
                       <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium">柜组 {layout.cabinetGroupId}</span>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleRemoveGroupLayout(index);
-                          }}
-                        >
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
+                        <span className="text-xs font-medium truncate">{inst.meta.label || `柜组 ${inst.instanceId.slice(0, 4)}`}</span>
+                        {inst.cabinetGroupId ? <Link2 className="h-3 w-3 text-green-400 shrink-0" /> : <Unlink className="h-3 w-3 text-slate-500 shrink-0" />}
                       </div>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="border-t pt-4">
-                  <Label className="text-sm">添加柜组</Label>
-                  <div className="flex gap-2 mt-2">
-                    <Select value={selectedCabinetGroup?.toString() || ""} onValueChange={(v) => setSelectedCabinetGroup(Number(v))}>
-                      <SelectTrigger className="flex-1">
-                        <SelectValue placeholder="选择柜组" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {cabinetGroups?.map((group) => (
-                          <SelectItem key={group.id} value={group.id.toString()}>
-                            {group.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Button onClick={handleAddCabinetGroup} size="sm">
-                      <Plus className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* 右侧：变换控制 */}
-            <Card className="lg:col-span-1">
-              <CardHeader>
-                <CardTitle className="text-lg">变换控制</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {selectedGroupLayout ? (
-                  <>
-                    <Tabs value={transformMode} onValueChange={(v) => setTransformMode(v as any)}>
-                      <TabsList className="grid w-full grid-cols-3">
-                        <TabsTrigger value="position" className="flex gap-1">
-                          <Move3d className="h-4 w-4" />
-                          <span className="hidden sm:inline">位置</span>
-                        </TabsTrigger>
-                        <TabsTrigger value="rotation" className="flex gap-1">
-                          <RotateCw className="h-4 w-4" />
-                          <span className="hidden sm:inline">旋转</span>
-                        </TabsTrigger>
-                        <TabsTrigger value="scale">缩放</TabsTrigger>
-                      </TabsList>
-
-                      <TabsContent value="position" className="space-y-3 mt-4">
-                        <div>
-                          <Label className="text-sm">X 位置: {selectedGroupLayout.positionX}</Label>
-                          <input
-                            type="range"
-                            min="-500"
-                            max="500"
-                            value={selectedGroupLayout.positionX}
-                            onChange={(e) => handleUpdateTransform("positionX", Number(e.target.value))}
-                            className="w-full"
-                          />
-                        </div>
-                        <div>
-                          <Label className="text-sm">Y 位置: {selectedGroupLayout.positionY}</Label>
-                          <input
-                            type="range"
-                            min="-500"
-                            max="500"
-                            value={selectedGroupLayout.positionY}
-                            onChange={(e) => handleUpdateTransform("positionY", Number(e.target.value))}
-                            className="w-full"
-                          />
-                        </div>
-                        <div>
-                          <Label className="text-sm">Z 位置: {selectedGroupLayout.positionZ}</Label>
-                          <input
-                            type="range"
-                            min="-500"
-                            max="500"
-                            value={selectedGroupLayout.positionZ}
-                            onChange={(e) => handleUpdateTransform("positionZ", Number(e.target.value))}
-                            className="w-full"
-                          />
-                        </div>
-                      </TabsContent>
-
-                      <TabsContent value="rotation" className="space-y-3 mt-4">
-                        <div>
-                          <Label className="text-sm">X 旋转: {(selectedGroupLayout.rotationX / 100).toFixed(1)}°</Label>
-                          <input
-                            type="range"
-                            min="0"
-                            max="36000"
-                            value={selectedGroupLayout.rotationX}
-                            onChange={(e) => handleUpdateTransform("rotationX", Number(e.target.value))}
-                            className="w-full"
-                          />
-                        </div>
-                        <div>
-                          <Label className="text-sm">Y 旋转: {(selectedGroupLayout.rotationY / 100).toFixed(1)}°</Label>
-                          <input
-                            type="range"
-                            min="0"
-                            max="36000"
-                            value={selectedGroupLayout.rotationY}
-                            onChange={(e) => handleUpdateTransform("rotationY", Number(e.target.value))}
-                            className="w-full"
-                          />
-                        </div>
-                        <div>
-                          <Label className="text-sm">Z 旋转: {(selectedGroupLayout.rotationZ / 100).toFixed(1)}°</Label>
-                          <input
-                            type="range"
-                            min="0"
-                            max="36000"
-                            value={selectedGroupLayout.rotationZ}
-                            onChange={(e) => handleUpdateTransform("rotationZ", Number(e.target.value))}
-                            className="w-full"
-                          />
-                        </div>
-                      </TabsContent>
-
-                      <TabsContent value="scale" className="space-y-3 mt-4">
-                        <div>
-                          <Label className="text-sm">X 缩放: {selectedGroupLayout.scaleX}%</Label>
-                          <input
-                            type="range"
-                            min="10"
-                            max="200"
-                            value={selectedGroupLayout.scaleX}
-                            onChange={(e) => handleUpdateTransform("scaleX", Number(e.target.value))}
-                            className="w-full"
-                          />
-                        </div>
-                        <div>
-                          <Label className="text-sm">Y 缩放: {selectedGroupLayout.scaleY}%</Label>
-                          <input
-                            type="range"
-                            min="10"
-                            max="200"
-                            value={selectedGroupLayout.scaleY}
-                            onChange={(e) => handleUpdateTransform("scaleY", Number(e.target.value))}
-                            className="w-full"
-                          />
-                        </div>
-                        <div>
-                          <Label className="text-sm">Z 缩放: {selectedGroupLayout.scaleZ}%</Label>
-                          <input
-                            type="range"
-                            min="10"
-                            max="200"
-                            value={selectedGroupLayout.scaleZ}
-                            onChange={(e) => handleUpdateTransform("scaleZ", Number(e.target.value))}
-                            className="w-full"
-                          />
-                        </div>
-                      </TabsContent>
-                    </Tabs>
-
-                    <div className="border-t pt-4 space-y-2">
-                      <Button
-                        onClick={handleSaveLayout}
-                        disabled={batchUpdateMutation.isPending}
-                        className="w-full"
-                      >
-                        <Save className="h-4 w-4 mr-2" />
-                        保存布局
-                      </Button>
-                      <Button
-                        onClick={handleDeleteLayout}
-                        variant="destructive"
-                        className="w-full"
-                      >
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        删除布局
-                      </Button>
-                    </div>
-                  </>
-                ) : (
-                  <div className="text-center text-muted-foreground py-8">
-                    选择或添加柜组以编辑
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </>
-        ) : (
-          <Card className="lg:col-span-2">
-            <CardContent className="flex items-center justify-center py-12">
-              <div className="text-center text-muted-foreground">
-                <p className="text-lg font-medium">选择或创建布局开始编辑</p>
+                      <div className="text-[10px] text-slate-500 mt-0.5">
+                        {inst.model.columns}列 × {inst.model.shelves}层
+                        {groupInfo && <span className="text-green-400 ml-1">· 已绑定</span>}
+                      </div>
+                    </button>
+                  );
+                })}
+                {layoutData.instances.length === 0 && <div className="text-center text-slate-500 py-3 text-xs">从上方模板添加柜组</div>}
               </div>
+            </ScrollArea>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Center - 3D Canvas */}
+      <div className="flex-1 flex flex-col gap-3 min-w-0">
+        {/* Toolbar */}
+        <Card className="bg-slate-900/80 border-slate-700/50 shrink-0">
+          <div className="flex items-center gap-2 px-4 py-2">
+            <div className="flex items-center gap-1 border border-slate-700 rounded-lg p-0.5">
+              {([
+                { mode: "translate" as const, icon: Move, label: "平移 (G)" },
+                { mode: "rotate" as const, icon: RotateCw, label: "旋转 (R)" },
+                { mode: "scale" as const, icon: Maximize, label: "缩放 (S)" },
+              ]).map(({ mode, icon: Icon, label }) => (
+                <Button key={mode} size="sm" variant={transformMode === mode ? "default" : "ghost"} className={`h-7 px-2 text-xs ${transformMode === mode ? "bg-cyan-600" : ""}`} onClick={() => setTransformMode(mode)} title={label}>
+                  <Icon className="h-3.5 w-3.5" />
+                </Button>
+              ))}
+            </div>
+            <Separator orientation="vertical" className="h-6 bg-slate-700" />
+            <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={duplicateInstance} disabled={!selectedInstance}>
+              <Copy className="h-3.5 w-3.5 mr-1" />复制
+            </Button>
+            <Button size="sm" variant="ghost" className="h-7 px-2 text-xs text-red-400 hover:text-red-300" onClick={deleteInstance} disabled={!selectedInstance}>
+              <Trash2 className="h-3.5 w-3.5 mr-1" />删除
+            </Button>
+            <div className="flex-1" />
+            <div className="text-xs text-slate-400">
+              实例: {layoutData.instances.length} | 已绑定: {layoutData.instances.filter(i => i.cabinetGroupId).length}
+            </div>
+          </div>
+        </Card>
+
+        {/* 3D Canvas */}
+        <div className="flex-1 rounded-xl overflow-hidden border border-slate-700/50 bg-slate-950">
+          <Canvas
+            shadows
+            camera={{ position: [8, 6, 8], fov: 50, near: 0.1, far: 100 }}
+            onPointerMissed={() => setSelectedInstanceId(null)}
+            gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.2 }}
+          >
+            <Suspense fallback={null}>
+              <SceneSetup gridSize={layoutData.scene.gridSize} />
+              <SceneControls transformActive={selectedInstanceId !== null} />
+              {layoutData.instances.map((inst) => {
+                const groupInfo = inst.cabinetGroupId ? cabinetGroupsMap.get(inst.cabinetGroupId) : null;
+                return (
+                  <SceneInstance
+                    key={inst.instanceId}
+                    instance={inst}
+                    isSelected={selectedInstanceId === inst.instanceId}
+                    transformMode={transformMode}
+                    onSelect={() => setSelectedInstanceId(inst.instanceId)}
+                    onTransformChange={(pos, rot, scl) => updateInstanceTransform(inst.instanceId, pos, rot, scl)}
+                    cabinetGroupName={groupInfo?.name}
+                    status={(groupInfo?.status as any) || "normal"}
+                  />
+                );
+              })}
+            </Suspense>
+          </Canvas>
+        </div>
+      </div>
+
+      {/* Right Panel - Properties */}
+      <div className="w-72 flex flex-col gap-3 shrink-0">
+        {selectedInstance ? (
+          <ScrollArea className="flex-1">
+            <div className="space-y-3 pr-2">
+              {/* Transform */}
+              <Card className="bg-slate-900/80 border-slate-700/50">
+                <CardHeader className="py-3 px-4">
+                  <CardTitle className="text-sm flex items-center gap-2"><Move className="h-4 w-4 text-cyan-400" />变换属性</CardTitle>
+                </CardHeader>
+                <CardContent className="px-4 pb-3 space-y-3">
+                  <div>
+                    <Label className="text-[10px] text-slate-400 uppercase">位置 (X / Y / Z)</Label>
+                    <div className="grid grid-cols-3 gap-1.5 mt-1">
+                      {(["x", "y", "z"] as const).map(axis => (
+                        <Input key={`pos-${axis}`} type="number" step={0.1} value={selectedInstance.transform.position[axis]} onChange={e => updatePositionField(axis, parseFloat(e.target.value) || 0)} className="h-7 text-xs bg-slate-800 border-slate-600 text-center" />
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <Label className="text-[10px] text-slate-400 uppercase">旋转 Y (度)</Label>
+                    <Slider value={[selectedInstance.transform.rotation.y * (180 / Math.PI)]} onValueChange={([v]) => updateRotationField("y", v * (Math.PI / 180))} min={-180} max={180} step={5} className="mt-1" />
+                    <div className="text-[10px] text-slate-500 text-center mt-0.5">{(selectedInstance.transform.rotation.y * (180 / Math.PI)).toFixed(0)}°</div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Model Parameters */}
+              <Card className="bg-slate-900/80 border-slate-700/50">
+                <CardHeader className="py-3 px-4">
+                  <CardTitle className="text-sm flex items-center gap-2"><Maximize className="h-4 w-4 text-cyan-400" />模型参数</CardTitle>
+                </CardHeader>
+                <CardContent className="px-4 pb-3 space-y-3">
+                  <div>
+                    <Label className="text-[10px] text-slate-400">列数: {selectedInstance.model.columns}</Label>
+                    <Slider value={[selectedInstance.model.columns]} onValueChange={([v]) => updateInstanceModel("columns", v)} min={1} max={10} step={1} className="mt-1" />
+                  </div>
+                  <div>
+                    <Label className="text-[10px] text-slate-400">层数: {selectedInstance.model.shelves}</Label>
+                    <Slider value={[selectedInstance.model.shelves]} onValueChange={([v]) => updateInstanceModel("shelves", v)} min={2} max={12} step={1} className="mt-1" />
+                  </div>
+                  <div>
+                    <Label className="text-[10px] text-slate-400">柜宽: {selectedInstance.model.cabinetWidth.toFixed(2)}m</Label>
+                    <Slider value={[selectedInstance.model.cabinetWidth * 100]} onValueChange={([v]) => updateInstanceModel("cabinetWidth", v / 100)} min={30} max={120} step={5} className="mt-1" />
+                  </div>
+                  <div>
+                    <Label className="text-[10px] text-slate-400">柜高: {selectedInstance.model.cabinetHeight.toFixed(2)}m</Label>
+                    <Slider value={[selectedInstance.model.cabinetHeight * 100]} onValueChange={([v]) => updateInstanceModel("cabinetHeight", v / 100)} min={100} max={300} step={10} className="mt-1" />
+                  </div>
+                  <div>
+                    <Label className="text-[10px] text-slate-400">柜深: {selectedInstance.model.cabinetDepth.toFixed(2)}m</Label>
+                    <Slider value={[selectedInstance.model.cabinetDepth * 100]} onValueChange={([v]) => updateInstanceModel("cabinetDepth", v / 100)} min={20} max={100} step={5} className="mt-1" />
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Binding */}
+              <Card className="bg-slate-900/80 border-slate-700/50">
+                <CardHeader className="py-3 px-4">
+                  <CardTitle className="text-sm flex items-center gap-2"><Link2 className="h-4 w-4 text-cyan-400" />资产绑定</CardTitle>
+                </CardHeader>
+                <CardContent className="px-4 pb-3 space-y-2">
+                  {selectedInstance.cabinetGroupId ? (
+                    <div className="space-y-2">
+                      <div className="p-2.5 rounded-lg bg-green-500/10 border border-green-500/30">
+                        <div className="flex items-center gap-2">
+                          <CheckCircle2 className="h-4 w-4 text-green-400 shrink-0" />
+                          <div className="min-w-0">
+                            <div className="text-xs font-medium text-green-400 truncate">{cabinetGroupsMap.get(selectedInstance.cabinetGroupId)?.name || "未知"}</div>
+                            <div className="text-[10px] text-slate-400">ID: {selectedInstance.cabinetGroupId}</div>
+                          </div>
+                        </div>
+                      </div>
+                      <Button size="sm" variant="outline" className="w-full h-7 text-xs text-red-400 border-red-500/30 hover:bg-red-500/10" onClick={unbindCabinetGroup}>
+                        <Unlink className="h-3 w-3 mr-1" />解除绑定
+                      </Button>
+                    </div>
+                  ) : (
+                    <Dialog open={showBindDialog} onOpenChange={setShowBindDialog}>
+                      <DialogTrigger asChild>
+                        <Button size="sm" variant="outline" className="w-full h-7 text-xs border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10">
+                          <Link2 className="h-3 w-3 mr-1" />绑定柜组资产
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent className="bg-slate-900 border-slate-700 max-w-md">
+                        <DialogHeader><DialogTitle>选择柜组资产</DialogTitle></DialogHeader>
+                        <div className="relative">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                          <Input placeholder="搜索名称或ID..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="pl-9 bg-slate-800 border-slate-600" />
+                        </div>
+                        <ScrollArea className="max-h-64">
+                          <div className="space-y-1.5">
+                            {filteredCabinetGroups.map((g: any) => {
+                              const isBound = boundGroupIds.has(g.id) && layoutData.instances.find(i => i.cabinetGroupId === g.id)?.instanceId !== selectedInstanceId;
+                              return (
+                                <button key={g.id} className={`w-full text-left p-2.5 rounded-lg border transition-all ${isBound ? "border-slate-700/30 opacity-50 cursor-not-allowed" : "border-slate-700 hover:border-cyan-500/50 cursor-pointer"}`} onClick={() => !isBound && bindCabinetGroup(g.id)} disabled={isBound}>
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-xs font-medium">{g.name}</span>
+                                    <div className="flex items-center gap-1.5">
+                                      {isBound && <Badge variant="outline" className="text-[10px] text-slate-500">已绑定</Badge>}
+                                      <Badge variant="outline" className={`text-[10px] ${g.status === "normal" ? "text-green-400 border-green-500/30" : g.status === "warning" ? "text-yellow-400 border-yellow-500/30" : "text-red-400 border-red-500/30"}`}>
+                                        {g.status === "normal" ? "正常" : g.status === "warning" ? "警告" : "报警"}
+                                      </Badge>
+                                    </div>
+                                  </div>
+                                  <div className="text-[10px] text-slate-400 mt-0.5">
+                                    ID: {g.id} | 重量: {(g.currentWeight / 1000).toFixed(1)}kg | 阈值: {(g.alarmThreshold / 1000).toFixed(1)}kg
+                                  </div>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </ScrollArea>
+                      </DialogContent>
+                    </Dialog>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Meta */}
+              <Card className="bg-slate-900/80 border-slate-700/50">
+                <CardHeader className="py-3 px-4"><CardTitle className="text-sm">标签与备注</CardTitle></CardHeader>
+                <CardContent className="px-4 pb-3 space-y-2">
+                  <Input value={selectedInstance.meta.label} onChange={e => updateInstanceMeta("label", e.target.value)} placeholder="显示标签" className="h-7 text-xs bg-slate-800 border-slate-600" />
+                  <Input value={selectedInstance.meta.remark} onChange={e => updateInstanceMeta("remark", e.target.value)} placeholder="备注" className="h-7 text-xs bg-slate-800 border-slate-600" />
+                </CardContent>
+              </Card>
+            </div>
+          </ScrollArea>
+        ) : (
+          <Card className="bg-slate-900/80 border-slate-700/50 flex-1">
+            <CardContent className="flex flex-col items-center justify-center h-full text-center p-6">
+              <div className="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center mb-3">
+                <Move className="h-5 w-5 text-slate-500" />
+              </div>
+              <p className="text-sm text-slate-400">选择一个柜组实例</p>
+              <p className="text-xs text-slate-500 mt-1">点击3D场景中的柜组或从左侧列表选择</p>
+              <p className="text-xs text-slate-500 mt-3">快捷键: G=平移 R=旋转 S=缩放 Del=删除</p>
             </CardContent>
           </Card>
         )}

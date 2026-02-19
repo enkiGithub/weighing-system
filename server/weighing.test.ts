@@ -180,37 +180,107 @@ describe("Layout Editor", () => {
     expect(Array.isArray(result)).toBe(true);
   });
 
-  it("should create a vault layout", async () => {
+  it("should create a vault layout with valid JSON data", async () => {
     const ctx = createAdminContext();
     const caller = appRouter.createCaller(ctx);
     
+    const validLayoutData = {
+      scene: {
+        gridSize: 20,
+        unit: "m",
+        cameraDefault: {
+          position: { x: 8, y: 6, z: 8 },
+          target: { x: 0, y: 0, z: 0 },
+        },
+      },
+      instances: [
+        {
+          instanceId: "test-inst-1",
+          type: "cabinetGroup",
+          cabinetGroupId: null,
+          transform: {
+            position: { x: 0, y: 0, z: 0 },
+            rotation: { x: 0, y: 0, z: 0 },
+            scale: { x: 1, y: 1, z: 1 },
+          },
+          model: {
+            columns: 2,
+            columnSpacing: 0.05,
+            cabinetWidth: 0.6,
+            cabinetHeight: 1.8,
+            cabinetDepth: 0.5,
+            shelves: 6,
+          },
+          meta: { label: "Test Group", remark: "" },
+        },
+      ],
+    };
+
     const layout = await caller.layoutEditor.vaultLayouts.create({
       name: "Test Layout",
       description: "Test vault layout",
-      layoutData: JSON.stringify([]),
+      layoutData: JSON.stringify(validLayoutData),
     });
 
     expect(layout.id).toBeGreaterThan(0);
     expect(layout.name).toBe("Test Layout");
   });
 
-  it("should get active vault layout", async () => {
-    const ctx = createAdminContext();
-    const caller = appRouter.createCaller(ctx);
-    const result = await caller.layoutEditor.vaultLayouts.getActive();
-    // May be undefined if no active layout
-    expect(result === undefined || typeof result === "object").toBe(true);
-  });
-
-  it("should list cabinet group layouts", async () => {
+  it("should reject invalid layout data", async () => {
     const ctx = createAdminContext();
     const caller = appRouter.createCaller(ctx);
     
-    // First create a vault layout
+    await expect(
+      caller.layoutEditor.vaultLayouts.create({
+        name: "Bad Layout",
+        layoutData: "not valid json",
+      })
+    ).rejects.toThrow();
+  });
+
+  it("should get active vault layout (null when none)", async () => {
+    const ctx = createAdminContext();
+    const caller = appRouter.createCaller(ctx);
+    const result = await caller.layoutEditor.vaultLayouts.getActive();
+    // Returns null or an object
+    expect(result === null || typeof result === "object").toBe(true);
+  });
+
+  it("should activate a layout and retrieve it", async () => {
+    const ctx = createAdminContext();
+    const caller = appRouter.createCaller(ctx);
+    
+    const validLayoutData = {
+      scene: { gridSize: 20, unit: "m", cameraDefault: { position: { x: 8, y: 6, z: 8 }, target: { x: 0, y: 0, z: 0 } } },
+      instances: [],
+    };
+
+    const layout = await caller.layoutEditor.vaultLayouts.create({
+      name: "Activate Test Layout",
+      description: "For activation test",
+      layoutData: JSON.stringify(validLayoutData),
+    });
+
+    await caller.layoutEditor.vaultLayouts.setActive({ id: layout.id });
+
+    const active = await caller.layoutEditor.vaultLayouts.getActive();
+    expect(active).not.toBeNull();
+    expect(active?.name).toBe("Activate Test Layout");
+  });
+
+  it("should list cabinet group layouts by vault layout", async () => {
+    const ctx = createAdminContext();
+    const caller = appRouter.createCaller(ctx);
+    
+    const validLayoutData = {
+      scene: { gridSize: 20, unit: "m", cameraDefault: { position: { x: 8, y: 6, z: 8 }, target: { x: 0, y: 0, z: 0 } } },
+      instances: [],
+    };
+
     const layout = await caller.layoutEditor.vaultLayouts.create({
       name: "Test Layout for Groups",
       description: "Test",
-      layoutData: JSON.stringify([]),
+      layoutData: JSON.stringify(validLayoutData),
     });
 
     const result = await caller.layoutEditor.cabinetGroupLayouts.listByVaultLayout({
@@ -218,6 +288,60 @@ describe("Layout Editor", () => {
     });
 
     expect(Array.isArray(result)).toBe(true);
+  });
+
+  it("should update layout with binding validation", async () => {
+    const ctx = createAdminContext();
+    const caller = appRouter.createCaller(ctx);
+
+    // Create a cabinet group first
+    const cabinet = await caller.cabinetGroups.create({
+      name: "Layout Bind Test Cabinet",
+      initialWeight: 50000,
+      alarmThreshold: 5000,
+    });
+
+    const validLayoutData = {
+      scene: { gridSize: 20, unit: "m", cameraDefault: { position: { x: 8, y: 6, z: 8 }, target: { x: 0, y: 0, z: 0 } } },
+      instances: [
+        {
+          instanceId: "bind-test-1",
+          type: "cabinetGroup",
+          cabinetGroupId: cabinet.id,
+          transform: { position: { x: 0, y: 0, z: 0 }, rotation: { x: 0, y: 0, z: 0 }, scale: { x: 1, y: 1, z: 1 } },
+          model: { columns: 2, columnSpacing: 0.05, cabinetWidth: 0.6, cabinetHeight: 1.8, cabinetDepth: 0.5, shelves: 6 },
+          meta: { label: "Bound Group", remark: "" },
+        },
+      ],
+    };
+
+    const layout = await caller.layoutEditor.vaultLayouts.create({
+      name: "Binding Validation Layout",
+      layoutData: JSON.stringify(validLayoutData),
+    });
+
+    // Update with duplicate binding should fail
+    const duplicateData = {
+      ...validLayoutData,
+      instances: [
+        ...validLayoutData.instances,
+        {
+          instanceId: "bind-test-2",
+          type: "cabinetGroup" as const,
+          cabinetGroupId: cabinet.id, // duplicate!
+          transform: { position: { x: 2, y: 0, z: 0 }, rotation: { x: 0, y: 0, z: 0 }, scale: { x: 1, y: 1, z: 1 } },
+          model: { columns: 2, columnSpacing: 0.05, cabinetWidth: 0.6, cabinetHeight: 1.8, cabinetDepth: 0.5, shelves: 6 },
+          meta: { label: "Duplicate", remark: "" },
+        },
+      ],
+    };
+
+    await expect(
+      caller.layoutEditor.vaultLayouts.update({
+        id: layout.id,
+        layoutData: JSON.stringify(duplicateData),
+      })
+    ).rejects.toThrow("同一布局内不允许重复绑定同一个柜组资产");
   });
 });
 
