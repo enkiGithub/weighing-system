@@ -95,22 +95,51 @@ function SceneInstance({
   const transformRef = useRef<any>(null);
   const [hovered, setHovered] = useState(false);
 
+  // Real-time constraint: clamp Y>=0 during drag, force only Y-axis rotation
   useEffect(() => {
     if (transformRef.current) {
       const controls = transformRef.current;
       const cb = () => {
-        if (groupRef.current) {
-          onTransformChange(
-            groupRef.current.position.clone(),
-            groupRef.current.rotation.clone(),
-            groupRef.current.scale.clone()
-          );
+        if (!groupRef.current) return;
+        const obj = groupRef.current;
+
+        // Clamp Y position to >= 0 in real-time (prevents visual floor penetration)
+        if (obj.position.y < 0) {
+          obj.position.y = 0;
         }
+
+        // Force only Y-axis rotation: zero out X and Z rotation in real-time
+        if (obj.rotation.x !== 0 || obj.rotation.z !== 0) {
+          obj.rotation.x = 0;
+          obj.rotation.z = 0;
+        }
+
+        onTransformChange(
+          obj.position.clone(),
+          obj.rotation.clone(),
+          obj.scale.clone()
+        );
       };
       controls.addEventListener("objectChange", cb);
       return () => controls.removeEventListener("objectChange", cb);
     }
   }, [isSelected, onTransformChange]);
+
+  // Configure TransformControls: restrict rotation to Y-axis only
+  useEffect(() => {
+    if (transformRef.current && transformMode === "rotate") {
+      const controls = transformRef.current;
+      // showX/showZ = false hides the X and Z rotation rings
+      controls.showX = false;
+      controls.showZ = false;
+      controls.showY = true;
+    } else if (transformRef.current) {
+      const controls = transformRef.current;
+      controls.showX = true;
+      controls.showZ = true;
+      controls.showY = true;
+    }
+  }, [transformMode, isSelected]);
 
   const displayLabel = instance.meta.label || cabinetGroupName || `柜组 ${instance.instanceId.slice(0, 4)}`;
 
@@ -118,8 +147,8 @@ function SceneInstance({
     <>
       <group
         ref={groupRef}
-        position={[instance.transform.position.x, instance.transform.position.y, instance.transform.position.z]}
-        rotation={[instance.transform.rotation.x, instance.transform.rotation.y, instance.transform.rotation.z]}
+        position={[instance.transform.position.x, Math.max(0, instance.transform.position.y), instance.transform.position.z]}
+        rotation={[0, instance.transform.rotation.y, 0]}
         scale={[instance.transform.scale.x, instance.transform.scale.y, instance.transform.scale.z]}
       >
         <CabinetGroup3D
@@ -271,7 +300,7 @@ export default function LayoutEditor() {
             ...i,
             transform: {
               position: { x: +pos.x.toFixed(3), y: clampedY, z: +pos.z.toFixed(3) },
-              rotation: { x: +rot.x.toFixed(3), y: +rot.y.toFixed(3), z: +rot.z.toFixed(3) },
+              rotation: { x: 0, y: +rot.y.toFixed(3), z: 0 },
               scale: { x: +scl.x.toFixed(3), y: +scl.y.toFixed(3), z: +scl.z.toFixed(3) },
             },
           }
@@ -399,13 +428,13 @@ export default function LayoutEditor() {
     }));
   }, [selectedInstanceId]);
 
-  const updateRotationField = useCallback((axis: "x" | "y" | "z", value: number) => {
+  const updateRotationY = useCallback((value: number) => {
     if (!selectedInstanceId) return;
     setLayoutData(prev => ({
       ...prev,
       instances: prev.instances.map(i =>
         i.instanceId === selectedInstanceId
-          ? { ...i, transform: { ...i.transform, rotation: { ...i.transform.rotation, [axis]: value } } }
+          ? { ...i, transform: { ...i.transform, rotation: { x: 0, y: value, z: 0 } } }
           : i
       ),
     }));
@@ -614,8 +643,8 @@ export default function LayoutEditor() {
                     </div>
                   </div>
                   <div>
-                    <Label className="text-[10px] text-slate-400 uppercase">旋转 Y (度)</Label>
-                    <Slider value={[selectedInstance.transform.rotation.y * (180 / Math.PI)]} onValueChange={([v]) => updateRotationField("y", v * (Math.PI / 180))} min={-180} max={180} step={5} className="mt-1" />
+                    <Label className="text-[10px] text-slate-400 uppercase">旋转角度 (仅Y轴)</Label>
+                    <Slider value={[selectedInstance.transform.rotation.y * (180 / Math.PI)]} onValueChange={([v]) => updateRotationY(v * (Math.PI / 180))} min={-180} max={180} step={5} className="mt-1" />
                     <div className="text-[10px] text-slate-500 text-center mt-0.5">{(selectedInstance.transform.rotation.y * (180 / Math.PI)).toFixed(0)}°</div>
                   </div>
                 </CardContent>

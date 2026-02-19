@@ -53,8 +53,8 @@ function MonitorInstance({
 
   return (
     <group
-      position={[instance.transform.position.x, instance.transform.position.y, instance.transform.position.z]}
-      rotation={[instance.transform.rotation.x, instance.transform.rotation.y, instance.transform.rotation.z]}
+      position={[instance.transform.position.x, Math.max(0, instance.transform.position.y), instance.transform.position.z]}
+      rotation={[0, instance.transform.rotation.y, 0]}
       scale={[instance.transform.scale.x, instance.transform.scale.y, instance.transform.scale.z]}
     >
       <CabinetGroup3D
