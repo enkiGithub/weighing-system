@@ -5,6 +5,7 @@ import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { z } from "zod";
 import * as db from "./db";
 import { TRPCError } from "@trpc/server";
+import { layoutEditorRouter } from "./routers/layoutEditor";
 
 // Admin权限检查
 const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
@@ -321,6 +322,8 @@ export const appRouter = router({
         return { success: true };
       }),
   }),
+
+  layoutEditor: layoutEditorRouter,
 });
 
 export type AppRouter = typeof appRouter;

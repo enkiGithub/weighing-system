@@ -8,11 +8,17 @@ import {
   cabinetGroups,
   weightChangeRecords,
   alarmRecords,
+  cabinets,
+  vaultLayouts,
+  cabinetGroupLayouts,
   InsertGateway,
   InsertWeighingInstrument,
   InsertCabinetGroup,
   InsertWeightChangeRecord,
-  InsertAlarmRecord
+  InsertAlarmRecord,
+  InsertCabinet,
+  InsertVaultLayout,
+  InsertCabinetGroupLayout
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
@@ -332,4 +338,121 @@ export async function getAlarmRecordsByCabinetGroup(cabinetGroupId: number, limi
     .where(eq(alarmRecords.cabinetGroupId, cabinetGroupId))
     .orderBy(desc(alarmRecords.createdAt))
     .limit(limit);
+}
+
+// 柜子管理
+export async function getAllCabinets() {
+  const db = await getDb();
+  if (!db) return [];
+  return await db.select().from(cabinets).orderBy(desc(cabinets.createdAt));
+}
+
+export async function getCabinetById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(cabinets).where(eq(cabinets.id, id)).limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function createCabinet(cabinet: InsertCabinet): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(cabinets).values(cabinet);
+  return Number(result[0].insertId);
+}
+
+export async function updateCabinet(id: number, cabinet: Partial<InsertCabinet>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(cabinets).set(cabinet).where(eq(cabinets.id, id));
+}
+
+export async function deleteCabinet(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(cabinets).where(eq(cabinets.id, id));
+}
+
+// 保管库布局管理
+export async function getAllVaultLayouts() {
+  const db = await getDb();
+  if (!db) return [];
+  return await db.select().from(vaultLayouts).orderBy(desc(vaultLayouts.createdAt));
+}
+
+export async function getVaultLayoutById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(vaultLayouts).where(eq(vaultLayouts.id, id)).limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function getActiveVaultLayout() {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(vaultLayouts).where(eq(vaultLayouts.isActive, 1)).limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function createVaultLayout(layout: InsertVaultLayout): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(vaultLayouts).values(layout);
+  return Number(result[0].insertId);
+}
+
+export async function updateVaultLayout(id: number, layout: Partial<InsertVaultLayout>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(vaultLayouts).set(layout).where(eq(vaultLayouts.id, id));
+}
+
+export async function deleteVaultLayout(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(vaultLayouts).where(eq(vaultLayouts.id, id));
+}
+
+export async function setActiveVaultLayout(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  // 先取消所有激活的布局
+  await db.update(vaultLayouts).set({ isActive: 0 }).where(eq(vaultLayouts.isActive, 1));
+  // 激活指定布局
+  await db.update(vaultLayouts).set({ isActive: 1 }).where(eq(vaultLayouts.id, id));
+}
+
+// 柜组布局管理
+export async function getCabinetGroupLayoutsByVaultLayout(vaultLayoutId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return await db.select()
+    .from(cabinetGroupLayouts)
+    .where(eq(cabinetGroupLayouts.vaultLayoutId, vaultLayoutId))
+    .orderBy(desc(cabinetGroupLayouts.createdAt));
+}
+
+export async function createCabinetGroupLayout(layout: InsertCabinetGroupLayout): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(cabinetGroupLayouts).values(layout);
+  return Number(result[0].insertId);
+}
+
+export async function updateCabinetGroupLayout(id: number, layout: Partial<InsertCabinetGroupLayout>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(cabinetGroupLayouts).set(layout).where(eq(cabinetGroupLayouts.id, id));
+}
+
+export async function deleteCabinetGroupLayout(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(cabinetGroupLayouts).where(eq(cabinetGroupLayouts.id, id));
+}
+
+export async function deleteCabinetGroupLayoutsByVaultLayout(vaultLayoutId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(cabinetGroupLayouts).where(eq(cabinetGroupLayouts.vaultLayoutId, vaultLayoutId));
 }

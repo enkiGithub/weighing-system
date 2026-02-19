@@ -146,3 +146,77 @@ describe("Authentication", () => {
     expect(result?.role).toBe("user");
   });
 });
+
+
+describe("Layout Editor", () => {
+  it("should list cabinets", async () => {
+    const ctx = createAdminContext();
+    const caller = appRouter.createCaller(ctx);
+    const result = await caller.layoutEditor.cabinets.list();
+    expect(Array.isArray(result)).toBe(true);
+  });
+
+  it("should create a cabinet", async () => {
+    const ctx = createAdminContext();
+    const caller = appRouter.createCaller(ctx);
+    
+    const cabinet = await caller.layoutEditor.cabinets.create({
+      name: "Test Cabinet",
+      width: 500,
+      height: 800,
+      depth: 400,
+      description: "Test cabinet for unit testing",
+    });
+
+    expect(cabinet.id).toBeGreaterThan(0);
+    expect(cabinet.name).toBe("Test Cabinet");
+    expect(cabinet.width).toBe(500);
+  });
+
+  it("should list vault layouts", async () => {
+    const ctx = createAdminContext();
+    const caller = appRouter.createCaller(ctx);
+    const result = await caller.layoutEditor.vaultLayouts.list();
+    expect(Array.isArray(result)).toBe(true);
+  });
+
+  it("should create a vault layout", async () => {
+    const ctx = createAdminContext();
+    const caller = appRouter.createCaller(ctx);
+    
+    const layout = await caller.layoutEditor.vaultLayouts.create({
+      name: "Test Layout",
+      description: "Test vault layout",
+      layoutData: JSON.stringify([]),
+    });
+
+    expect(layout.id).toBeGreaterThan(0);
+    expect(layout.name).toBe("Test Layout");
+  });
+
+  it("should get active vault layout", async () => {
+    const ctx = createAdminContext();
+    const caller = appRouter.createCaller(ctx);
+    const result = await caller.layoutEditor.vaultLayouts.getActive();
+    // May be undefined if no active layout
+    expect(result === undefined || typeof result === "object").toBe(true);
+  });
+
+  it("should list cabinet group layouts", async () => {
+    const ctx = createAdminContext();
+    const caller = appRouter.createCaller(ctx);
+    
+    // First create a vault layout
+    const layout = await caller.layoutEditor.vaultLayouts.create({
+      name: "Test Layout for Groups",
+      description: "Test",
+      layoutData: JSON.stringify([]),
+    });
+
+    const result = await caller.layoutEditor.cabinetGroupLayouts.listByVaultLayout({
+      vaultLayoutId: layout.id,
+    });
+
+    expect(Array.isArray(result)).toBe(true);
+  });
+});

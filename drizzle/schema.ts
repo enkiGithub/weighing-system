@@ -116,3 +116,60 @@ export const alarmRecords = mysqlTable("alarmRecords", {
 
 export type AlarmRecord = typeof alarmRecords.$inferSelect;
 export type InsertAlarmRecord = typeof alarmRecords.$inferInsert;
+
+/**
+ * 柜子表 - 保管库中的最小单元柜子
+ */
+export const cabinets = mysqlTable("cabinets", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 100 }).notNull(),
+  width: int("width").notNull(), // 宽度（毫米）
+  height: int("height").notNull(), // 高度（毫米）
+  depth: int("depth").notNull(), // 深度（毫米）
+  description: text("description"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Cabinet = typeof cabinets.$inferSelect;
+export type InsertCabinet = typeof cabinets.$inferInsert;
+
+/**
+ * 保管库布局表 - 存储保管库的整体布局配置
+ */
+export const vaultLayouts = mysqlTable("vaultLayouts", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 100 }).notNull(),
+  description: text("description"),
+  layoutData: text("layoutData").notNull(), // JSON格式的布局数据
+  isActive: int("isActive").notNull().default(0), // 0: 未激活, 1: 当前激活布局
+  createdBy: int("createdBy").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type VaultLayout = typeof vaultLayouts.$inferSelect;
+export type InsertVaultLayout = typeof vaultLayouts.$inferInsert;
+
+/**
+ * 柜组布局详情表 - 记录每个柜组在布局中的位置和变换
+ */
+export const cabinetGroupLayouts = mysqlTable("cabinetGroupLayouts", {
+  id: int("id").autoincrement().primaryKey(),
+  vaultLayoutId: int("vaultLayoutId").notNull(),
+  cabinetGroupId: int("cabinetGroupId").notNull(),
+  positionX: int("positionX").notNull().default(0), // 3D位置X坐标
+  positionY: int("positionY").notNull().default(0), // 3D位置Y坐标
+  positionZ: int("positionZ").notNull().default(0), // 3D位置Z坐标
+  rotationX: int("rotationX").notNull().default(0), // 旋转角度X（度数*100）
+  rotationY: int("rotationY").notNull().default(0), // 旋转角度Y（度数*100）
+  rotationZ: int("rotationZ").notNull().default(0), // 旋转角度Z（度数*100）
+  scaleX: int("scaleX").notNull().default(100), // 缩放比例X（百分比）
+  scaleY: int("scaleY").notNull().default(100), // 缩放比例Y（百分比）
+  scaleZ: int("scaleZ").notNull().default(100), // 缩放比例Z（百分比）
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type CabinetGroupLayout = typeof cabinetGroupLayouts.$inferSelect;
+export type InsertCabinetGroupLayout = typeof cabinetGroupLayouts.$inferInsert;

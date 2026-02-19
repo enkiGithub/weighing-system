@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -6,13 +6,43 @@ import { Loader2, AlertTriangle, CheckCircle2, Activity } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { CabinetGroup } from "../../../drizzle/schema";
 
+interface CabinetGroupLayout {
+  cabinetGroupId: number;
+  positionX: number;
+  positionY: number;
+  positionZ: number;
+  rotationX: number;
+  rotationY: number;
+  rotationZ: number;
+  scaleX: number;
+  scaleY: number;
+  scaleZ: number;
+}
+
 export default function Monitor() {
   const { data: cabinets, isLoading } = trpc.cabinetGroups.list.useQuery(undefined, {
     refetchInterval: 3000, // 每3秒刷新一次
   });
+  const { data: activeLayout } = trpc.layoutEditor.vaultLayouts.getActive.useQuery();
+  const { data: groupLayouts } = trpc.layoutEditor.cabinetGroupLayouts.listByVaultLayout.useQuery(
+    { vaultLayoutId: activeLayout?.id! },
+    { enabled: !!activeLayout?.id }
+  );
   const [hoveredCabinet, setHoveredCabinet] = useState<number | null>(null);
   const [rotation, setRotation] = useState({ x: 20, y: 0 });
   const containerRef = useRef<HTMLDivElement>(null);
+  const [layoutMap, setLayoutMap] = useState<Map<number, CabinetGroupLayout>>(new Map());
+
+  // 构建布局映射
+  useEffect(() => {
+    if (groupLayouts) {
+      const map = new Map();
+      groupLayouts.forEach((layout) => {
+        map.set(layout.cabinetGroupId, layout);
+      });
+      setLayoutMap(map);
+    }
+  }, [groupLayouts]);
 
   // 鼠标拖拽旋转3D视图
   useEffect(() => {
@@ -108,13 +138,19 @@ export default function Monitor() {
     const baseScale = 0.8;
     const perspective = 1000;
     
+    // 从编辑器布局获取位置，如果没有则使用默认位置
+    const layout = layoutMap.get(cabinet.id);
+    const posX = layout ? layout.positionX : cabinet.positionX;
+    const posY = layout ? layout.positionY : cabinet.positionY;
+    const posZ = layout ? layout.positionZ : cabinet.positionZ;
+    
     // 应用旋转变换
     const radX = (rotation.x * Math.PI) / 180;
     const radY = (rotation.y * Math.PI) / 180;
     
-    const x = cabinet.positionX * baseScale;
-    const y = cabinet.positionY * baseScale;
-    const z = cabinet.positionZ * baseScale;
+    const x = posX * baseScale;
+    const y = posY * baseScale;
+    const z = posZ * baseScale;
     
     // 3D旋转计算
     const rotatedX = x * Math.cos(radY) - z * Math.sin(radY);
@@ -140,6 +176,7 @@ export default function Monitor() {
           <h1 className="text-3xl font-bold tracking-tight text-foreground">实时监视</h1>
           <p className="text-muted-foreground mt-2">
             拖拽鼠标旋转视图，悬停查看详细信息
+            {activeLayout && <span className="ml-2 text-primary">（已加载布局：{activeLayout.name}）</span>}
           </p>
         </div>
         <div className="flex items-center gap-4">

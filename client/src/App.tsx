@@ -13,6 +13,7 @@ import Records from "./pages/Records";
 import Alarms from "./pages/Alarms";
 import Analytics from "./pages/Analytics";
 import Users from "./pages/Users";
+import LayoutEditor from "./pages/LayoutEditor";
 
 function Router() {
   return (
@@ -26,6 +27,7 @@ function Router() {
         <Route path={"/alarms"} component={Alarms} />
         <Route path={"/analytics"} component={Analytics} />
         <Route path={"/users"} component={Users} />
+        <Route path={"/layout-editor"} component={LayoutEditor} />
         <Route path={"/404"} component={NotFound} />
         {/* Final fallback route */}
         <Route component={NotFound} />
