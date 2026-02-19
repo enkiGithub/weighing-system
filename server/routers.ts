@@ -1,28 +1,326 @@
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
-import { publicProcedure, router } from "./_core/trpc";
+import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
+import { z } from "zod";
+import * as db from "./db";
+import { TRPCError } from "@trpc/server";
+
+// Admin权限检查
+const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
+  if (ctx.user.role !== 'admin') {
+    throw new TRPCError({ code: 'FORBIDDEN', message: '需要管理员权限' });
+  }
+  return next({ ctx });
+});
 
 export const appRouter = router({
-    // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
   system: systemRouter,
+  
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
     logout: publicProcedure.mutation(({ ctx }) => {
       const cookieOptions = getSessionCookieOptions(ctx.req);
       ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
-      return {
-        success: true,
-      } as const;
+      return { success: true } as const;
     }),
   }),
 
-  // TODO: add feature routers here, e.g.
-  // todo: router({
-  //   list: protectedProcedure.query(({ ctx }) =>
-  //     db.getUserTodos(ctx.user.id)
-  //   ),
-  // }),
+  // 用户管理
+  users: router({
+    list: adminProcedure.query(async () => {
+      return await db.getAllUsers();
+    }),
+    
+    getById: adminProcedure.input(z.object({ id: z.number() })).query(async ({ input }) => {
+      return await db.getUserById(input.id);
+    }),
+    
+    updateRole: adminProcedure
+      .input(z.object({ 
+        id: z.number(), 
+        role: z.enum(['admin', 'user']) 
+      }))
+      .mutation(async ({ input }) => {
+        await db.updateUserRole(input.id, input.role);
+        return { success: true };
+      }),
+    
+    delete: adminProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        if (input.id === ctx.user.id) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: '不能删除自己的账号' });
+        }
+        await db.deleteUser(input.id);
+        return { success: true };
+      }),
+  }),
+
+  // 网关管理
+  gateways: router({
+    list: protectedProcedure.query(async () => {
+      return await db.getAllGateways();
+    }),
+    
+    getById: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        return await db.getGatewayById(input.id);
+      }),
+    
+    create: adminProcedure
+      .input(z.object({
+        name: z.string().min(1).max(100),
+        ipAddress: z.string().min(1).max(45),
+        port: z.number().int().min(1).max(65535),
+        description: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const id = await db.createGateway(input);
+        return { id, ...input };
+      }),
+    
+    update: adminProcedure
+      .input(z.object({
+        id: z.number(),
+        name: z.string().min(1).max(100).optional(),
+        ipAddress: z.string().min(1).max(45).optional(),
+        port: z.number().int().min(1).max(65535).optional(),
+        description: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { id, ...data } = input;
+        await db.updateGateway(id, data);
+        return { success: true };
+      }),
+    
+    delete: adminProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        await db.deleteGateway(input.id);
+        return { success: true };
+      }),
+    
+    updateStatus: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        status: z.enum(['online', 'offline']),
+      }))
+      .mutation(async ({ input }) => {
+        await db.updateGatewayStatus(input.id, input.status, new Date());
+        return { success: true };
+      }),
+  }),
+
+  // 称重仪表管理
+  instruments: router({
+    list: protectedProcedure.query(async () => {
+      return await db.getAllInstruments();
+    }),
+    
+    getById: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        return await db.getInstrumentById(input.id);
+      }),
+    
+    getByGateway: protectedProcedure
+      .input(z.object({ gatewayId: z.number() }))
+      .query(async ({ input }) => {
+        return await db.getInstrumentsByGatewayId(input.gatewayId);
+      }),
+    
+    create: adminProcedure
+      .input(z.object({
+        name: z.string().min(1).max(100),
+        gatewayId: z.number(),
+        slaveAddress: z.number().int().min(1).max(247),
+        description: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        await db.createInstrument(input);
+        return { success: true };
+      }),
+    
+    update: adminProcedure
+      .input(z.object({
+        id: z.number(),
+        name: z.string().min(1).max(100).optional(),
+        gatewayId: z.number().optional(),
+        slaveAddress: z.number().int().min(1).max(247).optional(),
+        description: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { id, ...data } = input;
+        await db.updateInstrument(id, data);
+        return { success: true };
+      }),
+    
+    delete: adminProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        await db.deleteInstrument(input.id);
+        return { success: true };
+      }),
+    
+    updateStatus: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        status: z.enum(['online', 'offline']),
+      }))
+      .mutation(async ({ input }) => {
+        await db.updateInstrumentStatus(input.id, input.status, new Date());
+        return { success: true };
+      }),
+  }),
+
+  // 保险柜组管理
+  cabinetGroups: router({
+    list: protectedProcedure.query(async () => {
+      return await db.getAllCabinetGroups();
+    }),
+    
+    getById: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        return await db.getCabinetGroupById(input.id);
+      }),
+    
+    create: adminProcedure
+      .input(z.object({
+        name: z.string().min(1).max(100),
+        instrumentId: z.number(),
+        initialWeight: z.number().int().min(0),
+        alarmThreshold: z.number().int().min(0),
+        positionX: z.number().int().default(0),
+        positionY: z.number().int().default(0),
+        positionZ: z.number().int().default(0),
+        description: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        await db.createCabinetGroup({
+          ...input,
+          currentWeight: input.initialWeight,
+        });
+        return { success: true };
+      }),
+    
+    update: adminProcedure
+      .input(z.object({
+        id: z.number(),
+        name: z.string().min(1).max(100).optional(),
+        instrumentId: z.number().optional(),
+        initialWeight: z.number().int().min(0).optional(),
+        alarmThreshold: z.number().int().min(0).optional(),
+        positionX: z.number().int().optional(),
+        positionY: z.number().int().optional(),
+        positionZ: z.number().int().optional(),
+        description: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { id, ...data } = input;
+        await db.updateCabinetGroup(id, data);
+        return { success: true };
+      }),
+    
+    delete: adminProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        await db.deleteCabinetGroup(input.id);
+        return { success: true };
+      }),
+    
+    updateWeight: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        currentWeight: z.number().int().min(0),
+      }))
+      .mutation(async ({ input }) => {
+        const group = await db.getCabinetGroupById(input.id);
+        if (!group) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: '保险柜组不存在' });
+        }
+        
+        const changeValue = input.currentWeight - group.currentWeight;
+        const isAlarm = Math.abs(changeValue) > group.alarmThreshold;
+        const status = isAlarm ? 'alarm' : Math.abs(changeValue) > group.alarmThreshold * 0.7 ? 'warning' : 'normal';
+        
+        // 更新重量
+        await db.updateCabinetGroupWeight(input.id, input.currentWeight, status);
+        
+        // 记录重量变化
+        await db.createWeightChangeRecord({
+          cabinetGroupId: input.id,
+          previousWeight: group.currentWeight,
+          currentWeight: input.currentWeight,
+          changeValue,
+          isAlarm: isAlarm ? 1 : 0,
+        });
+        
+        // 如果触发报警，创建报警记录
+        if (isAlarm) {
+          await db.createAlarmRecord({
+            cabinetGroupId: input.id,
+            weightChangeRecordId: 0, // 实际应该是刚创建的记录ID
+            alarmType: 'threshold_exceeded',
+            alarmMessage: `重量变化${changeValue > 0 ? '增加' : '减少'}${Math.abs(changeValue)}克，超过阈值${group.alarmThreshold}克`,
+          });
+        }
+        
+        return { success: true, isAlarm, status };
+      }),
+  }),
+
+  // 重量变化记录
+  weightRecords: router({
+    list: protectedProcedure
+      .input(z.object({
+        cabinetGroupId: z.number().optional(),
+        limit: z.number().int().min(1).max(1000).default(100),
+      }))
+      .query(async ({ input }) => {
+        if (input.cabinetGroupId) {
+          return await db.getWeightChangeRecordsByCabinetGroup(input.cabinetGroupId, input.limit);
+        }
+        return await db.getAllWeightChangeRecords(input.limit);
+      }),
+    
+    getByDateRange: protectedProcedure
+      .input(z.object({
+        startDate: z.date(),
+        endDate: z.date(),
+      }))
+      .query(async ({ input }) => {
+        return await db.getWeightChangeRecordsByDateRange(input.startDate, input.endDate);
+      }),
+  }),
+
+  // 报警记录
+  alarms: router({
+    list: protectedProcedure
+      .input(z.object({
+        cabinetGroupId: z.number().optional(),
+        limit: z.number().int().min(1).max(1000).default(100),
+      }))
+      .query(async ({ input }) => {
+        if (input.cabinetGroupId) {
+          return await db.getAlarmRecordsByCabinetGroup(input.cabinetGroupId, input.limit);
+        }
+        return await db.getAllAlarmRecords(input.limit);
+      }),
+    
+    getUnhandled: protectedProcedure.query(async () => {
+      return await db.getUnhandledAlarmRecords();
+    }),
+    
+    handle: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        await db.handleAlarmRecord(input.id, ctx.user.id);
+        return { success: true };
+      }),
+  }),
 });
 
 export type AppRouter = typeof appRouter;

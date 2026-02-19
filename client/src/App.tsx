@@ -4,17 +4,33 @@ import NotFound from "@/pages/NotFound";
 import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
-import Home from "./pages/Home";
+import DashboardLayout from "./components/DashboardLayout";
+import Monitor from "./pages/Monitor";
+import Gateways from "./pages/Gateways";
+import Devices from "./pages/Devices";
+import Cabinets from "./pages/Cabinets";
+import Records from "./pages/Records";
+import Alarms from "./pages/Alarms";
+import Analytics from "./pages/Analytics";
+import Users from "./pages/Users";
 
 function Router() {
-  // make sure to consider if you need authentication for certain routes
   return (
-    <Switch>
-      <Route path={"/"} component={Home} />
-      <Route path={"/404"} component={NotFound} />
-      {/* Final fallback route */}
-      <Route component={NotFound} />
-    </Switch>
+    <DashboardLayout>
+      <Switch>
+        <Route path={"/"} component={Monitor} />
+        <Route path={"/gateways"} component={Gateways} />
+        <Route path={"/devices"} component={Devices} />
+        <Route path={"/cabinets"} component={Cabinets} />
+        <Route path={"/records"} component={Records} />
+        <Route path={"/alarms"} component={Alarms} />
+        <Route path={"/analytics"} component={Analytics} />
+        <Route path={"/users"} component={Users} />
+        <Route path={"/404"} component={NotFound} />
+        {/* Final fallback route */}
+        <Route component={NotFound} />
+      </Switch>
+    </DashboardLayout>
   );
 }
 
@@ -27,7 +43,7 @@ function App() {
   return (
     <ErrorBoundary>
       <ThemeProvider
-        defaultTheme="light"
+        defaultTheme="dark"
         // switchable
       >
         <TooltipProvider>
