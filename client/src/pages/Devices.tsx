@@ -1,3 +1,5 @@
+"use client";
+
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
@@ -29,17 +31,32 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, Edit, Trash2, Loader2, WifiOff, Wifi } from "lucide-react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import type { WeighingInstrument } from "../../../drizzle/schema";
 
+// COM端口表单schema
+const comPortSchema = z.object({
+  gatewayId: z.number({ message: "请选择网关" }),
+  portNumber: z.string().min(1, "端口号不能为空").max(10),
+  baudRate: z.number().int().optional(),
+  dataBits: z.number().int().optional(),
+  stopBits: z.number().int().optional(),
+  parity: z.string().optional(),
+  description: z.string().optional(),
+});
+
+type ComPortForm = z.infer<typeof comPortSchema>;
+
+// 仪表表单schema
 const instrumentSchema = z.object({
   name: z.string().min(1, "名称不能为空").max(100, "名称过长"),
-  gatewayId: z.number({ message: "请选择网关" }),
+  modelType: z.enum(["DY7001", "DY7004"], { message: "请选择仪表型号" }),
+  gatewayComPortId: z.number({ message: "请选择网关COM端口" }),
   slaveAddress: z.number().int().min(1, "从站地址必须大于0").max(247, "从站地址无效"),
   description: z.string().optional(),
 });
@@ -47,39 +64,86 @@ const instrumentSchema = z.object({
 type InstrumentForm = z.infer<typeof instrumentSchema>;
 
 export default function Devices() {
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editingInstrument, setEditingInstrument] = useState<WeighingInstrument | null>(null);
+  const [activeTab, setActiveTab] = useState("comports");
+  const [isComPortDialogOpen, setIsComPortDialogOpen] = useState(false);
+  const [isInstrumentDialogOpen, setIsInstrumentDialogOpen] = useState(false);
+  const [editingComPort, setEditingComPort] = useState<any>(null);
+  const [editingInstrument, setEditingInstrument] = useState<any>(null);
+  const [selectedGatewayId, setSelectedGatewayId] = useState<number | null>(null);
+
   const utils = trpc.useUtils();
 
-  const { data: instruments, isLoading } = trpc.instruments.list.useQuery();
-  const { data: gateways } = trpc.gateways.list.useQuery();
+  // 查询数据
+  const { data: gateways, isLoading: gatewaysLoading } = trpc.gateways.list.useQuery();
+  const { data: comPorts, isLoading: comPortsLoading } = trpc.gatewayComPorts.listByGateway.useQuery(
+    { gatewayId: selectedGatewayId || 0 },
+    { enabled: !!selectedGatewayId }
+  );
+  const { data: instruments, isLoading: instrumentsLoading } = trpc.instruments.list.useQuery();
 
-  const createMutation = trpc.instruments.create.useMutation({
+  // COM端口mutations
+  const createComPortMutation = trpc.gatewayComPorts.create.useMutation({
     onSuccess: () => {
-      utils.instruments.list.invalidate();
-      toast.success("仪表创建成功");
-      setIsDialogOpen(false);
-      reset();
+      utils.gatewayComPorts.listByGateway.invalidate();
+      toast.success("COM端口创建成功");
+      setIsComPortDialogOpen(false);
+      resetComPortForm();
     },
     onError: (error) => {
       toast.error(`创建失败: ${error.message}`);
     },
   });
 
-  const updateMutation = trpc.instruments.update.useMutation({
+  const updateComPortMutation = trpc.gatewayComPorts.update.useMutation({
     onSuccess: () => {
-      utils.instruments.list.invalidate();
-      toast.success("仪表更新成功");
-      setIsDialogOpen(false);
-      setEditingInstrument(null);
-      reset();
+      utils.gatewayComPorts.listByGateway.invalidate();
+      toast.success("COM端口更新成功");
+      setIsComPortDialogOpen(false);
+      setEditingComPort(null);
+      resetComPortForm();
     },
     onError: (error) => {
       toast.error(`更新失败: ${error.message}`);
     },
   });
 
-  const deleteMutation = trpc.instruments.delete.useMutation({
+  const deleteComPortMutation = trpc.gatewayComPorts.delete.useMutation({
+    onSuccess: () => {
+      utils.gatewayComPorts.listByGateway.invalidate();
+      toast.success("COM端口删除成功");
+    },
+    onError: (error) => {
+      toast.error(`删除失败: ${error.message}`);
+    },
+  });
+
+  // 仪表mutations
+  const createInstrumentMutation = trpc.instruments.create.useMutation({
+    onSuccess: () => {
+      utils.instruments.list.invalidate();
+      toast.success("仪表创建成功");
+      setIsInstrumentDialogOpen(false);
+      resetInstrumentForm();
+    },
+    onError: (error) => {
+      toast.error(`创建失败: ${error.message}`);
+    },
+  });
+
+  const updateInstrumentMutation = trpc.instruments.update.useMutation({
+    onSuccess: () => {
+      utils.instruments.list.invalidate();
+      toast.success("仪表更新成功");
+      setIsInstrumentDialogOpen(false);
+      setEditingInstrument(null);
+      resetInstrumentForm();
+    },
+    onError: (error) => {
+      toast.error(`更新失败: ${error.message}`);
+    },
+  });
+
+  const deleteInstrumentMutation = trpc.instruments.delete.useMutation({
     onSuccess: () => {
       utils.instruments.list.invalidate();
       toast.success("仪表删除成功");
@@ -89,242 +153,509 @@ export default function Devices() {
     },
   });
 
+  // COM端口表单
   const {
-    register,
-    handleSubmit,
-    reset,
-    control,
-    formState: { errors },
+    register: registerComPort,
+    handleSubmit: handleComPortSubmit,
+    reset: resetComPortForm,
+    control: controlComPort,
+    formState: { errors: comPortErrors },
+  } = useForm<ComPortForm>({
+    resolver: zodResolver(comPortSchema),
+    defaultValues: {
+      baudRate: 9600,
+      dataBits: 8,
+      stopBits: 1,
+      parity: "none",
+    },
+  });
+
+  // 仪表表单
+  const {
+    register: registerInstrument,
+    handleSubmit: handleInstrumentSubmit,
+    reset: resetInstrumentForm,
+    control: controlInstrument,
+    formState: { errors: instrumentErrors },
+    watch: watchInstrument,
   } = useForm<InstrumentForm>({
     resolver: zodResolver(instrumentSchema),
   });
 
-  const onSubmit = (data: InstrumentForm) => {
-    if (editingInstrument) {
-      updateMutation.mutate({ id: editingInstrument.id, ...data });
+  const selectedComPortId = watchInstrument("gatewayComPortId");
+
+  // COM端口提交
+  const onComPortSubmit = (data: any) => {
+    if (editingComPort) {
+      updateComPortMutation.mutate({ id: editingComPort.id, ...data });
     } else {
-      createMutation.mutate(data);
+      createComPortMutation.mutate(data);
     }
   };
 
-  const handleEdit = (instrument: WeighingInstrument) => {
+  // 仪表提交
+  const onInstrumentSubmit = (data: any) => {
+    if (editingInstrument) {
+      updateInstrumentMutation.mutate({ id: editingInstrument.id, ...data });
+    } else {
+      createInstrumentMutation.mutate(data);
+    }
+  };
+
+  // 编辑COM端口
+  const handleEditComPort = (port: any) => {
+    setEditingComPort(port);
+    resetComPortForm({
+      gatewayId: port.gatewayId,
+      portNumber: port.portNumber,
+      baudRate: port.baudRate,
+      dataBits: port.dataBits,
+      stopBits: port.stopBits,
+      parity: port.parity,
+      description: port.description || "",
+    });
+    setIsComPortDialogOpen(true);
+  };
+
+  // 编辑仪表
+  const handleEditInstrument = (instrument: any) => {
     setEditingInstrument(instrument);
-    reset({
+    resetInstrumentForm({
       name: instrument.name,
-      gatewayId: instrument.gatewayId,
+      modelType: instrument.modelType,
+      gatewayComPortId: instrument.gatewayComPortId,
       slaveAddress: instrument.slaveAddress,
       description: instrument.description || "",
     });
-    setIsDialogOpen(true);
+    setIsInstrumentDialogOpen(true);
   };
 
-  const handleDelete = (id: number) => {
-    if (confirm("确定要删除此仪表吗？")) {
-      deleteMutation.mutate({ id });
-    }
-  };
-
-  const handleAdd = () => {
-    setEditingInstrument(null);
-    reset({
-      name: "",
-      gatewayId: undefined,
-      slaveAddress: 1,
-      description: "",
-    });
-    setIsDialogOpen(true);
-  };
-
+  // 获取网关名称
   const getGatewayName = (gatewayId: number) => {
-    return gateways?.find((g) => g.id === gatewayId)?.name || "未知网关";
+    return gateways?.find(g => g.id === gatewayId)?.name || "未知网关";
+  };
+
+  // 获取COM端口信息
+  const getComPortInfo = (comPortId: number) => {
+    let result = "";
+    gateways?.forEach(gateway => {
+      const port = gateway.id === selectedGatewayId ? comPorts?.find(p => p.id === comPortId) : null;
+      if (port) {
+        result = `${getGatewayName(gateway.id)} - ${port.portNumber}`;
+      }
+    });
+    return result || "未配置";
   };
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight text-foreground">设备管理</h1>
-          <p className="text-muted-foreground mt-2">管理所有称重仪表设备</p>
-        </div>
-        <Button onClick={handleAdd}>
-          <Plus className="mr-2 h-4 w-4" />
-          添加仪表
-        </Button>
+      <div>
+        <h1 className="text-3xl font-bold">设备管理</h1>
+        <p className="text-muted-foreground">管理RS485网关COM端口和称重仪表</p>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>称重仪表列表</CardTitle>
-          <CardDescription>查看和管理所有称重传感器仪表的配置信息</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>名称</TableHead>
-                  <TableHead>所属网关</TableHead>
-                  <TableHead>从站地址</TableHead>
-                  <TableHead>状态</TableHead>
-                  <TableHead>最后心跳</TableHead>
-                  <TableHead>描述</TableHead>
-                  <TableHead className="text-right">操作</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {instruments?.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
-                      暂无仪表设备
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  instruments?.map((instrument) => (
-                    <TableRow key={instrument.id}>
-                      <TableCell className="font-medium">{instrument.name}</TableCell>
-                      <TableCell>{getGatewayName(instrument.gatewayId)}</TableCell>
-                      <TableCell className="font-mono">{instrument.slaveAddress}</TableCell>
-                      <TableCell>
-                        <Badge
-                          variant={instrument.status === "online" ? "default" : "secondary"}
-                          className="gap-1"
-                        >
-                          {instrument.status === "online" ? (
-                            <Wifi className="h-3 w-3" />
-                          ) : (
-                            <WifiOff className="h-3 w-3" />
-                          )}
-                          {instrument.status === "online" ? "在线" : "离线"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {instrument.lastHeartbeat
-                          ? format(new Date(instrument.lastHeartbeat), "yyyy-MM-dd HH:mm:ss")
-                          : "-"}
-                      </TableCell>
-                      <TableCell className="max-w-xs truncate text-sm text-muted-foreground">
-                        {instrument.description || "-"}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleEdit(instrument)}
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleDelete(instrument.id)}
-                          >
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="comports">网关COM端口</TabsTrigger>
+          <TabsTrigger value="instruments">称重仪表</TabsTrigger>
+        </TabsList>
 
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader>
-            <DialogTitle>{editingInstrument ? "编辑仪表" : "添加仪表"}</DialogTitle>
-            <DialogDescription>
-              {editingInstrument ? "修改称重仪表配置信息" : "创建新的称重仪表"}
-            </DialogDescription>
-          </DialogHeader>
-          <form onSubmit={handleSubmit(onSubmit)}>
-            <div className="grid gap-4 py-4">
-              <div className="grid gap-2">
-                <Label htmlFor="name">名称 *</Label>
-                <Input
-                  id="name"
-                  placeholder="例如：1号称重仪表"
-                  {...register("name")}
-                />
-                {errors.name && (
-                  <p className="text-sm text-destructive">{errors.name.message}</p>
-                )}
+        {/* COM端口标签页 */}
+        <TabsContent value="comports" className="space-y-4">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>COM端口配置</CardTitle>
+                <CardDescription>配置RS485网关的COM端口参数</CardDescription>
               </div>
-              <div className="grid gap-2">
-                <Label htmlFor="gatewayId">所属网关 *</Label>
+              <Button onClick={() => {
+                setEditingComPort(null);
+                resetComPortForm();
+                setIsComPortDialogOpen(true);
+              }}>
+                <Plus className="mr-2 h-4 w-4" />
+                添加COM端口
+              </Button>
+            </CardHeader>
+            <CardContent>
+              <div className="mb-4">
+                <Label>选择网关</Label>
+                <Select value={selectedGatewayId?.toString() || ""} onValueChange={(val) => setSelectedGatewayId(parseInt(val))}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="选择网关" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {gateways?.map(gateway => (
+                      <SelectItem key={gateway.id} value={gateway.id.toString()}>
+                        {gateway.name} ({gateway.status === "online" ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {comPortsLoading ? (
+                <div className="flex justify-center"><Loader2 className="h-6 w-6 animate-spin" /></div>
+              ) : comPorts && comPorts.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>端口号</TableHead>
+                        <TableHead>波特率</TableHead>
+                        <TableHead>数据位</TableHead>
+                        <TableHead>停止位</TableHead>
+                        <TableHead>奇偶校验</TableHead>
+                        <TableHead>描述</TableHead>
+                        <TableHead className="text-right">操作</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {comPorts.map(port => (
+                        <TableRow key={port.id}>
+                          <TableCell className="font-medium">{port.portNumber}</TableCell>
+                          <TableCell>{port.baudRate}</TableCell>
+                          <TableCell>{port.dataBits}</TableCell>
+                          <TableCell>{port.stopBits}</TableCell>
+                          <TableCell>{port.parity}</TableCell>
+                          <TableCell className="text-sm text-muted-foreground">{port.description || "-"}</TableCell>
+                          <TableCell className="text-right space-x-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleEditComPort(port)}
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => deleteComPortMutation.mutate({ id: port.id })}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  {selectedGatewayId ? "该网关暂无COM端口配置" : "请先选择网关"}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* 仪表标签页 */}
+        <TabsContent value="instruments" className="space-y-4">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>称重仪表</CardTitle>
+                <CardDescription>管理所有RS485称重仪表设备</CardDescription>
+              </div>
+              <Button onClick={() => {
+                setEditingInstrument(null);
+                resetInstrumentForm();
+                setIsInstrumentDialogOpen(true);
+              }}>
+                <Plus className="mr-2 h-4 w-4" />
+                添加仪表
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {instrumentsLoading ? (
+                <div className="flex justify-center"><Loader2 className="h-6 w-6 animate-spin" /></div>
+              ) : instruments && instruments.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>仪表名称</TableHead>
+                        <TableHead>型号</TableHead>
+                        <TableHead>网关COM端口</TableHead>
+                        <TableHead>从站地址</TableHead>
+                        <TableHead>状态</TableHead>
+                        <TableHead>描述</TableHead>
+                        <TableHead className="text-right">操作</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {instruments.map(instrument => (
+                        <TableRow key={instrument.id}>
+                          <TableCell className="font-medium">{instrument.name}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline">
+                              {instrument.modelType}
+                              {instrument.modelType === "DY7001" && " (1通道)"}
+                              {instrument.modelType === "DY7004" && " (4通道)"}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-sm">{getComPortInfo(instrument.gatewayComPortId)}</TableCell>
+                          <TableCell>{instrument.slaveAddress}</TableCell>
+                          <TableCell>
+                            <Badge variant={instrument.status === "online" ? "default" : "destructive"}>
+                              {instrument.status === "online" ? <Wifi className="h-3 w-3 mr-1" /> : <WifiOff className="h-3 w-3 mr-1" />}
+                              {instrument.status === "online" ? "在线" : "离线"}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-sm text-muted-foreground">{instrument.description || "-"}</TableCell>
+                          <TableCell className="text-right space-x-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleEditInstrument(instrument)}
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => deleteInstrumentMutation.mutate({ id: instrument.id })}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  暂无仪表数据
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+
+      {/* COM端口对话框 */}
+      <Dialog open={isComPortDialogOpen} onOpenChange={setIsComPortDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editingComPort ? "编辑COM端口" : "添加COM端口"}</DialogTitle>
+            <DialogDescription>配置RS485网关的COM端口参数</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleComPortSubmit(onComPortSubmit)} className="space-y-4">
+            <div>
+              <Label htmlFor="gateway">网关</Label>
+              <Controller
+                name="gatewayId"
+                control={controlComPort}
+                render={({ field }) => (
+                  <Select value={field.value?.toString() || ""} onValueChange={(val) => field.onChange(parseInt(val))}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="选择网关" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {gateways?.map(gateway => (
+                        <SelectItem key={gateway.id} value={gateway.id.toString()}>
+                          {gateway.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+              {comPortErrors.gatewayId && <p className="text-sm text-red-500">{comPortErrors.gatewayId.message}</p>}
+            </div>
+
+            <div>
+              <Label htmlFor="portNumber">端口号</Label>
+              <Input
+                id="portNumber"
+                placeholder="如 COM1, COM2"
+                {...registerComPort("portNumber")}
+              />
+              {comPortErrors.portNumber && <p className="text-sm text-red-500">{comPortErrors.portNumber.message}</p>}
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="baudRate">波特率</Label>
+                <Input
+                  id="baudRate"
+                  type="number"
+                  {...registerComPort("baudRate", { valueAsNumber: true })}
+                />
+              </div>
+              <div>
+                <Label htmlFor="dataBits">数据位</Label>
+                <Input
+                  id="dataBits"
+                  type="number"
+                  {...registerComPort("dataBits", { valueAsNumber: true })}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="stopBits">停止位</Label>
+                <Input
+                  id="stopBits"
+                  type="number"
+                  {...registerComPort("stopBits", { valueAsNumber: true })}
+                />
+              </div>
+              <div>
+                <Label htmlFor="parity">奇偶校验</Label>
                 <Controller
-                  name="gatewayId"
-                  control={control}
+                  name="parity"
+                  control={controlComPort}
                   render={({ field }) => (
-                    <Select
-                      value={field.value?.toString()}
-                      onValueChange={(value) => field.onChange(parseInt(value))}
-                    >
+                    <Select value={field.value || "none"} onValueChange={field.onChange}>
                       <SelectTrigger>
-                        <SelectValue placeholder="选择网关" />
+                        <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {gateways?.map((gateway) => (
-                          <SelectItem key={gateway.id} value={gateway.id.toString()}>
-                            {gateway.name} ({gateway.ipAddress}:{gateway.port})
-                          </SelectItem>
-                        ))}
+                        <SelectItem value="none">无</SelectItem>
+                        <SelectItem value="odd">奇</SelectItem>
+                        <SelectItem value="even">偶</SelectItem>
                       </SelectContent>
                     </Select>
                   )}
                 />
-                {errors.gatewayId && (
-                  <p className="text-sm text-destructive">{errors.gatewayId.message}</p>
-                )}
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="slaveAddress">从站地址 *</Label>
-                <Input
-                  id="slaveAddress"
-                  type="number"
-                  placeholder="1-247"
-                  {...register("slaveAddress", { valueAsNumber: true })}
-                />
-                {errors.slaveAddress && (
-                  <p className="text-sm text-destructive">{errors.slaveAddress.message}</p>
-                )}
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="description">描述</Label>
-                <Textarea
-                  id="description"
-                  placeholder="仪表的详细描述信息"
-                  {...register("description")}
-                />
               </div>
             </div>
+
+            <div>
+              <Label htmlFor="description">描述</Label>
+              <Textarea
+                id="description"
+                placeholder="可选的描述信息"
+                {...registerComPort("description")}
+              />
+            </div>
+
             <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  setIsDialogOpen(false);
-                  setEditingInstrument(null);
-                  reset();
-                }}
-              >
+              <Button type="button" variant="outline" onClick={() => setIsComPortDialogOpen(false)}>
                 取消
               </Button>
-              <Button
-                type="submit"
-                disabled={createMutation.isPending || updateMutation.isPending}
-              >
-                {(createMutation.isPending || updateMutation.isPending) && (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              <Button type="submit" disabled={createComPortMutation.isPending || updateComPortMutation.isPending}>
+                {createComPortMutation.isPending || updateComPortMutation.isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    保存中...
+                  </>
+                ) : (
+                  "保存"
                 )}
-                {editingInstrument ? "保存" : "创建"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* 仪表对话框 */}
+      <Dialog open={isInstrumentDialogOpen} onOpenChange={setIsInstrumentDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editingInstrument ? "编辑仪表" : "添加仪表"}</DialogTitle>
+            <DialogDescription>配置RS485称重仪表</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleInstrumentSubmit(onInstrumentSubmit)} className="space-y-4">
+            <div>
+              <Label htmlFor="name">仪表名称</Label>
+              <Input
+                id="name"
+                placeholder="如 仪表1"
+                {...registerInstrument("name")}
+              />
+              {instrumentErrors.name && <p className="text-sm text-red-500">{instrumentErrors.name.message}</p>}
+            </div>
+
+            <div>
+              <Label htmlFor="modelType">仪表型号</Label>
+              <Controller
+                name="modelType"
+                control={controlInstrument}
+                render={({ field }) => (
+                  <Select value={field.value || ""} onValueChange={field.onChange}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="选择仪表型号" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="DY7001">DY7001 (1个传感器通道)</SelectItem>
+                      <SelectItem value="DY7004">DY7004 (4个传感器通道)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+              {instrumentErrors.modelType && <p className="text-sm text-red-500">{instrumentErrors.modelType.message}</p>}
+            </div>
+
+            <div>
+              <Label htmlFor="gatewayComPortId">网关COM端口</Label>
+              <Controller
+                name="gatewayComPortId"
+                control={controlInstrument}
+                render={({ field }) => (
+                  <Select value={field.value?.toString() || ""} onValueChange={(val) => field.onChange(parseInt(val))}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="选择网关COM端口" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {gateways?.map(gateway => (
+                        <SelectItem key={`group-${gateway.id}`} value="" disabled>
+                          <span className="font-semibold">{gateway.name}</span>
+                        </SelectItem>
+                      ))}
+                      {gateways?.flatMap(gateway => {
+                        const ports = comPorts?.filter(p => p.gatewayId === gateway.id) || [];
+                        return ports.map(port => (
+                          <SelectItem key={port.id} value={port.id.toString()}>
+                            {gateway.name} - {port.portNumber}
+                          </SelectItem>
+                        ));
+                      })}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+              {instrumentErrors.gatewayComPortId && <p className="text-sm text-red-500">{instrumentErrors.gatewayComPortId.message}</p>}
+            </div>
+
+            <div>
+              <Label htmlFor="slaveAddress">从站地址</Label>
+              <Input
+                id="slaveAddress"
+                type="number"
+                min="1"
+                max="247"
+                placeholder="1-247"
+                {...registerInstrument("slaveAddress", { valueAsNumber: true })}
+              />
+              {instrumentErrors.slaveAddress && <p className="text-sm text-red-500">{instrumentErrors.slaveAddress.message}</p>}
+            </div>
+
+            <div>
+              <Label htmlFor="description">描述</Label>
+              <Textarea
+                id="description"
+                placeholder="可选的描述信息"
+                {...registerInstrument("description")}
+              />
+            </div>
+
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setIsInstrumentDialogOpen(false)}>
+                取消
+              </Button>
+              <Button type="submit" disabled={createInstrumentMutation.isPending || updateInstrumentMutation.isPending}>
+                {createInstrumentMutation.isPending || updateInstrumentMutation.isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    保存中...
+                  </>
+                ) : (
+                  "保存"
+                )}
               </Button>
             </DialogFooter>
           </form>

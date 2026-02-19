@@ -114,6 +114,53 @@ export const appRouter = router({
       }),
   }),
 
+  // 网关COM端口管理
+  gatewayComPorts: router({
+    listByGateway: protectedProcedure
+      .input(z.object({ gatewayId: z.number() }))
+      .query(async ({ input }) => {
+        return await db.getComPortsByGateway(input.gatewayId);
+      }),
+    
+    create: adminProcedure
+      .input(z.object({
+        gatewayId: z.number(),
+        portNumber: z.string().min(1).max(10),
+        baudRate: z.number().int().default(9600),
+        dataBits: z.number().int().default(8),
+        stopBits: z.number().int().default(1),
+        parity: z.string().default("none"),
+        description: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const id = await db.createComPort(input);
+        return { id, ...input };
+      }),
+    
+    update: adminProcedure
+      .input(z.object({
+        id: z.number(),
+        portNumber: z.string().min(1).max(10).optional(),
+        baudRate: z.number().int().optional(),
+        dataBits: z.number().int().optional(),
+        stopBits: z.number().int().optional(),
+        parity: z.string().optional(),
+        description: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { id, ...data } = input;
+        await db.updateComPort(id, data);
+        return { success: true };
+      }),
+    
+    delete: adminProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        await db.deleteComPort(input.id);
+        return { success: true };
+      }),
+  }),
+
   // 称重仪表管理
   instruments: router({
     list: protectedProcedure.query(async () => {
@@ -126,29 +173,31 @@ export const appRouter = router({
         return await db.getInstrumentById(input.id);
       }),
     
-    getByGateway: protectedProcedure
-      .input(z.object({ gatewayId: z.number() }))
+    getByComPort: protectedProcedure
+      .input(z.object({ comPortId: z.number() }))
       .query(async ({ input }) => {
-        return await db.getInstrumentsByGatewayId(input.gatewayId);
+        return await db.getInstrumentsByComPortId(input.comPortId);
       }),
     
     create: adminProcedure
       .input(z.object({
         name: z.string().min(1).max(100),
-        gatewayId: z.number(),
+        modelType: z.enum(["DY7001", "DY7004"]),
+        gatewayComPortId: z.number(),
         slaveAddress: z.number().int().min(1).max(247),
         description: z.string().optional(),
       }))
       .mutation(async ({ input }) => {
-        await db.createInstrument(input);
-        return { success: true };
+        const id = await db.createInstrument(input);
+        return { id, ...input };
       }),
     
     update: adminProcedure
       .input(z.object({
         id: z.number(),
         name: z.string().min(1).max(100).optional(),
-        gatewayId: z.number().optional(),
+        modelType: z.enum(["DY7001", "DY7004"]).optional(),
+        gatewayComPortId: z.number().optional(),
         slaveAddress: z.number().int().min(1).max(247).optional(),
         description: z.string().optional(),
       }))
@@ -191,7 +240,6 @@ export const appRouter = router({
     create: adminProcedure
       .input(z.object({
         name: z.string().min(1).max(100),
-        instrumentId: z.number(),
         initialWeight: z.number().int().min(0),
         alarmThreshold: z.number().int().min(0),
         positionX: z.number().int().default(0),
@@ -200,18 +248,17 @@ export const appRouter = router({
         description: z.string().optional(),
       }))
       .mutation(async ({ input }) => {
-        await db.createCabinetGroup({
+        const id = await db.createCabinetGroup({
           ...input,
           currentWeight: input.initialWeight,
         });
-        return { success: true };
+        return { id, ...input };
       }),
     
     update: adminProcedure
       .input(z.object({
         id: z.number(),
         name: z.string().min(1).max(100).optional(),
-        instrumentId: z.number().optional(),
         initialWeight: z.number().int().min(0).optional(),
         alarmThreshold: z.number().int().min(0).optional(),
         positionX: z.number().int().optional(),
@@ -229,6 +276,51 @@ export const appRouter = router({
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input }) => {
         await db.deleteCabinetGroup(input.id);
+        return { success: true };
+      }),
+    
+    // 配置网关绑定
+    setGatewayBinding: adminProcedure
+      .input(z.object({
+        cabinetGroupId: z.number(),
+        gatewayComPortId: z.number(),
+      }))
+      .mutation(async ({ input }) => {
+        await db.setGatewayBinding(input.cabinetGroupId, input.gatewayComPortId);
+        return { success: true };
+      }),
+    
+    // 获取网关绑定
+    getGatewayBinding: protectedProcedure
+      .input(z.object({ cabinetGroupId: z.number() }))
+      .query(async ({ input }) => {
+        return await db.getGatewayBinding(input.cabinetGroupId);
+      }),
+    
+    // 添加传感器绑定
+    addSensorBinding: adminProcedure
+      .input(z.object({
+        cabinetGroupId: z.number(),
+        instrumentId: z.number(),
+        sensorChannel: z.number().int().min(1).max(4),
+      }))
+      .mutation(async ({ input }) => {
+        const id = await db.addSensorBinding(input);
+        return { id, ...input };
+      }),
+    
+    // 获取传感器绑定
+    getSensorBindings: protectedProcedure
+      .input(z.object({ cabinetGroupId: z.number() }))
+      .query(async ({ input }) => {
+        return await db.getSensorBindings(input.cabinetGroupId);
+      }),
+    
+    // 删除传感器绑定
+    removeSensorBinding: adminProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        await db.removeSensorBinding(input.id);
         return { success: true };
       }),
     
@@ -263,7 +355,7 @@ export const appRouter = router({
         if (isAlarm) {
           await db.createAlarmRecord({
             cabinetGroupId: input.id,
-            weightChangeRecordId: 0, // 实际应该是刚创建的记录ID
+            weightChangeRecordId: 0,
             alarmType: 'threshold_exceeded',
             alarmMessage: `重量变化${changeValue > 0 ? '增加' : '减少'}${Math.abs(changeValue)}克，超过阈值${group.alarmThreshold}克`,
           });

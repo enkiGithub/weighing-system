@@ -4,16 +4,22 @@ import {
   InsertUser, 
   users,
   gateways,
+  gatewayComPorts,
   weighingInstruments,
   cabinetGroups,
+  cabinetGroupGatewayBindings,
+  cabinetGroupSensorBindings,
   weightChangeRecords,
   alarmRecords,
   cabinets,
   vaultLayouts,
   cabinetGroupLayouts,
   InsertGateway,
+  InsertGatewayComPort,
   InsertWeighingInstrument,
   InsertCabinetGroup,
+  InsertCabinetGroupGatewayBinding,
+  InsertCabinetGroupSensorBinding,
   InsertWeightChangeRecord,
   InsertAlarmRecord,
   InsertCabinet,
@@ -187,16 +193,17 @@ export async function getInstrumentById(id: number) {
   return result.length > 0 ? result[0] : undefined;
 }
 
-export async function getInstrumentsByGatewayId(gatewayId: number) {
+export async function getInstrumentsByComPortId(comPortId: number) {
   const db = await getDb();
   if (!db) return [];
-  return await db.select().from(weighingInstruments).where(eq(weighingInstruments.gatewayId, gatewayId));
+  return await db.select().from(weighingInstruments).where(eq(weighingInstruments.gatewayComPortId, comPortId));
 }
 
-export async function createInstrument(instrument: InsertWeighingInstrument) {
+export async function createInstrument(instrument: InsertWeighingInstrument): Promise<number> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  await db.insert(weighingInstruments).values(instrument);
+  const result = await db.insert(weighingInstruments).values(instrument);
+  return Number(result[0].insertId);
 }
 
 export async function updateInstrument(id: number, instrument: Partial<InsertWeighingInstrument>) {
@@ -231,10 +238,11 @@ export async function getCabinetGroupById(id: number) {
   return result.length > 0 ? result[0] : undefined;
 }
 
-export async function createCabinetGroup(group: InsertCabinetGroup) {
+export async function createCabinetGroup(group: InsertCabinetGroup): Promise<number> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  await db.insert(cabinetGroups).values(group);
+  const result = await db.insert(cabinetGroups).values(group);
+  return Number(result[0].insertId);
 }
 
 export async function updateCabinetGroup(id: number, group: Partial<InsertCabinetGroup>) {
@@ -455,4 +463,92 @@ export async function deleteCabinetGroupLayoutsByVaultLayout(vaultLayoutId: numb
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   await db.delete(cabinetGroupLayouts).where(eq(cabinetGroupLayouts.vaultLayoutId, vaultLayoutId));
+}
+
+
+// 网关COM端口管理
+export async function getComPortsByGateway(gatewayId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return await db.select()
+    .from(gatewayComPorts)
+    .where(eq(gatewayComPorts.gatewayId, gatewayId))
+    .orderBy(desc(gatewayComPorts.createdAt));
+}
+
+export async function createComPort(port: InsertGatewayComPort): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(gatewayComPorts).values(port);
+  return Number(result[0].insertId);
+}
+
+export async function updateComPort(id: number, port: Partial<InsertGatewayComPort>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(gatewayComPorts).set(port).where(eq(gatewayComPorts.id, id));
+}
+
+export async function deleteComPort(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(gatewayComPorts).where(eq(gatewayComPorts.id, id));
+}
+
+// 柜组网关绑定管理
+export async function setGatewayBinding(cabinetGroupId: number, gatewayComPortId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  // 检查是否已存在绑定
+  const existing = await db.select()
+    .from(cabinetGroupGatewayBindings)
+    .where(eq(cabinetGroupGatewayBindings.cabinetGroupId, cabinetGroupId))
+    .limit(1);
+  
+  if (existing.length > 0) {
+    // 更新现有绑定
+    await db.update(cabinetGroupGatewayBindings)
+      .set({ gatewayComPortId })
+      .where(eq(cabinetGroupGatewayBindings.cabinetGroupId, cabinetGroupId));
+  } else {
+    // 创建新绑定
+    await db.insert(cabinetGroupGatewayBindings).values({
+      cabinetGroupId,
+      gatewayComPortId,
+    });
+  }
+}
+
+export async function getGatewayBinding(cabinetGroupId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const result = await db.select()
+    .from(cabinetGroupGatewayBindings)
+    .where(eq(cabinetGroupGatewayBindings.cabinetGroupId, cabinetGroupId))
+    .limit(1);
+  return result.length > 0 ? result[0] : null;
+}
+
+// 柜组传感器绑定管理
+export async function addSensorBinding(binding: InsertCabinetGroupSensorBinding): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(cabinetGroupSensorBindings).values(binding);
+  return Number(result[0].insertId);
+}
+
+export async function getSensorBindings(cabinetGroupId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return await db.select()
+    .from(cabinetGroupSensorBindings)
+    .where(eq(cabinetGroupSensorBindings.cabinetGroupId, cabinetGroupId))
+    .orderBy(desc(cabinetGroupSensorBindings.createdAt));
+}
+
+export async function removeSensorBinding(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(cabinetGroupSensorBindings).where(eq(cabinetGroupSensorBindings.id, id));
 }
