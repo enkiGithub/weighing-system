@@ -185,6 +185,8 @@ export default function LayoutEditor() {
   const [showBindDialog, setShowBindDialog] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const [customColumns, setCustomColumns] = useState(2);
+  const [customShelves, setCustomShelves] = useState(6);
 
   // Queries
   const layoutsQuery = trpc.layoutEditor.vaultLayouts.list.useQuery();
@@ -260,6 +262,7 @@ export default function LayoutEditor() {
   }, [selectedInstanceId]);
 
   const updateInstanceTransform = useCallback((instanceId: string, pos: THREE.Vector3, rot: THREE.Euler, scl: THREE.Vector3) => {
+    const clampedY = Math.max(0, +pos.y.toFixed(3));
     setLayoutData(prev => ({
       ...prev,
       instances: prev.instances.map(i =>
@@ -267,7 +270,7 @@ export default function LayoutEditor() {
           ? {
             ...i,
             transform: {
-              position: { x: +pos.x.toFixed(3), y: +pos.y.toFixed(3), z: +pos.z.toFixed(3) },
+              position: { x: +pos.x.toFixed(3), y: clampedY, z: +pos.z.toFixed(3) },
               rotation: { x: +rot.x.toFixed(3), y: +rot.y.toFixed(3), z: +rot.z.toFixed(3) },
               scale: { x: +scl.x.toFixed(3), y: +scl.y.toFixed(3), z: +scl.z.toFixed(3) },
             },
@@ -385,11 +388,12 @@ export default function LayoutEditor() {
 
   const updatePositionField = useCallback((axis: "x" | "y" | "z", value: number) => {
     if (!selectedInstanceId) return;
+    const clampedValue = axis === "y" ? Math.max(0, value) : value;
     setLayoutData(prev => ({
       ...prev,
       instances: prev.instances.map(i =>
         i.instanceId === selectedInstanceId
-          ? { ...i, transform: { ...i.transform, position: { ...i.transform.position, [axis]: value } } }
+          ? { ...i, transform: { ...i.transform, position: { ...i.transform.position, [axis]: clampedValue } } }
           : i
       ),
     }));
@@ -485,23 +489,25 @@ export default function LayoutEditor() {
           <CardContent className="px-4 pb-3">
             <ScrollArea className="h-[calc(100vh-28rem)]">
               <div className="space-y-2">
-                <p className="text-[10px] text-slate-500 uppercase tracking-wider">柜组模板</p>
-                {[
-                  { label: "单列柜组", columns: 1, shelves: 6 },
-                  { label: "双列柜组", columns: 2, shelves: 6 },
-                  { label: "三列柜组", columns: 3, shelves: 6 },
-                  { label: "四列柜组", columns: 4, shelves: 6 },
-                  { label: "高柜组 (8层)", columns: 2, shelves: 8 },
-                  { label: "矮柜组 (4层)", columns: 2, shelves: 4 },
-                ].map((tpl) => (
-                  <button key={tpl.label} className="w-full text-left p-2.5 rounded-lg border border-slate-700/50 hover:border-cyan-500/50 hover:bg-slate-800/50 transition-all group" onClick={() => addInstance({ columns: tpl.columns, shelves: tpl.shelves })}>
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-medium text-slate-200 group-hover:text-cyan-400 transition-colors">{tpl.label}</span>
-                      <Plus className="h-3 w-3 text-slate-500 group-hover:text-cyan-400 transition-colors" />
+                <p className="text-[10px] text-slate-500 uppercase tracking-wider">自定义柜组</p>
+                <div className="p-3 rounded-lg border border-slate-700/50 bg-slate-800/30 space-y-3">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <Label className="text-[10px] text-slate-400">列数</Label>
+                      <Input type="number" min={1} max={20} value={customColumns} onChange={e => setCustomColumns(Math.max(1, Math.min(20, parseInt(e.target.value) || 1)))} className="h-7 text-xs bg-slate-800 border-slate-600 text-center mt-1" />
                     </div>
-                    <div className="text-[10px] text-slate-500 mt-0.5">{tpl.columns}列 × {tpl.shelves}层</div>
-                  </button>
-                ))}
+                    <div>
+                      <Label className="text-[10px] text-slate-400">层数</Label>
+                      <Input type="number" min={1} max={20} value={customShelves} onChange={e => setCustomShelves(Math.max(1, Math.min(20, parseInt(e.target.value) || 1)))} className="h-7 text-xs bg-slate-800 border-slate-600 text-center mt-1" />
+                    </div>
+                  </div>
+                  <div className="text-[10px] text-slate-500 text-center">
+                    预览: {customColumns}列 × {customShelves}层
+                  </div>
+                  <Button size="sm" className="w-full h-8 text-xs bg-cyan-600 hover:bg-cyan-700" onClick={() => addInstance({ columns: customColumns, shelves: customShelves })}>
+                    <Plus className="h-3.5 w-3.5 mr-1" />添加到场景
+                  </Button>
+                </div>
 
                 <Separator className="bg-slate-700/50 my-3" />
                 <p className="text-[10px] text-slate-500 uppercase tracking-wider">场景实例 ({layoutData.instances.length})</p>
@@ -520,7 +526,7 @@ export default function LayoutEditor() {
                     </button>
                   );
                 })}
-                {layoutData.instances.length === 0 && <div className="text-center text-slate-500 py-3 text-xs">从上方模板添加柜组</div>}
+                {layoutData.instances.length === 0 && <div className="text-center text-slate-500 py-3 text-xs">输入行列数后点击"添加到场景"</div>}
               </div>
             </ScrollArea>
           </CardContent>
@@ -603,7 +609,7 @@ export default function LayoutEditor() {
                     <Label className="text-[10px] text-slate-400 uppercase">位置 (X / Y / Z)</Label>
                     <div className="grid grid-cols-3 gap-1.5 mt-1">
                       {(["x", "y", "z"] as const).map(axis => (
-                        <Input key={`pos-${axis}`} type="number" step={0.1} value={selectedInstance.transform.position[axis]} onChange={e => updatePositionField(axis, parseFloat(e.target.value) || 0)} className="h-7 text-xs bg-slate-800 border-slate-600 text-center" />
+                        <Input key={`pos-${axis}`} type="number" step={0.1} min={axis === "y" ? 0 : undefined} value={selectedInstance.transform.position[axis]} onChange={e => updatePositionField(axis, parseFloat(e.target.value) || 0)} className="h-7 text-xs bg-slate-800 border-slate-600 text-center" />
                       ))}
                     </div>
                   </div>
