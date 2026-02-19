@@ -65,7 +65,8 @@ export const layoutEditorRouter = router({
       }),
 
     getActive: protectedProcedure.query(async () => {
-      return await db.getActiveVaultLayout();
+      const layout = await db.getActiveVaultLayout();
+      return layout || null;
     }),
 
     create: adminProcedure

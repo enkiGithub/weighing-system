@@ -25,7 +25,7 @@ export default function Monitor() {
   });
   const { data: activeLayout } = trpc.layoutEditor.vaultLayouts.getActive.useQuery();
   const { data: groupLayouts } = trpc.layoutEditor.cabinetGroupLayouts.listByVaultLayout.useQuery(
-    { vaultLayoutId: activeLayout?.id! },
+    { vaultLayoutId: activeLayout?.id || 0 },
     { enabled: !!activeLayout?.id }
   );
   const [hoveredCabinet, setHoveredCabinet] = useState<number | null>(null);
@@ -35,12 +35,14 @@ export default function Monitor() {
 
   // 构建布局映射
   useEffect(() => {
-    if (groupLayouts) {
+    if (groupLayouts && Array.isArray(groupLayouts)) {
       const map = new Map();
       groupLayouts.forEach((layout) => {
         map.set(layout.cabinetGroupId, layout);
       });
       setLayoutMap(map);
+    } else {
+      setLayoutMap(new Map());
     }
   }, [groupLayouts]);
 
