@@ -1,0 +1,13 @@
+{
+  "query": "SELECT GROUP_CONCAT(TABLE_NAME SEPARATOR ', ') as tables FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE();",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user KBF53B6TGXz9Z1D.root --database SQ6yxhwuwXauyoM9DVdVk2 --execute SELECT GROUP_CONCAT(TABLE_NAME SEPARATOR ', ') as tables FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE();",
+  "rows": [
+    {
+      "tables": "weightChangeRecords, weighingInstruments, vaultLayouts, users, instrumentChannels, groupChannelBindings, gateways, gatewayComPorts, cabinetGroupSensorBindings, cabinetGroups, cabinetGroupGatewayBindings, auditLogs, alarmRecords, __drizzle_migrations"
+    }
+  ],
+  "messages": [],
+  "stdout": "tables\nweightChangeRecords, weighingInstruments, vaultLayouts, users, instrumentChannels, groupChannelBindings, gateways, gatewayComPorts, cabinetGroupSensorBindings, cabinetGroups, cabinetGroupGatewayBindings, auditLogs, alarmRecords, __drizzle_migrations\n",
+  "stderr": "",
+  "execution_time_ms": 1573
+}

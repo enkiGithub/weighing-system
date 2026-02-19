@@ -1,0 +1,8 @@
+{
+  "query": "ALTER TABLE `weightChangeRecords` ADD COLUMN `channelDetails` text;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user KBF53B6TGXz9Z1D.root --database SQ6yxhwuwXauyoM9DVdVk2 --execute ALTER TABLE `weightChangeRecords` ADD COLUMN `channelDetails` text;",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1060 (42S21) at line 1: Duplicate column name 'channelDetails'"
+  ]
+}

@@ -1,0 +1,52 @@
+{
+  "query": "SELECT GROUP_CONCAT(TABLE_NAME ORDER BY TABLE_NAME SEPARATOR '\\n') as all_tables FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE();",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user KBF53B6TGXz9Z1D.root --database SQ6yxhwuwXauyoM9DVdVk2 --execute SELECT GROUP_CONCAT(TABLE_NAME ORDER BY TABLE_NAME SEPARATOR '\\n') as all_tables FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE();",
+  "rows": [
+    {
+      "all_tables": "__drizzle_migrations"
+    },
+    {
+      "all_tables": "alarmRecords"
+    },
+    {
+      "all_tables": "auditLogs"
+    },
+    {
+      "all_tables": "cabinetGroupGatewayBindings"
+    },
+    {
+      "all_tables": "cabinetGroupSensorBindings"
+    },
+    {
+      "all_tables": "cabinetGroups"
+    },
+    {
+      "all_tables": "gatewayComPorts"
+    },
+    {
+      "all_tables": "gateways"
+    },
+    {
+      "all_tables": "groupChannelBindings"
+    },
+    {
+      "all_tables": "instrumentChannels"
+    },
+    {
+      "all_tables": "users"
+    },
+    {
+      "all_tables": "vaultLayouts"
+    },
+    {
+      "all_tables": "weighingInstruments"
+    },
+    {
+      "all_tables": "weightChangeRecords"
+    }
+  ],
+  "messages": [],
+  "stdout": "all_tables\n__drizzle_migrations\nalarmRecords\nauditLogs\ncabinetGroupGatewayBindings\ncabinetGroupSensorBindings\ncabinetGroups\ngatewayComPorts\ngateways\ngroupChannelBindings\ninstrumentChannels\nusers\nvaultLayouts\nweighingInstruments\nweightChangeRecords\n",
+  "stderr": "",
+  "execution_time_ms": 1678
+}

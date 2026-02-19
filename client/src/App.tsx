@@ -14,6 +14,8 @@ import Alarms from "./pages/Alarms";
 import Analytics from "./pages/Analytics";
 import Users from "./pages/Users";
 import LayoutEditor from "./pages/LayoutEditor";
+import Channels from "./pages/Channels";
+import AuditLogs from "./pages/AuditLogs";
 
 function Router() {
   return (
@@ -22,11 +24,13 @@ function Router() {
         <Route path={"/"} component={Monitor} />
         <Route path={"/gateways"} component={Gateways} />
         <Route path={"/devices"} component={Devices} />
+        <Route path={"/channels"} component={Channels} />
         <Route path={"/cabinets"} component={Cabinets} />
         <Route path={"/records"} component={Records} />
         <Route path={"/alarms"} component={Alarms} />
         <Route path={"/analytics"} component={Analytics} />
         <Route path={"/users"} component={Users} />
+        <Route path={"/audit-logs"} component={AuditLogs} />
         <Route path={"/layout-editor"} component={LayoutEditor} />
         <Route path={"/404"} component={NotFound} />
         {/* Final fallback route */}

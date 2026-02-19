@@ -1,0 +1,52 @@
+{
+  "query": "SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE();",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user KBF53B6TGXz9Z1D.root --database SQ6yxhwuwXauyoM9DVdVk2 --execute SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE();",
+  "rows": [
+    {
+      "TABLE_NAME": "weightChangeRecords"
+    },
+    {
+      "TABLE_NAME": "weighingInstruments"
+    },
+    {
+      "TABLE_NAME": "vaultLayouts"
+    },
+    {
+      "TABLE_NAME": "users"
+    },
+    {
+      "TABLE_NAME": "instrumentChannels"
+    },
+    {
+      "TABLE_NAME": "groupChannelBindings"
+    },
+    {
+      "TABLE_NAME": "gateways"
+    },
+    {
+      "TABLE_NAME": "gatewayComPorts"
+    },
+    {
+      "TABLE_NAME": "cabinetGroupSensorBindings"
+    },
+    {
+      "TABLE_NAME": "cabinetGroups"
+    },
+    {
+      "TABLE_NAME": "cabinetGroupGatewayBindings"
+    },
+    {
+      "TABLE_NAME": "auditLogs"
+    },
+    {
+      "TABLE_NAME": "alarmRecords"
+    },
+    {
+      "TABLE_NAME": "__drizzle_migrations"
+    }
+  ],
+  "messages": [],
+  "stdout": "TABLE_NAME\nweightChangeRecords\nweighingInstruments\nvaultLayouts\nusers\ninstrumentChannels\ngroupChannelBindings\ngateways\ngatewayComPorts\ncabinetGroupSensorBindings\ncabinetGroups\ncabinetGroupGatewayBindings\nauditLogs\nalarmRecords\n__drizzle_migrations\n",
+  "stderr": "",
+  "execution_time_ms": 1612
+}

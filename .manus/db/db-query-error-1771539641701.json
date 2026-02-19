@@ -1,0 +1,8 @@
+{
+  "query": "ALTER TABLE `weighingInstruments` ADD CONSTRAINT `weighingInstruments_deviceCode_unique` UNIQUE(`deviceCode`);\nALTER TABLE `weightChangeRecords` ADD COLUMN `channelDetails` text;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user KBF53B6TGXz9Z1D.root --database SQ6yxhwuwXauyoM9DVdVk2 --execute ALTER TABLE `weighingInstruments` ADD CONSTRAINT `weighingInstruments_deviceCode_unique` UNIQUE(`deviceCode`);\nALTER TABLE `weightChangeRecords` ADD COLUMN `channelDetails` text;",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1062 (23000) at line 1: Duplicate entry '?' for key 'weighingInstruments.weighingInstruments_deviceCode_unique'"
+  ]
+}

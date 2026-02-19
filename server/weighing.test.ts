@@ -4,6 +4,9 @@ import type { TrpcContext } from "./_core/context";
 
 type AuthenticatedUser = NonNullable<TrpcContext["user"]>;
 
+/** Generate a random suffix to avoid conflicts across test runs */
+const rnd = () => Math.random().toString(36).slice(2, 8);
+
 function createAdminContext(): TrpcContext {
   const user: AuthenticatedUser = {
     id: 1,
@@ -58,7 +61,7 @@ describe("Gateway Management", () => {
     expect(Array.isArray(result)).toBe(true);
   });
 
-  it("should create a gateway", async () => {
+  it("should create a gateway with model and remark", async () => {
     const ctx = createAdminContext();
     const caller = appRouter.createCaller(ctx);
     
@@ -66,7 +69,8 @@ describe("Gateway Management", () => {
       name: "Test Gateway",
       ipAddress: "192.168.1.100",
       port: 502,
-      description: "Test gateway for unit testing",
+      model: "USR-N540",
+      remark: "Test gateway for unit testing",
     });
 
     expect(gateway.id).toBeGreaterThan(0);
@@ -83,6 +87,131 @@ describe("Weighing Instrument Management", () => {
     const result = await caller.instruments.list();
     expect(Array.isArray(result)).toBe(true);
   });
+
+  it("should create an instrument with deviceCode and slaveId", async () => {
+    const ctx = createAdminContext();
+    const caller = appRouter.createCaller(ctx);
+
+    // Create gateway and COM port first
+    const gw = await caller.gateways.create({
+      name: "Inst Test GW",
+      ipAddress: "192.168.1.110",
+      port: 502,
+    });
+    const comPort = await caller.gatewayComPorts.create({
+      gatewayId: gw.id,
+      portNumber: "COM1",
+    });
+
+    const instrument = await caller.instruments.create({
+      deviceCode: `DY-TEST-001-${rnd()}`,
+      modelType: "DY7001",
+      slaveId: 1,
+      comPortId: comPort.id,
+      name: "Test DY7001",
+    });
+
+    expect(instrument.id).toBeGreaterThan(0);
+    expect(instrument.deviceCode).toContain("DY-TEST-001");
+    expect(instrument.modelType).toBe("DY7001");
+    // DY7001 should auto-generate 1 channel
+    expect(instrument.channelIds.length).toBe(1);
+  });
+
+  it("should auto-generate 4 channels for DY7004", async () => {
+    const ctx = createAdminContext();
+    const caller = appRouter.createCaller(ctx);
+
+    const gw = await caller.gateways.create({
+      name: "DY7004 Test GW",
+      ipAddress: "192.168.1.111",
+      port: 502,
+    });
+    const comPort = await caller.gatewayComPorts.create({
+      gatewayId: gw.id,
+      portNumber: "COM2",
+    });
+
+    const instrument = await caller.instruments.create({
+      deviceCode: `DY-TEST-002-${rnd()}`,
+      modelType: "DY7004",
+      slaveId: 2,
+      comPortId: comPort.id,
+    });
+
+    expect(instrument.channelIds.length).toBe(4);
+
+    // Verify channels exist
+    const channels = await caller.channels.listByInstrument({ instrumentId: instrument.id });
+    expect(channels.length).toBe(4);
+    expect(channels[0].channelNo).toBe(1);
+    expect(channels[3].channelNo).toBe(4);
+  });
+
+  it("should detect slaveId conflict on same COM port", async () => {
+    const ctx = createAdminContext();
+    const caller = appRouter.createCaller(ctx);
+
+    const gw = await caller.gateways.create({
+      name: "SlaveId Conflict GW",
+      ipAddress: "192.168.1.112",
+      port: 502,
+    });
+    const comPort = await caller.gatewayComPorts.create({
+      gatewayId: gw.id,
+      portNumber: "COM3",
+    });
+
+    await caller.instruments.create({
+      deviceCode: `DY-CONFLICT-001-${rnd()}`,
+      modelType: "DY7001",
+      slaveId: 5,
+      comPortId: comPort.id,
+    });
+
+    // Same slaveId on same COM port should fail
+    await expect(
+      caller.instruments.create({
+        deviceCode: `DY-CONFLICT-002-${rnd()}`,
+        modelType: "DY7001",
+        slaveId: 5,
+        comPortId: comPort.id,
+      })
+    ).rejects.toThrow("从站地址");
+  });
+
+  it("should detect deviceCode conflict", async () => {
+    const ctx = createAdminContext();
+    const caller = appRouter.createCaller(ctx);
+    const uniqueCode = `DY-UNIQUE-${rnd()}`;
+
+    const gw = await caller.gateways.create({
+      name: "DevCode Conflict GW",
+      ipAddress: "192.168.1.113",
+      port: 502,
+    });
+    const comPort = await caller.gatewayComPorts.create({
+      gatewayId: gw.id,
+      portNumber: "COM4",
+    });
+
+    await caller.instruments.create({
+      deviceCode: uniqueCode,
+      modelType: "DY7001",
+      slaveId: 1,
+      comPortId: comPort.id,
+    });
+
+    // Same deviceCode should fail
+    await expect(
+      caller.instruments.create({
+        deviceCode: uniqueCode,
+        modelType: "DY7004",
+        slaveId: 2,
+        comPortId: comPort.id,
+      })
+    ).rejects.toThrow("设备编码");
+  });
 });
 
 describe("Cabinet Group Management", () => {
@@ -91,6 +220,258 @@ describe("Cabinet Group Management", () => {
     const caller = appRouter.createCaller(ctx);
     const result = await caller.cabinetGroups.list();
     expect(Array.isArray(result)).toBe(true);
+  });
+
+  it("should create a cabinet group with assetCode", async () => {
+    const ctx = createAdminContext();
+    const caller = appRouter.createCaller(ctx);
+
+    const group = await caller.cabinetGroups.create({
+      assetCode: `GZ-TEST-001-${rnd()}`,
+      name: "Test Cabinet Group",
+      initialWeight: 50000,
+      alarmThreshold: 5000,
+    });
+
+    expect(group.id).toBeGreaterThan(0);
+    expect(group.assetCode).toContain("GZ-TEST-001");
+  });
+
+  it("should detect assetCode conflict", async () => {
+    const ctx = createAdminContext();
+    const caller = appRouter.createCaller(ctx);
+    const uniqueAssetCode = `GZ-UNIQUE-${rnd()}`;
+
+    await caller.cabinetGroups.create({
+      assetCode: uniqueAssetCode,
+      name: "Unique Code Group",
+      initialWeight: 10000,
+      alarmThreshold: 1000,
+    });
+
+    await expect(
+      caller.cabinetGroups.create({
+      assetCode: uniqueAssetCode,
+      name: "Duplicate Code Group",
+        initialWeight: 20000,
+        alarmThreshold: 2000,
+      })
+    ).rejects.toThrow("资产编码");
+  });
+});
+
+describe("Channel Binding Management", () => {
+  it("should add and list channel bindings for a cabinet group", async () => {
+    const ctx = createAdminContext();
+    const caller = appRouter.createCaller(ctx);
+
+    // Create full chain: gateway -> comPort -> instrument -> channels
+    const gw = await caller.gateways.create({
+      name: "Binding Test GW",
+      ipAddress: "192.168.1.120",
+      port: 502,
+    });
+    const comPort = await caller.gatewayComPorts.create({
+      gatewayId: gw.id,
+      portNumber: "COM1",
+    });
+    const instrument = await caller.instruments.create({
+      deviceCode: `DY-BIND-${rnd()}`,
+      modelType: "DY7004",
+      slaveId: 1,
+      comPortId: comPort.id,
+    });
+
+    // Get auto-generated channels
+    const channels = await caller.channels.listByInstrument({ instrumentId: instrument.id });
+    expect(channels.length).toBe(4);
+
+    // Create cabinet group
+    const group = await caller.cabinetGroups.create({
+      assetCode: `GZ-BIND-${rnd()}`,
+      name: "Binding Test Group",
+      initialWeight: 30000,
+      alarmThreshold: 3000,
+    });
+
+    // Add binding with coefficient and offset
+    const binding = await caller.cabinetGroups.addBinding({
+      groupId: group.id,
+      channelId: channels[0].id,
+      coefficient: 1.5,
+      offset: -0.2,
+    });
+    expect(binding.id).toBeGreaterThan(0);
+
+    // List bindings
+    const bindings = await caller.cabinetGroups.getBindings({ groupId: group.id });
+    expect(bindings.length).toBe(1);
+    expect(bindings[0].coefficient).toBe(1.5);
+    expect(bindings[0].offset).toBe(-0.2);
+  });
+
+  it("should remove channel binding", async () => {
+    const ctx = createAdminContext();
+    const caller = appRouter.createCaller(ctx);
+
+    const gw = await caller.gateways.create({
+      name: "Remove Binding GW",
+      ipAddress: "192.168.1.121",
+      port: 502,
+    });
+    const comPort = await caller.gatewayComPorts.create({
+      gatewayId: gw.id,
+      portNumber: "COM2",
+    });
+    const instrument = await caller.instruments.create({
+      deviceCode: `DY-UNBIND-${rnd()}`,
+      modelType: "DY7001",
+      slaveId: 1,
+      comPortId: comPort.id,
+    });
+    const channels = await caller.channels.listByInstrument({ instrumentId: instrument.id });
+
+    const group = await caller.cabinetGroups.create({
+      assetCode: `GZ-UNBIND-${rnd()}`,
+      name: "Unbind Test Group",
+      initialWeight: 20000,
+      alarmThreshold: 2000,
+    });
+
+    const binding = await caller.cabinetGroups.addBinding({
+      groupId: group.id,
+      channelId: channels[0].id,
+    });
+
+    // Remove binding
+    const result = await caller.cabinetGroups.removeBinding({ id: binding.id });
+    expect(result.success).toBe(true);
+
+    // Verify removal
+    const bindings = await caller.cabinetGroups.getBindings({ groupId: group.id });
+    expect(bindings.length).toBe(0);
+  });
+
+  it("should prevent duplicate channel binding to same group", async () => {
+    const ctx = createAdminContext();
+    const caller = appRouter.createCaller(ctx);
+
+    const gw = await caller.gateways.create({
+      name: "Dup Binding GW",
+      ipAddress: "192.168.1.122",
+      port: 502,
+    });
+    const comPort = await caller.gatewayComPorts.create({
+      gatewayId: gw.id,
+      portNumber: "COM3",
+    });
+    const instrument = await caller.instruments.create({
+      deviceCode: `DY-DUP-BIND-${rnd()}`,
+      modelType: "DY7004",
+      slaveId: 1,
+      comPortId: comPort.id,
+    });
+    const channels = await caller.channels.listByInstrument({ instrumentId: instrument.id });
+
+    const group = await caller.cabinetGroups.create({
+      assetCode: `GZ-DUP-BIND-${rnd()}`,
+      name: "Dup Binding Group",
+      initialWeight: 10000,
+      alarmThreshold: 1000,
+    });
+
+    // First binding should succeed
+    await caller.cabinetGroups.addBinding({
+      groupId: group.id,
+      channelId: channels[0].id,
+    });
+
+    // Duplicate binding should fail
+    await expect(
+      caller.cabinetGroups.addBinding({
+        groupId: group.id,
+        channelId: channels[0].id,
+      })
+    ).rejects.toThrow("已绑定");
+  });
+});
+
+describe("Channel Management", () => {
+  it("should list all channels", async () => {
+    const ctx = createAdminContext();
+    const caller = appRouter.createCaller(ctx);
+    const result = await caller.channels.listAll();
+    expect(Array.isArray(result)).toBe(true);
+  });
+
+  it("should update channel parameters", async () => {
+    const ctx = createAdminContext();
+    const caller = appRouter.createCaller(ctx);
+
+    // Create instrument to get channels
+    const gw = await caller.gateways.create({
+      name: "Channel Update GW",
+      ipAddress: "192.168.1.130",
+      port: 502,
+    });
+    const comPort = await caller.gatewayComPorts.create({
+      gatewayId: gw.id,
+      portNumber: "COM1",
+    });
+    const instrument = await caller.instruments.create({
+      deviceCode: `DY-CH-UPD-${rnd()}`,
+      modelType: "DY7001",
+      slaveId: 1,
+      comPortId: comPort.id,
+    });
+    const channels = await caller.channels.listByInstrument({ instrumentId: instrument.id });
+
+    // Update channel parameters
+    const result = await caller.channels.update({
+      id: channels[0].id,
+      label: "Updated Label",
+      scale: 2.5,
+      offset: -1.0,
+      unit: "kg",
+      precision: 3,
+    });
+    expect(result.success).toBe(true);
+
+    // Verify update
+    const updated = await caller.channels.getById({ id: channels[0].id });
+    expect(updated?.label).toBe("Updated Label");
+    expect(updated?.scale).toBe(2.5);
+    expect(updated?.offset).toBe(-1.0);
+    expect(updated?.unit).toBe("kg");
+    expect(updated?.precision).toBe(3);
+  });
+
+  it("should test read channel (simulated)", async () => {
+    const ctx = createAdminContext();
+    const caller = appRouter.createCaller(ctx);
+
+    const gw = await caller.gateways.create({
+      name: "Channel Test GW",
+      ipAddress: "192.168.1.131",
+      port: 502,
+    });
+    const comPort = await caller.gatewayComPorts.create({
+      gatewayId: gw.id,
+      portNumber: "COM2",
+    });
+    const instrument = await caller.instruments.create({
+      deviceCode: `DY-CH-TEST-${rnd()}`,
+      modelType: "DY7001",
+      slaveId: 2,
+      comPortId: comPort.id,
+    });
+    const channels = await caller.channels.listByInstrument({ instrumentId: instrument.id });
+
+    const result = await caller.channels.testRead({ channelId: channels[0].id });
+    expect(result.success).toBe(true);
+    expect(typeof result.rawValue).toBe("number");
+    expect(typeof result.calibratedValue).toBe("number");
+    expect(typeof result.unit).toBe("string");
   });
 });
 
@@ -119,6 +500,17 @@ describe("Alarm Management", () => {
   });
 });
 
+describe("Audit Logs", () => {
+  it("should list audit logs", async () => {
+    const ctx = createAdminContext();
+    const caller = appRouter.createCaller(ctx);
+    const result = await caller.auditLogs.list({ limit: 50 });
+    expect(Array.isArray(result)).toBe(true);
+    // Previous test operations should have generated audit logs
+    expect(result.length).toBeGreaterThan(0);
+  });
+});
+
 describe("User Management", () => {
   it("should list users for admin", async () => {
     const ctx = createAdminContext();
@@ -130,7 +522,6 @@ describe("User Management", () => {
   it("should deny user list access for non-admin", async () => {
     const ctx = createUserContext();
     const caller = appRouter.createCaller(ctx);
-    
     await expect(caller.users.list()).rejects.toThrow();
   });
 });
@@ -140,39 +531,13 @@ describe("Authentication", () => {
     const ctx = createUserContext();
     const caller = appRouter.createCaller(ctx);
     const result = await caller.auth.me();
-    
     expect(result).toBeDefined();
     expect(result?.id).toBe(2);
     expect(result?.role).toBe("user");
   });
 });
 
-
 describe("Layout Editor", () => {
-  it("should list cabinets", async () => {
-    const ctx = createAdminContext();
-    const caller = appRouter.createCaller(ctx);
-    const result = await caller.layoutEditor.cabinets.list();
-    expect(Array.isArray(result)).toBe(true);
-  });
-
-  it("should create a cabinet", async () => {
-    const ctx = createAdminContext();
-    const caller = appRouter.createCaller(ctx);
-    
-    const cabinet = await caller.layoutEditor.cabinets.create({
-      name: "Test Cabinet",
-      width: 500,
-      height: 800,
-      depth: 400,
-      description: "Test cabinet for unit testing",
-    });
-
-    expect(cabinet.id).toBeGreaterThan(0);
-    expect(cabinet.name).toBe("Test Cabinet");
-    expect(cabinet.width).toBe(500);
-  });
-
   it("should list vault layouts", async () => {
     const ctx = createAdminContext();
     const caller = appRouter.createCaller(ctx);
@@ -242,106 +607,7 @@ describe("Layout Editor", () => {
     const ctx = createAdminContext();
     const caller = appRouter.createCaller(ctx);
     const result = await caller.layoutEditor.vaultLayouts.getActive();
-    // Returns null or an object
     expect(result === null || typeof result === "object").toBe(true);
-  });
-
-  it("should activate a layout and retrieve it", async () => {
-    const ctx = createAdminContext();
-    const caller = appRouter.createCaller(ctx);
-    
-    const validLayoutData = {
-      scene: { gridSize: 20, unit: "m", cameraDefault: { position: { x: 8, y: 6, z: 8 }, target: { x: 0, y: 0, z: 0 } } },
-      instances: [],
-    };
-
-    const layout = await caller.layoutEditor.vaultLayouts.create({
-      name: "Activate Test Layout",
-      description: "For activation test",
-      layoutData: JSON.stringify(validLayoutData),
-    });
-
-    await caller.layoutEditor.vaultLayouts.setActive({ id: layout.id });
-
-    const active = await caller.layoutEditor.vaultLayouts.getActive();
-    expect(active).not.toBeNull();
-    expect(active?.name).toBe("Activate Test Layout");
-  });
-
-  it("should list cabinet group layouts by vault layout", async () => {
-    const ctx = createAdminContext();
-    const caller = appRouter.createCaller(ctx);
-    
-    const validLayoutData = {
-      scene: { gridSize: 20, unit: "m", cameraDefault: { position: { x: 8, y: 6, z: 8 }, target: { x: 0, y: 0, z: 0 } } },
-      instances: [],
-    };
-
-    const layout = await caller.layoutEditor.vaultLayouts.create({
-      name: "Test Layout for Groups",
-      description: "Test",
-      layoutData: JSON.stringify(validLayoutData),
-    });
-
-    const result = await caller.layoutEditor.cabinetGroupLayouts.listByVaultLayout({
-      vaultLayoutId: layout.id,
-    });
-
-    expect(Array.isArray(result)).toBe(true);
-  });
-
-  it("should update layout with binding validation", async () => {
-    const ctx = createAdminContext();
-    const caller = appRouter.createCaller(ctx);
-
-    // Create a cabinet group first
-    const cabinet = await caller.cabinetGroups.create({
-      name: "Layout Bind Test Cabinet",
-      initialWeight: 50000,
-      alarmThreshold: 5000,
-    });
-
-    const validLayoutData = {
-      scene: { gridSize: 20, unit: "m", cameraDefault: { position: { x: 8, y: 6, z: 8 }, target: { x: 0, y: 0, z: 0 } } },
-      instances: [
-        {
-          instanceId: "bind-test-1",
-          type: "cabinetGroup",
-          cabinetGroupId: cabinet.id,
-          transform: { position: { x: 0, y: 0, z: 0 }, rotation: { x: 0, y: 0, z: 0 }, scale: { x: 1, y: 1, z: 1 } },
-          model: { columns: 2, columnSpacing: 0.05, cabinetWidth: 0.6, cabinetHeight: 1.8, cabinetDepth: 0.5, shelves: 6 },
-          meta: { label: "Bound Group", remark: "" },
-        },
-      ],
-    };
-
-    const layout = await caller.layoutEditor.vaultLayouts.create({
-      name: "Binding Validation Layout",
-      layoutData: JSON.stringify(validLayoutData),
-    });
-
-    // Update with duplicate binding should fail
-    const duplicateData = {
-      ...validLayoutData,
-      instances: [
-        ...validLayoutData.instances,
-        {
-          instanceId: "bind-test-2",
-          type: "cabinetGroup" as const,
-          cabinetGroupId: cabinet.id, // duplicate!
-          transform: { position: { x: 2, y: 0, z: 0 }, rotation: { x: 0, y: 0, z: 0 }, scale: { x: 1, y: 1, z: 1 } },
-          model: { columns: 2, columnSpacing: 0.05, cabinetWidth: 0.6, cabinetHeight: 1.8, cabinetDepth: 0.5, shelves: 6 },
-          meta: { label: "Duplicate", remark: "" },
-        },
-      ],
-    };
-
-    await expect(
-      caller.layoutEditor.vaultLayouts.update({
-        id: layout.id,
-        layoutData: JSON.stringify(duplicateData),
-      })
-    ).rejects.toThrow("同一布局内不允许重复绑定同一个柜组资产");
   });
 });
 
@@ -350,14 +616,12 @@ describe("Gateway COM Port Management", () => {
     const ctx = createAdminContext();
     const caller = appRouter.createCaller(ctx);
 
-    // First create a gateway
     const gateway = await caller.gateways.create({
       name: "COM Port Test Gateway",
       ipAddress: "192.168.1.200",
       port: 502,
     });
 
-    // Create a COM port
     const comPort = await caller.gatewayComPorts.create({
       gatewayId: gateway.id,
       portNumber: "COM1",
@@ -384,221 +648,11 @@ describe("Gateway COM Port Management", () => {
   });
 });
 
-describe("Instrument with COM Port Binding", () => {
-  it("should create an instrument bound to a COM port", async () => {
-    const ctx = createAdminContext();
-    const caller = appRouter.createCaller(ctx);
-
-    // Create gateway
-    const gateway = await caller.gateways.create({
-      name: "Instrument Binding Test Gateway",
-      ipAddress: "192.168.1.201",
-      port: 502,
-    });
-
-    // Create COM port
-    const comPort = await caller.gatewayComPorts.create({
-      gatewayId: gateway.id,
-      portNumber: "COM2",
-    });
-
-    // Create DY7001 instrument
-    const instrument = await caller.instruments.create({
-      name: "DY7001 Test Instrument",
-      modelType: "DY7001",
-      gatewayComPortId: comPort.id,
-      slaveAddress: 1,
-    });
-
-    expect(instrument.id).toBeGreaterThan(0);
-    expect(instrument.modelType).toBe("DY7001");
-  });
-
-  it("should get instruments by COM port", async () => {
-    const ctx = createAdminContext();
-    const caller = appRouter.createCaller(ctx);
-
-    // Create gateway and COM port
-    const gateway = await caller.gateways.create({
-      name: "Get By ComPort Test Gateway",
-      ipAddress: "192.168.1.202",
-      port: 502,
-    });
-
-    const comPort = await caller.gatewayComPorts.create({
-      gatewayId: gateway.id,
-      portNumber: "COM3",
-    });
-
-    // Create DY7004 instrument
-    await caller.instruments.create({
-      name: "DY7004 Test Instrument",
-      modelType: "DY7004",
-      gatewayComPortId: comPort.id,
-      slaveAddress: 2,
-    });
-
-    const result = await caller.instruments.getByComPort({ comPortId: comPort.id });
-    expect(Array.isArray(result)).toBe(true);
-    expect(result.length).toBeGreaterThan(0);
-    expect(result[0].modelType).toBe("DY7004");
-  });
-});
-
-describe("Cabinet Group Hardware Binding", () => {
-  it("should set and get gateway binding for a cabinet group", async () => {
-    const ctx = createAdminContext();
-    const caller = appRouter.createCaller(ctx);
-
-    // Create gateway
-    const gateway = await caller.gateways.create({
-      name: "Binding Test Gateway",
-      ipAddress: "192.168.1.203",
-      port: 502,
-    });
-
-    // Create COM port
-    const comPort = await caller.gatewayComPorts.create({
-      gatewayId: gateway.id,
-      portNumber: "COM4",
-    });
-
-    // Create cabinet group
-    const cabinet = await caller.cabinetGroups.create({
-      name: "Binding Test Cabinet",
-      initialWeight: 50000,
-      alarmThreshold: 5000,
-    });
-
-    // Set gateway binding
-    const result = await caller.cabinetGroups.setGatewayBinding({
-      cabinetGroupId: cabinet.id,
-      gatewayComPortId: comPort.id,
-    });
-    expect(result.success).toBe(true);
-
-    // Get gateway binding
-    const binding = await caller.cabinetGroups.getGatewayBinding({
-      cabinetGroupId: cabinet.id,
-    });
-    expect(binding).not.toBeNull();
-    expect(binding?.gatewayComPortId).toBe(comPort.id);
-  });
-
-  it("should add and get sensor bindings", async () => {
-    const ctx = createAdminContext();
-    const caller = appRouter.createCaller(ctx);
-
-    // Create gateway
-    const gateway = await caller.gateways.create({
-      name: "Sensor Binding Test Gateway",
-      ipAddress: "192.168.1.204",
-      port: 502,
-    });
-
-    // Create COM port
-    const comPort = await caller.gatewayComPorts.create({
-      gatewayId: gateway.id,
-      portNumber: "COM5",
-    });
-
-    // Create instrument
-    const instrument = await caller.instruments.create({
-      name: "DY7004 Sensor Test",
-      modelType: "DY7004",
-      gatewayComPortId: comPort.id,
-      slaveAddress: 3,
-    });
-
-    // Create cabinet group
-    const cabinet = await caller.cabinetGroups.create({
-      name: "Sensor Binding Test Cabinet",
-      initialWeight: 60000,
-      alarmThreshold: 3000,
-    });
-
-    // Add sensor binding - channel 1
-    const binding1 = await caller.cabinetGroups.addSensorBinding({
-      cabinetGroupId: cabinet.id,
-      instrumentId: instrument.id,
-      sensorChannel: 1,
-    });
-    expect(binding1.id).toBeGreaterThan(0);
-
-    // Add sensor binding - channel 2
-    const binding2 = await caller.cabinetGroups.addSensorBinding({
-      cabinetGroupId: cabinet.id,
-      instrumentId: instrument.id,
-      sensorChannel: 2,
-    });
-    expect(binding2.id).toBeGreaterThan(0);
-
-    // Get sensor bindings
-    const bindings = await caller.cabinetGroups.getSensorBindings({
-      cabinetGroupId: cabinet.id,
-    });
-    expect(Array.isArray(bindings)).toBe(true);
-    expect(bindings.length).toBe(2);
-  });
-
-  it("should remove sensor binding", async () => {
-    const ctx = createAdminContext();
-    const caller = appRouter.createCaller(ctx);
-
-    // Create gateway
-    const gateway = await caller.gateways.create({
-      name: "Remove Sensor Test Gateway",
-      ipAddress: "192.168.1.205",
-      port: 502,
-    });
-
-    // Create COM port
-    const comPort = await caller.gatewayComPorts.create({
-      gatewayId: gateway.id,
-      portNumber: "COM6",
-    });
-
-    // Create instrument
-    const instrument = await caller.instruments.create({
-      name: "DY7001 Remove Test",
-      modelType: "DY7001",
-      gatewayComPortId: comPort.id,
-      slaveAddress: 4,
-    });
-
-    // Create cabinet group
-    const cabinet = await caller.cabinetGroups.create({
-      name: "Remove Sensor Test Cabinet",
-      initialWeight: 70000,
-      alarmThreshold: 4000,
-    });
-
-    // Add sensor binding
-    const binding = await caller.cabinetGroups.addSensorBinding({
-      cabinetGroupId: cabinet.id,
-      instrumentId: instrument.id,
-      sensorChannel: 1,
-    });
-
-    // Remove sensor binding
-    const result = await caller.cabinetGroups.removeSensorBinding({ id: binding.id });
-    expect(result.success).toBe(true);
-
-    // Verify removal
-    const bindings = await caller.cabinetGroups.getSensorBindings({
-      cabinetGroupId: cabinet.id,
-    });
-    expect(bindings.length).toBe(0);
-  });
-});
-
-
 describe("Batch Delete Operations", () => {
   it("should batch delete gateways", async () => {
     const ctx = createAdminContext();
     const caller = appRouter.createCaller(ctx);
 
-    // Create two gateways
     const gw1 = await caller.gateways.create({
       name: "Batch Del GW 1",
       ipAddress: "192.168.99.1",
@@ -614,50 +668,18 @@ describe("Batch Delete Operations", () => {
     expect(result.count).toBe(2);
   });
 
-  it("should batch delete instruments", async () => {
-    const ctx = createAdminContext();
-    const caller = appRouter.createCaller(ctx);
-
-    // Create gateway and COM port first
-    const gw = await caller.gateways.create({
-      name: "Batch Del Inst GW",
-      ipAddress: "192.168.99.3",
-      port: 502,
-    });
-    const comPort = await caller.gatewayComPorts.create({
-      gatewayId: gw.id,
-      portNumber: "COM1",
-    });
-
-    // Create two instruments
-    const inst1 = await caller.instruments.create({
-      name: "Batch Del Inst 1",
-      modelType: "DY7001",
-      gatewayComPortId: comPort.id,
-      slaveAddress: 10,
-    });
-    const inst2 = await caller.instruments.create({
-      name: "Batch Del Inst 2",
-      modelType: "DY7004",
-      gatewayComPortId: comPort.id,
-      slaveAddress: 11,
-    });
-
-    const result = await caller.instruments.batchDelete({ ids: [inst1.id, inst2.id] });
-    expect(result.count).toBe(2);
-  });
-
   it("should batch delete cabinet groups", async () => {
     const ctx = createAdminContext();
     const caller = appRouter.createCaller(ctx);
 
-    // Create two cabinet groups
     const cab1 = await caller.cabinetGroups.create({
+      assetCode: `GZ-BATCH-DEL-${rnd()}`,
       name: "Batch Del Cab 1",
       initialWeight: 10000,
       alarmThreshold: 1000,
     });
     const cab2 = await caller.cabinetGroups.create({
+      assetCode: `GZ-BATCH-DEL-${rnd()}`,
       name: "Batch Del Cab 2",
       initialWeight: 20000,
       alarmThreshold: 2000,

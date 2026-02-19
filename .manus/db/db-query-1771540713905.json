@@ -1,0 +1,30 @@
+{
+  "query": "SELECT * FROM __drizzle_migrations ORDER BY created_at DESC LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user KBF53B6TGXz9Z1D.root --database SQ6yxhwuwXauyoM9DVdVk2 --execute SELECT * FROM __drizzle_migrations ORDER BY created_at DESC LIMIT 5;",
+  "rows": [
+    {
+      "id": "263616",
+      "hash": "0004_shocking_pixie",
+      "created_at": "1771540026000"
+    },
+    {
+      "id": "3",
+      "hash": "e4ba89f3cfd34a4f6814a176494bbb0fb307f5cc781a85df3475d5cda761b707",
+      "created_at": "1771518761487"
+    },
+    {
+      "id": "2",
+      "hash": "3f0e13b8566fcf4b43541b969299d5a6bc66603f527596e680cdbe195715b027",
+      "created_at": "1771515113367"
+    },
+    {
+      "id": "1",
+      "hash": "814a08e40d7fc2bcfd458759d18319198ca8ae394f2fa15617a78678e9c9c93b",
+      "created_at": "1771514974520"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\thash\tcreated_at\n263616\t0004_shocking_pixie\t1771540026000\n3\te4ba89f3cfd34a4f6814a176494bbb0fb307f5cc781a85df3475d5cda761b707\t1771518761487\n2\t3f0e13b8566fcf4b43541b969299d5a6bc66603f527596e680cdbe195715b027\t1771515113367\n1\t814a08e40d7fc2bcfd458759d18319198ca8ae394f2fa15617a78678e9c9c93b\t1771514974520\n",
+  "stderr": "",
+  "execution_time_ms": 1597
+}

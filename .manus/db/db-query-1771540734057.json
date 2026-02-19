@@ -1,0 +1,46 @@
+{
+  "query": "SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'weighingInstruments' ORDER BY ORDINAL_POSITION;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user KBF53B6TGXz9Z1D.root --database SQ6yxhwuwXauyoM9DVdVk2 --execute SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'weighingInstruments' ORDER BY ORDINAL_POSITION;",
+  "rows": [
+    {
+      "COLUMN_NAME": "id"
+    },
+    {
+      "COLUMN_NAME": "name"
+    },
+    {
+      "COLUMN_NAME": "status"
+    },
+    {
+      "COLUMN_NAME": "lastHeartbeat"
+    },
+    {
+      "COLUMN_NAME": "createdAt"
+    },
+    {
+      "COLUMN_NAME": "updatedAt"
+    },
+    {
+      "COLUMN_NAME": "modelType"
+    },
+    {
+      "COLUMN_NAME": "deviceCode"
+    },
+    {
+      "COLUMN_NAME": "slaveId"
+    },
+    {
+      "COLUMN_NAME": "comPortId"
+    },
+    {
+      "COLUMN_NAME": "location"
+    },
+    {
+      "COLUMN_NAME": "remark"
+    }
+  ],
+  "messages": [],
+  "stdout": "COLUMN_NAME\nid\nname\nstatus\nlastHeartbeat\ncreatedAt\nupdatedAt\nmodelType\ndeviceCode\nslaveId\ncomPortId\nlocation\nremark\n",
+  "stderr": "",
+  "execution_time_ms": 1594
+}

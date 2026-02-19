@@ -15,6 +15,23 @@ const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
   return next({ ctx });
 });
 
+/** 记录审计日志的辅助函数 */
+async function audit(userId: number, userName: string | null, action: string, targetType: string, targetId: number | null, summary: string, details?: unknown) {
+  try {
+    await db.createAuditLog({
+      userId,
+      userName: userName || undefined,
+      action,
+      targetType,
+      targetId: targetId || undefined,
+      summary,
+      details: details ? JSON.stringify(details) : undefined,
+    });
+  } catch (e) {
+    console.error("[Audit] Failed to log:", e);
+  }
+}
+
 export const appRouter = router({
   system: systemRouter,
   
@@ -75,10 +92,12 @@ export const appRouter = router({
         name: z.string().min(1).max(100),
         ipAddress: z.string().min(1).max(45),
         port: z.number().int().min(1).max(65535),
-        description: z.string().optional(),
+        model: z.string().max(50).optional(),
+        remark: z.string().optional(),
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
         const id = await db.createGateway(input);
+        await audit(ctx.user.id, ctx.user.name, "create", "gateway", id, `创建网关: ${input.name}`, input);
         return { id, ...input };
       }),
     
@@ -88,27 +107,31 @@ export const appRouter = router({
         name: z.string().min(1).max(100).optional(),
         ipAddress: z.string().min(1).max(45).optional(),
         port: z.number().int().min(1).max(65535).optional(),
-        description: z.string().optional(),
+        model: z.string().max(50).optional(),
+        remark: z.string().optional(),
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
         const { id, ...data } = input;
         await db.updateGateway(id, data);
+        await audit(ctx.user.id, ctx.user.name, "update", "gateway", id, `更新网关 #${id}`, data);
         return { success: true };
       }),
     
     delete: adminProcedure
       .input(z.object({ id: z.number() }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
         await db.deleteGateway(input.id);
+        await audit(ctx.user.id, ctx.user.name, "delete", "gateway", input.id, `删除网关 #${input.id}`);
         return { success: true };
       }),
 
     batchDelete: adminProcedure
       .input(z.object({ ids: z.array(z.number()).min(1) }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
         for (const id of input.ids) {
           await db.deleteGateway(id);
         }
+        await audit(ctx.user.id, ctx.user.name, "batchDelete", "gateway", null, `批量删除网关: ${input.ids.join(",")}`, { ids: input.ids });
         return { success: true, count: input.ids.length };
       }),
     
@@ -139,10 +162,14 @@ export const appRouter = router({
         dataBits: z.number().int().default(8),
         stopBits: z.number().int().default(1),
         parity: z.string().default("none"),
-        description: z.string().optional(),
+        protocolType: z.string().max(30).default("modbus_rtu"),
+        timeoutMs: z.number().int().default(1000),
+        retryCount: z.number().int().default(3),
+        remark: z.string().optional(),
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
         const id = await db.createComPort(input);
+        await audit(ctx.user.id, ctx.user.name, "create", "comPort", id, `创建COM端口: ${input.portNumber}`, input);
         return { id, ...input };
       }),
     
@@ -154,18 +181,31 @@ export const appRouter = router({
         dataBits: z.number().int().optional(),
         stopBits: z.number().int().optional(),
         parity: z.string().optional(),
-        description: z.string().optional(),
+        protocolType: z.string().max(30).optional(),
+        timeoutMs: z.number().int().optional(),
+        retryCount: z.number().int().optional(),
+        remark: z.string().optional(),
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
         const { id, ...data } = input;
         await db.updateComPort(id, data);
+        await audit(ctx.user.id, ctx.user.name, "update", "comPort", id, `更新COM端口 #${id}`, data);
         return { success: true };
       }),
     
     delete: adminProcedure
       .input(z.object({ id: z.number() }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
+        // 检查是否有仪表绑定到此COM端口
+        const instruments = await db.getInstrumentsByComPortId(input.id);
+        if (instruments.length > 0) {
+          throw new TRPCError({ 
+            code: 'BAD_REQUEST', 
+            message: `该COM端口下有 ${instruments.length} 个仪表，请先删除或迁移仪表` 
+          });
+        }
         await db.deleteComPort(input.id);
+        await audit(ctx.user.id, ctx.user.name, "delete", "comPort", input.id, `删除COM端口 #${input.id}`);
         return { success: true };
       }),
   }),
@@ -190,45 +230,114 @@ export const appRouter = router({
     
     create: adminProcedure
       .input(z.object({
-        name: z.string().min(1).max(100),
+        deviceCode: z.string().min(1).max(50),
         modelType: z.enum(["DY7001", "DY7004"]),
-        gatewayComPortId: z.number(),
-        slaveAddress: z.number().int().min(1).max(247),
-        description: z.string().optional(),
+        slaveId: z.number().int().min(1).max(247),
+        comPortId: z.number(),
+        name: z.string().max(100).optional(),
+        location: z.string().optional(),
+        remark: z.string().optional(),
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
+        // 检查deviceCode唯一性
+        const codeConflict = await db.checkDeviceCodeConflict(input.deviceCode);
+        if (codeConflict) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: `设备编码 ${input.deviceCode} 已存在` });
+        }
+        // 检查同一COM端口下slaveId唯一性
+        const slaveConflict = await db.checkSlaveIdConflict(input.comPortId, input.slaveId);
+        if (slaveConflict) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: `该COM端口下从站地址 ${input.slaveId} 已被占用` });
+        }
+        
         const id = await db.createInstrument(input);
-        return { id, ...input };
+        // 自动生成通道
+        const channelIds = await db.autoGenerateChannels(id, input.modelType);
+        
+        await audit(ctx.user.id, ctx.user.name, "create", "instrument", id, `创建仪表: ${input.deviceCode} (${input.modelType})`, { ...input, channelIds });
+        return { id, channelIds, ...input };
       }),
     
     update: adminProcedure
       .input(z.object({
         id: z.number(),
-        name: z.string().min(1).max(100).optional(),
-        modelType: z.enum(["DY7001", "DY7004"]).optional(),
-        gatewayComPortId: z.number().optional(),
-        slaveAddress: z.number().int().min(1).max(247).optional(),
-        description: z.string().optional(),
+        deviceCode: z.string().min(1).max(50).optional(),
+        name: z.string().max(100).optional(),
+        slaveId: z.number().int().min(1).max(247).optional(),
+        comPortId: z.number().optional(),
+        location: z.string().optional(),
+        remark: z.string().optional(),
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
         const { id, ...data } = input;
+        const existing = await db.getInstrumentById(id);
+        if (!existing) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: '仪表不存在' });
+        }
+        
+        // 检查deviceCode唯一性
+        if (data.deviceCode) {
+          const codeConflict = await db.checkDeviceCodeConflict(data.deviceCode, id);
+          if (codeConflict) {
+            throw new TRPCError({ code: 'BAD_REQUEST', message: `设备编码 ${data.deviceCode} 已存在` });
+          }
+        }
+        
+        // 检查slaveId唯一性
+        const targetComPortId = data.comPortId || existing.comPortId;
+        const targetSlaveId = data.slaveId || existing.slaveId;
+        if (data.slaveId || data.comPortId) {
+          const slaveConflict = await db.checkSlaveIdConflict(targetComPortId, targetSlaveId, id);
+          if (slaveConflict) {
+            throw new TRPCError({ code: 'BAD_REQUEST', message: `该COM端口下从站地址 ${targetSlaveId} 已被占用` });
+          }
+        }
+        
         await db.updateInstrument(id, data);
+        await audit(ctx.user.id, ctx.user.name, "update", "instrument", id, `更新仪表 #${id}`, data);
         return { success: true };
       }),
     
     delete: adminProcedure
       .input(z.object({ id: z.number() }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
+        // 检查通道是否有柜组绑定
+        const channels = await db.getChannelsByInstrument(input.id);
+        for (const ch of channels) {
+          const bindings = await db.getBindingsByChannel(ch.id);
+          if (bindings.length > 0) {
+            throw new TRPCError({ 
+              code: 'BAD_REQUEST', 
+              message: `仪表通道 ${ch.label} 已被柜组绑定，请先解除绑定` 
+            });
+          }
+        }
+        // 删除通道
+        await db.deleteChannelsByInstrument(input.id);
+        // 删除仪表
         await db.deleteInstrument(input.id);
+        await audit(ctx.user.id, ctx.user.name, "delete", "instrument", input.id, `删除仪表 #${input.id}`);
         return { success: true };
       }),
 
     batchDelete: adminProcedure
       .input(z.object({ ids: z.array(z.number()).min(1) }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
         for (const id of input.ids) {
+          const channels = await db.getChannelsByInstrument(id);
+          for (const ch of channels) {
+            const bindings = await db.getBindingsByChannel(ch.id);
+            if (bindings.length > 0) {
+              throw new TRPCError({ 
+                code: 'BAD_REQUEST', 
+                message: `仪表 #${id} 的通道 ${ch.label} 已被柜组绑定，请先解除绑定` 
+              });
+            }
+          }
+          await db.deleteChannelsByInstrument(id);
           await db.deleteInstrument(id);
         }
+        await audit(ctx.user.id, ctx.user.name, "batchDelete", "instrument", null, `批量删除仪表: ${input.ids.join(",")}`, { ids: input.ids });
         return { success: true, count: input.ids.length };
       }),
     
@@ -240,6 +349,82 @@ export const appRouter = router({
       .mutation(async ({ input }) => {
         await db.updateInstrumentStatus(input.id, input.status, new Date());
         return { success: true };
+      }),
+
+    /** 影响分析：删除前检查关联柜组 */
+    impactAnalysis: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        const channels = await db.getChannelsByInstrument(input.id);
+        const affectedGroups: { groupId: number; channelLabel: string }[] = [];
+        for (const ch of channels) {
+          const bindings = await db.getBindingsByChannel(ch.id);
+          for (const b of bindings) {
+            affectedGroups.push({ groupId: b.groupId, channelLabel: ch.label });
+          }
+        }
+        return { affectedGroups, channelCount: channels.length };
+      }),
+  }),
+
+  // 仪表通道管理
+  channels: router({
+    listByInstrument: protectedProcedure
+      .input(z.object({ instrumentId: z.number() }))
+      .query(async ({ input }) => {
+        return await db.getChannelsByInstrument(input.instrumentId);
+      }),
+    
+    listAll: protectedProcedure.query(async () => {
+      return await db.getAllChannels();
+    }),
+
+    getById: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        return await db.getChannelById(input.id);
+      }),
+    
+    update: adminProcedure
+      .input(z.object({
+        id: z.number(),
+        label: z.string().min(1).max(50).optional(),
+        enabled: z.number().int().min(0).max(1).optional(),
+        scale: z.number().optional(),
+        offset: z.number().optional(),
+        unit: z.string().max(10).optional(),
+        precision: z.number().int().min(0).max(6).optional(),
+        remark: z.string().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const { id, ...data } = input;
+        await db.updateChannel(id, data);
+        await audit(ctx.user.id, ctx.user.name, "update", "channel", id, `更新通道 #${id}`, data);
+        return { success: true };
+      }),
+
+    /** 通信测试：模拟读取仪表通道值 */
+    testRead: adminProcedure
+      .input(z.object({ channelId: z.number() }))
+      .mutation(async ({ input }) => {
+        const channel = await db.getChannelById(input.channelId);
+        if (!channel) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: '通道不存在' });
+        }
+        // 模拟读取：生成随机值
+        const rawValue = Math.random() * 100;
+        const calibratedValue = rawValue * channel.scale + channel.offset;
+        // 更新通道当前值
+        await db.updateChannel(input.channelId, { 
+          currentValue: calibratedValue,
+          lastReadAt: new Date(),
+        });
+        return { 
+          success: true, 
+          rawValue: Number(rawValue.toFixed(channel.precision)),
+          calibratedValue: Number(calibratedValue.toFixed(channel.precision)),
+          unit: channel.unit,
+        };
       }),
   }),
 
@@ -257,104 +442,136 @@ export const appRouter = router({
     
     create: adminProcedure
       .input(z.object({
+        assetCode: z.string().min(1).max(50),
         name: z.string().min(1).max(100),
-        initialWeight: z.number().int().min(0),
-        alarmThreshold: z.number().int().min(0),
-        positionX: z.number().int().default(0),
-        positionY: z.number().int().default(0),
-        positionZ: z.number().int().default(0),
-        description: z.string().optional(),
+        initialWeight: z.number().min(0).default(0),
+        alarmThreshold: z.number().min(0).default(5),
+        remark: z.string().optional(),
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
+        // 检查assetCode唯一性
+        const conflict = await db.checkAssetCodeConflict(input.assetCode);
+        if (conflict) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: `资产编码 ${input.assetCode} 已存在` });
+        }
         const id = await db.createCabinetGroup({
           ...input,
           currentWeight: input.initialWeight,
         });
+        await audit(ctx.user.id, ctx.user.name, "create", "cabinetGroup", id, `创建柜组: ${input.name} (${input.assetCode})`, input);
         return { id, ...input };
       }),
     
     update: adminProcedure
       .input(z.object({
         id: z.number(),
+        assetCode: z.string().min(1).max(50).optional(),
         name: z.string().min(1).max(100).optional(),
-        initialWeight: z.number().int().min(0).optional(),
-        alarmThreshold: z.number().int().min(0).optional(),
-        positionX: z.number().int().optional(),
-        positionY: z.number().int().optional(),
-        positionZ: z.number().int().optional(),
-        description: z.string().optional(),
+        initialWeight: z.number().min(0).optional(),
+        alarmThreshold: z.number().min(0).optional(),
+        remark: z.string().optional(),
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
         const { id, ...data } = input;
+        if (data.assetCode) {
+          const conflict = await db.checkAssetCodeConflict(data.assetCode, id);
+          if (conflict) {
+            throw new TRPCError({ code: 'BAD_REQUEST', message: `资产编码 ${data.assetCode} 已存在` });
+          }
+        }
         await db.updateCabinetGroup(id, data);
+        await audit(ctx.user.id, ctx.user.name, "update", "cabinetGroup", id, `更新柜组 #${id}`, data);
         return { success: true };
       }),
     
     delete: adminProcedure
       .input(z.object({ id: z.number() }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
+        // 删除关联的通道绑定
+        await db.deleteBindingsByGroup(input.id);
         await db.deleteCabinetGroup(input.id);
+        await audit(ctx.user.id, ctx.user.name, "delete", "cabinetGroup", input.id, `删除柜组 #${input.id}`);
         return { success: true };
       }),
 
     batchDelete: adminProcedure
       .input(z.object({ ids: z.array(z.number()).min(1) }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
         for (const id of input.ids) {
+          await db.deleteBindingsByGroup(id);
           await db.deleteCabinetGroup(id);
         }
+        await audit(ctx.user.id, ctx.user.name, "batchDelete", "cabinetGroup", null, `批量删除柜组: ${input.ids.join(",")}`, { ids: input.ids });
         return { success: true, count: input.ids.length };
       }),
-    
-    // 配置网关绑定
-    setGatewayBinding: adminProcedure
-      .input(z.object({
-        cabinetGroupId: z.number(),
-        gatewayComPortId: z.number(),
-      }))
-      .mutation(async ({ input }) => {
-        await db.setGatewayBinding(input.cabinetGroupId, input.gatewayComPortId);
-        return { success: true };
-      }),
-    
-    // 获取网关绑定
-    getGatewayBinding: protectedProcedure
-      .input(z.object({ cabinetGroupId: z.number() }))
+
+    // 通道绑定管理
+    getBindings: protectedProcedure
+      .input(z.object({ groupId: z.number() }))
       .query(async ({ input }) => {
-        return await db.getGatewayBinding(input.cabinetGroupId);
+        return await db.getBindingsByGroup(input.groupId);
       }),
-    
-    // 添加传感器绑定
-    addSensorBinding: adminProcedure
+
+    addBinding: adminProcedure
       .input(z.object({
-        cabinetGroupId: z.number(),
-        instrumentId: z.number(),
-        sensorChannel: z.number().int().min(1).max(4),
+        groupId: z.number(),
+        channelId: z.number(),
+        coefficient: z.number().default(1.0),
+        offset: z.number().default(0.0),
+        sortOrder: z.number().int().default(0),
       }))
-      .mutation(async ({ input }) => {
-        const id = await db.addSensorBinding(input);
+      .mutation(async ({ input, ctx }) => {
+        // 检查通道是否存在且启用
+        const channel = await db.getChannelById(input.channelId);
+        if (!channel) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: '通道不存在' });
+        }
+        if (!channel.enabled) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: '通道未启用' });
+        }
+        // 检查通道是否已被其他柜组绑定
+        const conflict = await db.checkChannelBindingConflict(input.channelId, input.groupId);
+        if (conflict) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: '该通道已被其他柜组绑定' });
+        }
+        // 检查同一柜组是否已绑定此通道
+        const existingBindings = await db.getBindingsByGroup(input.groupId);
+        if (existingBindings.some(b => b.channelId === input.channelId)) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: '该柜组已绑定此通道' });
+        }
+        
+        const id = await db.createBinding(input);
+        await audit(ctx.user.id, ctx.user.name, "addBinding", "groupChannelBinding", id, `柜组#${input.groupId}绑定通道#${input.channelId}`, input);
         return { id, ...input };
       }),
-    
-    // 获取传感器绑定
-    getSensorBindings: protectedProcedure
-      .input(z.object({ cabinetGroupId: z.number() }))
-      .query(async ({ input }) => {
-        return await db.getSensorBindings(input.cabinetGroupId);
+
+    updateBinding: adminProcedure
+      .input(z.object({
+        id: z.number(),
+        coefficient: z.number().optional(),
+        offset: z.number().optional(),
+        sortOrder: z.number().int().optional(),
+        enabled: z.number().int().min(0).max(1).optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const { id, ...data } = input;
+        await db.updateBinding(id, data);
+        await audit(ctx.user.id, ctx.user.name, "updateBinding", "groupChannelBinding", id, `更新绑定 #${id}`, data);
+        return { success: true };
       }),
-    
-    // 删除传感器绑定
-    removeSensorBinding: adminProcedure
+
+    removeBinding: adminProcedure
       .input(z.object({ id: z.number() }))
-      .mutation(async ({ input }) => {
-        await db.removeSensorBinding(input.id);
+      .mutation(async ({ input, ctx }) => {
+        await db.deleteBinding(input.id);
+        await audit(ctx.user.id, ctx.user.name, "removeBinding", "groupChannelBinding", input.id, `移除绑定 #${input.id}`);
         return { success: true };
       }),
     
     updateWeight: protectedProcedure
       .input(z.object({
         id: z.number(),
-        currentWeight: z.number().int().min(0),
+        currentWeight: z.number().min(0),
       }))
       .mutation(async ({ input }) => {
         const group = await db.getCabinetGroupById(input.id);
@@ -366,10 +583,8 @@ export const appRouter = router({
         const isAlarm = Math.abs(changeValue) > group.alarmThreshold;
         const status = isAlarm ? 'alarm' : Math.abs(changeValue) > group.alarmThreshold * 0.7 ? 'warning' : 'normal';
         
-        // 更新重量
         await db.updateCabinetGroupWeight(input.id, input.currentWeight, status);
         
-        // 记录重量变化
         await db.createWeightChangeRecord({
           cabinetGroupId: input.id,
           previousWeight: group.currentWeight,
@@ -378,13 +593,12 @@ export const appRouter = router({
           isAlarm: isAlarm ? 1 : 0,
         });
         
-        // 如果触发报警，创建报警记录
         if (isAlarm) {
           await db.createAlarmRecord({
             cabinetGroupId: input.id,
             weightChangeRecordId: 0,
             alarmType: 'threshold_exceeded',
-            alarmMessage: `重量变化${changeValue > 0 ? '增加' : '减少'}${Math.abs(changeValue)}克，超过阈值${group.alarmThreshold}克`,
+            alarmMessage: `重量变化${changeValue > 0 ? '增加' : '减少'}${Math.abs(changeValue).toFixed(2)}kg，超过阈值${group.alarmThreshold}kg`,
           });
         }
         
@@ -439,6 +653,27 @@ export const appRouter = router({
       .mutation(async ({ input, ctx }) => {
         await db.handleAlarmRecord(input.id, ctx.user.id);
         return { success: true };
+      }),
+  }),
+
+  // 审计日志
+  auditLogs: router({
+    list: protectedProcedure
+      .input(z.object({
+        limit: z.number().int().min(1).max(500).default(200),
+      }))
+      .query(async ({ input }) => {
+        return await db.getAuditLogs(input.limit);
+      }),
+    
+    getByTarget: protectedProcedure
+      .input(z.object({
+        targetType: z.string(),
+        targetId: z.number(),
+        limit: z.number().int().min(1).max(100).default(50),
+      }))
+      .query(async ({ input }) => {
+        return await db.getAuditLogsByTarget(input.targetType, input.targetId, input.limit);
       }),
   }),
 

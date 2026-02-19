@@ -1,0 +1,9 @@
+{
+  "query": "DROP TABLE IF EXISTS cabinetGroupSensorBindings; DROP TABLE IF EXISTS cabinetGroupGatewayBindings; DROP TABLE IF EXISTS cabinetGroupLayouts; DROP TABLE IF EXISTS auditLogs; DROP TABLE IF EXISTS groupChannelBindings; DROP TABLE IF EXISTS instrumentChannels;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user KBF53B6TGXz9Z1D.root --database SQ6yxhwuwXauyoM9DVdVk2 --execute DROP TABLE IF EXISTS cabinetGroupSensorBindings; DROP TABLE IF EXISTS cabinetGroupGatewayBindings; DROP TABLE IF EXISTS cabinetGroupLayouts; DROP TABLE IF EXISTS auditLogs; DROP TABLE IF EXISTS groupChannelBindings; DROP TABLE IF EXISTS instrumentChannels;",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 2936
+}

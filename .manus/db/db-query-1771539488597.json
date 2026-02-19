@@ -1,0 +1,9 @@
+{
+  "query": "ALTER TABLE `cabinetGroups` MODIFY COLUMN `initialWeight` float NOT NULL DEFAULT 0;\nALTER TABLE `cabinetGroups` MODIFY COLUMN `currentWeight` float NOT NULL DEFAULT 0;\nALTER TABLE `cabinetGroups` MODIFY COLUMN `alarmThreshold` float NOT NULL DEFAULT 5;\nALTER TABLE `weighingInstruments` MODIFY COLUMN `name` varchar(100);\nALTER TABLE `weightChangeRecords` MODIFY COLUMN `previousWeight` float NOT NULL;\nALTER TABLE `weightChangeRecords` MODIFY COLUMN `currentWeight` float NOT NULL;\nALTER TABLE `weightChangeRecords` MODIFY COLUMN `changeValue` float NOT NULL;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user KBF53B6TGXz9Z1D.root --database SQ6yxhwuwXauyoM9DVdVk2 --execute ALTER TABLE `cabinetGroups` MODIFY COLUMN `initialWeight` float NOT NULL DEFAULT 0;\nALTER TABLE `cabinetGroups` MODIFY COLUMN `currentWeight` float NOT NULL DEFAULT 0;\nALTER TABLE `cabinetGroups` MODIFY COLUMN `alarmThreshold` float NOT NULL DEFAULT 5;\nALTER TABLE `weighingInstruments` MODIFY COLUMN `name` varchar(100);\nALTER TABLE `weightChangeRecords` MODIFY COLUMN `previousWeight` float NOT NULL;\nALTER TABLE `weightChangeRecords` MODIFY COLUMN `currentWeight` float NOT NULL;\nALTER TABLE `weightChangeRecords` MODIFY COLUMN `changeValue` float NOT NULL;",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 3286
+}

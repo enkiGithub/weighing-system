@@ -1,0 +1,9 @@
+{
+  "query": "ALTER TABLE `weighingInstruments` DROP COLUMN `gatewayComPortId`;\nALTER TABLE `weighingInstruments` DROP COLUMN `slaveAddress`;\nALTER TABLE `weighingInstruments` DROP COLUMN `description`;\nALTER TABLE `cabinetGroups` DROP COLUMN `positionX`;\nALTER TABLE `cabinetGroups` DROP COLUMN `positionY`;\nALTER TABLE `cabinetGroups` DROP COLUMN `positionZ`;\nALTER TABLE `cabinetGroups` DROP COLUMN `description`;\nALTER TABLE `gatewayComPorts` DROP COLUMN `description`;\nALTER TABLE `gateways` DROP COLUMN `description`;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user KBF53B6TGXz9Z1D.root --database SQ6yxhwuwXauyoM9DVdVk2 --execute ALTER TABLE `weighingInstruments` DROP COLUMN `gatewayComPortId`;\nALTER TABLE `weighingInstruments` DROP COLUMN `slaveAddress`;\nALTER TABLE `weighingInstruments` DROP COLUMN `description`;\nALTER TABLE `cabinetGroups` DROP COLUMN `positionX`;\nALTER TABLE `cabinetGroups` DROP COLUMN `positionY`;\nALTER TABLE `cabinetGroups` DROP COLUMN `positionZ`;\nALTER TABLE `cabinetGroups` DROP COLUMN `description`;\nALTER TABLE `gatewayComPorts` DROP COLUMN `description`;\nALTER TABLE `gateways` DROP COLUMN `description`;",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 4873
+}

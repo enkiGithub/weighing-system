@@ -1,4 +1,4 @@
-import { eq, desc, and, gte, lte } from "drizzle-orm";
+import { eq, desc, and, gte, lte, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { 
   InsertUser, 
@@ -6,25 +6,23 @@ import {
   gateways,
   gatewayComPorts,
   weighingInstruments,
+  instrumentChannels,
   cabinetGroups,
-  cabinetGroupGatewayBindings,
-  cabinetGroupSensorBindings,
+  groupChannelBindings,
   weightChangeRecords,
   alarmRecords,
-  cabinets,
   vaultLayouts,
-  cabinetGroupLayouts,
+  auditLogs,
   InsertGateway,
   InsertGatewayComPort,
   InsertWeighingInstrument,
+  InsertInstrumentChannel,
   InsertCabinetGroup,
-  InsertCabinetGroupGatewayBinding,
-  InsertCabinetGroupSensorBinding,
+  InsertGroupChannelBinding,
   InsertWeightChangeRecord,
   InsertAlarmRecord,
-  InsertCabinet,
   InsertVaultLayout,
-  InsertCabinetGroupLayout
+  InsertAuditLog,
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
@@ -42,6 +40,8 @@ export async function getDb() {
   }
   return _db;
 }
+
+// ==================== 用户管理 ====================
 
 export async function upsertUser(user: InsertUser): Promise<void> {
   if (!user.openId) {
@@ -108,13 +108,10 @@ export async function getUserByOpenId(openId: string) {
     console.warn("[Database] Cannot get user: database not available");
     return undefined;
   }
-
   const result = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
-
   return result.length > 0 ? result[0] : undefined;
 }
 
-// 用户管理
 export async function getAllUsers() {
   const db = await getDb();
   if (!db) return [];
@@ -140,7 +137,8 @@ export async function deleteUser(id: number) {
   await db.delete(users).where(eq(users.id, id));
 }
 
-// 网关管理
+// ==================== 网关管理 ====================
+
 export async function getAllGateways() {
   const db = await getDb();
   if (!db) return [];
@@ -179,7 +177,45 @@ export async function updateGatewayStatus(id: number, status: 'online' | 'offlin
   await db.update(gateways).set({ status, lastHeartbeat }).where(eq(gateways.id, id));
 }
 
-// 称重仪表管理
+// ==================== 网关COM端口管理 ====================
+
+export async function getComPortsByGateway(gatewayId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return await db.select()
+    .from(gatewayComPorts)
+    .where(eq(gatewayComPorts.gatewayId, gatewayId))
+    .orderBy(desc(gatewayComPorts.createdAt));
+}
+
+export async function getComPortById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(gatewayComPorts).where(eq(gatewayComPorts.id, id)).limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function createComPort(port: InsertGatewayComPort): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(gatewayComPorts).values(port);
+  return Number(result[0].insertId);
+}
+
+export async function updateComPort(id: number, port: Partial<InsertGatewayComPort>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(gatewayComPorts).set(port).where(eq(gatewayComPorts.id, id));
+}
+
+export async function deleteComPort(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(gatewayComPorts).where(eq(gatewayComPorts.id, id));
+}
+
+// ==================== 称重仪表管理 ====================
+
 export async function getAllInstruments() {
   const db = await getDb();
   if (!db) return [];
@@ -196,7 +232,7 @@ export async function getInstrumentById(id: number) {
 export async function getInstrumentsByComPortId(comPortId: number) {
   const db = await getDb();
   if (!db) return [];
-  return await db.select().from(weighingInstruments).where(eq(weighingInstruments.gatewayComPortId, comPortId));
+  return await db.select().from(weighingInstruments).where(eq(weighingInstruments.comPortId, comPortId));
 }
 
 export async function createInstrument(instrument: InsertWeighingInstrument): Promise<number> {
@@ -224,7 +260,107 @@ export async function updateInstrumentStatus(id: number, status: 'online' | 'off
   await db.update(weighingInstruments).set({ status, lastHeartbeat }).where(eq(weighingInstruments.id, id));
 }
 
-// 保险柜组管理
+/** 检查同一COM端口下slaveId是否已存在（排除指定id） */
+export async function checkSlaveIdConflict(comPortId: number, slaveId: number, excludeId?: number) {
+  const db = await getDb();
+  if (!db) return false;
+  const conditions = [
+    eq(weighingInstruments.comPortId, comPortId),
+    eq(weighingInstruments.slaveId, slaveId),
+  ];
+  const result = await db.select({ id: weighingInstruments.id })
+    .from(weighingInstruments)
+    .where(and(...conditions));
+  if (excludeId) {
+    return result.some(r => r.id !== excludeId);
+  }
+  return result.length > 0;
+}
+
+/** 检查deviceCode是否已存在（排除指定id） */
+export async function checkDeviceCodeConflict(deviceCode: string, excludeId?: number) {
+  const db = await getDb();
+  if (!db) return false;
+  const result = await db.select({ id: weighingInstruments.id })
+    .from(weighingInstruments)
+    .where(eq(weighingInstruments.deviceCode, deviceCode));
+  if (excludeId) {
+    return result.some(r => r.id !== excludeId);
+  }
+  return result.length > 0;
+}
+
+// ==================== 仪表通道管理 ====================
+
+export async function getChannelsByInstrument(instrumentId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return await db.select()
+    .from(instrumentChannels)
+    .where(eq(instrumentChannels.instrumentId, instrumentId))
+    .orderBy(instrumentChannels.channelNo);
+}
+
+export async function getChannelById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(instrumentChannels).where(eq(instrumentChannels.id, id)).limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function getAllChannels() {
+  const db = await getDb();
+  if (!db) return [];
+  return await db.select().from(instrumentChannels).orderBy(instrumentChannels.instrumentId, instrumentChannels.channelNo);
+}
+
+export async function createChannel(channel: InsertInstrumentChannel): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(instrumentChannels).values(channel);
+  return Number(result[0].insertId);
+}
+
+export async function updateChannel(id: number, channel: Partial<InsertInstrumentChannel>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(instrumentChannels).set(channel).where(eq(instrumentChannels.id, id));
+}
+
+export async function deleteChannel(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(instrumentChannels).where(eq(instrumentChannels.id, id));
+}
+
+export async function deleteChannelsByInstrument(instrumentId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(instrumentChannels).where(eq(instrumentChannels.instrumentId, instrumentId));
+}
+
+/** 为仪表自动生成通道（DY7001→1通道，DY7004→4通道） */
+export async function autoGenerateChannels(instrumentId: number, modelType: "DY7001" | "DY7004"): Promise<number[]> {
+  const channelCount = modelType === "DY7001" ? 1 : 4;
+  const ids: number[] = [];
+  for (let i = 1; i <= channelCount; i++) {
+    const id = await createChannel({
+      instrumentId,
+      channelNo: i,
+      label: `CH${i}`,
+      enabled: 1,
+      scale: 1.0,
+      offset: 0.0,
+      unit: "kg",
+      precision: 2,
+    });
+    ids.push(id);
+  }
+  return ids;
+}
+
+// ==================== 保险柜组管理 ====================
+
 export async function getAllCabinetGroups() {
   const db = await getDb();
   if (!db) return [];
@@ -263,7 +399,90 @@ export async function updateCabinetGroupWeight(id: number, currentWeight: number
   await db.update(cabinetGroups).set({ currentWeight, status }).where(eq(cabinetGroups.id, id));
 }
 
-// 重量变化记录管理
+/** 检查assetCode是否已存在（排除指定id） */
+export async function checkAssetCodeConflict(assetCode: string, excludeId?: number) {
+  const db = await getDb();
+  if (!db) return false;
+  const result = await db.select({ id: cabinetGroups.id })
+    .from(cabinetGroups)
+    .where(eq(cabinetGroups.assetCode, assetCode));
+  if (excludeId) {
+    return result.some(r => r.id !== excludeId);
+  }
+  return result.length > 0;
+}
+
+// ==================== 柜组通道绑定管理 ====================
+
+export async function getBindingsByGroup(groupId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return await db.select()
+    .from(groupChannelBindings)
+    .where(eq(groupChannelBindings.groupId, groupId))
+    .orderBy(groupChannelBindings.sortOrder);
+}
+
+export async function getBindingsByChannel(channelId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return await db.select()
+    .from(groupChannelBindings)
+    .where(eq(groupChannelBindings.channelId, channelId));
+}
+
+export async function getAllBindings() {
+  const db = await getDb();
+  if (!db) return [];
+  return await db.select().from(groupChannelBindings).orderBy(groupChannelBindings.groupId, groupChannelBindings.sortOrder);
+}
+
+export async function createBinding(binding: InsertGroupChannelBinding): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(groupChannelBindings).values(binding);
+  return Number(result[0].insertId);
+}
+
+export async function updateBinding(id: number, binding: Partial<InsertGroupChannelBinding>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(groupChannelBindings).set(binding).where(eq(groupChannelBindings.id, id));
+}
+
+export async function deleteBinding(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(groupChannelBindings).where(eq(groupChannelBindings.id, id));
+}
+
+export async function deleteBindingsByGroup(groupId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(groupChannelBindings).where(eq(groupChannelBindings.groupId, groupId));
+}
+
+export async function deleteBindingsByChannel(channelId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(groupChannelBindings).where(eq(groupChannelBindings.channelId, channelId));
+}
+
+/** 检查通道是否已被其他柜组绑定（排除指定groupId） */
+export async function checkChannelBindingConflict(channelId: number, excludeGroupId?: number) {
+  const db = await getDb();
+  if (!db) return false;
+  const result = await db.select({ groupId: groupChannelBindings.groupId })
+    .from(groupChannelBindings)
+    .where(eq(groupChannelBindings.channelId, channelId));
+  if (excludeGroupId) {
+    return result.some(r => r.groupId !== excludeGroupId);
+  }
+  return result.length > 0;
+}
+
+// ==================== 重量变化记录管理 ====================
+
 export async function createWeightChangeRecord(record: InsertWeightChangeRecord) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
@@ -303,7 +522,8 @@ export async function getWeightChangeRecordsByDateRange(startDate: Date, endDate
     .orderBy(desc(weightChangeRecords.recordedAt));
 }
 
-// 报警记录管理
+// ==================== 报警记录管理 ====================
+
 export async function createAlarmRecord(record: InsertAlarmRecord) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
@@ -348,40 +568,8 @@ export async function getAlarmRecordsByCabinetGroup(cabinetGroupId: number, limi
     .limit(limit);
 }
 
-// 柜子管理
-export async function getAllCabinets() {
-  const db = await getDb();
-  if (!db) return [];
-  return await db.select().from(cabinets).orderBy(desc(cabinets.createdAt));
-}
+// ==================== 保管库布局管理 ====================
 
-export async function getCabinetById(id: number) {
-  const db = await getDb();
-  if (!db) return undefined;
-  const result = await db.select().from(cabinets).where(eq(cabinets.id, id)).limit(1);
-  return result.length > 0 ? result[0] : undefined;
-}
-
-export async function createCabinet(cabinet: InsertCabinet): Promise<number> {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
-  const result = await db.insert(cabinets).values(cabinet);
-  return Number(result[0].insertId);
-}
-
-export async function updateCabinet(id: number, cabinet: Partial<InsertCabinet>) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
-  await db.update(cabinets).set(cabinet).where(eq(cabinets.id, id));
-}
-
-export async function deleteCabinet(id: number) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
-  await db.delete(cabinets).where(eq(cabinets.id, id));
-}
-
-// 保管库布局管理
 export async function getAllVaultLayouts() {
   const db = await getDb();
   if (!db) return [];
@@ -424,131 +612,37 @@ export async function deleteVaultLayout(id: number) {
 export async function setActiveVaultLayout(id: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  // 先取消所有激活的布局
   await db.update(vaultLayouts).set({ isActive: 0 }).where(eq(vaultLayouts.isActive, 1));
-  // 激活指定布局
   await db.update(vaultLayouts).set({ isActive: 1 }).where(eq(vaultLayouts.id, id));
 }
 
-// 柜组布局管理
-export async function getCabinetGroupLayoutsByVaultLayout(vaultLayoutId: number) {
-  const db = await getDb();
-  if (!db) return [];
-  return await db.select()
-    .from(cabinetGroupLayouts)
-    .where(eq(cabinetGroupLayouts.vaultLayoutId, vaultLayoutId))
-    .orderBy(desc(cabinetGroupLayouts.createdAt));
-}
+// ==================== 操作审计日志 ====================
 
-export async function createCabinetGroupLayout(layout: InsertCabinetGroupLayout): Promise<number> {
+export async function createAuditLog(log: InsertAuditLog): Promise<number> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const result = await db.insert(cabinetGroupLayouts).values(layout);
+  const result = await db.insert(auditLogs).values(log);
   return Number(result[0].insertId);
 }
 
-export async function updateCabinetGroupLayout(id: number, layout: Partial<InsertCabinetGroupLayout>) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
-  await db.update(cabinetGroupLayouts).set(layout).where(eq(cabinetGroupLayouts.id, id));
-}
-
-export async function deleteCabinetGroupLayout(id: number) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
-  await db.delete(cabinetGroupLayouts).where(eq(cabinetGroupLayouts.id, id));
-}
-
-export async function deleteCabinetGroupLayoutsByVaultLayout(vaultLayoutId: number) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
-  await db.delete(cabinetGroupLayouts).where(eq(cabinetGroupLayouts.vaultLayoutId, vaultLayoutId));
-}
-
-
-// 网关COM端口管理
-export async function getComPortsByGateway(gatewayId: number) {
+export async function getAuditLogs(limit = 200) {
   const db = await getDb();
   if (!db) return [];
   return await db.select()
-    .from(gatewayComPorts)
-    .where(eq(gatewayComPorts.gatewayId, gatewayId))
-    .orderBy(desc(gatewayComPorts.createdAt));
+    .from(auditLogs)
+    .orderBy(desc(auditLogs.createdAt))
+    .limit(limit);
 }
 
-export async function createComPort(port: InsertGatewayComPort): Promise<number> {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
-  const result = await db.insert(gatewayComPorts).values(port);
-  return Number(result[0].insertId);
-}
-
-export async function updateComPort(id: number, port: Partial<InsertGatewayComPort>) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
-  await db.update(gatewayComPorts).set(port).where(eq(gatewayComPorts.id, id));
-}
-
-export async function deleteComPort(id: number) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
-  await db.delete(gatewayComPorts).where(eq(gatewayComPorts.id, id));
-}
-
-// 柜组网关绑定管理
-export async function setGatewayBinding(cabinetGroupId: number, gatewayComPortId: number) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
-  
-  // 检查是否已存在绑定
-  const existing = await db.select()
-    .from(cabinetGroupGatewayBindings)
-    .where(eq(cabinetGroupGatewayBindings.cabinetGroupId, cabinetGroupId))
-    .limit(1);
-  
-  if (existing.length > 0) {
-    // 更新现有绑定
-    await db.update(cabinetGroupGatewayBindings)
-      .set({ gatewayComPortId })
-      .where(eq(cabinetGroupGatewayBindings.cabinetGroupId, cabinetGroupId));
-  } else {
-    // 创建新绑定
-    await db.insert(cabinetGroupGatewayBindings).values({
-      cabinetGroupId,
-      gatewayComPortId,
-    });
-  }
-}
-
-export async function getGatewayBinding(cabinetGroupId: number) {
-  const db = await getDb();
-  if (!db) return null;
-  const result = await db.select()
-    .from(cabinetGroupGatewayBindings)
-    .where(eq(cabinetGroupGatewayBindings.cabinetGroupId, cabinetGroupId))
-    .limit(1);
-  return result.length > 0 ? result[0] : null;
-}
-
-// 柜组传感器绑定管理
-export async function addSensorBinding(binding: InsertCabinetGroupSensorBinding): Promise<number> {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
-  const result = await db.insert(cabinetGroupSensorBindings).values(binding);
-  return Number(result[0].insertId);
-}
-
-export async function getSensorBindings(cabinetGroupId: number) {
+export async function getAuditLogsByTarget(targetType: string, targetId: number, limit = 50) {
   const db = await getDb();
   if (!db) return [];
   return await db.select()
-    .from(cabinetGroupSensorBindings)
-    .where(eq(cabinetGroupSensorBindings.cabinetGroupId, cabinetGroupId))
-    .orderBy(desc(cabinetGroupSensorBindings.createdAt));
-}
-
-export async function removeSensorBinding(id: number) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
-  await db.delete(cabinetGroupSensorBindings).where(eq(cabinetGroupSensorBindings.id, id));
+    .from(auditLogs)
+    .where(and(
+      eq(auditLogs.targetType, targetType),
+      eq(auditLogs.targetId, targetId)
+    ))
+    .orderBy(desc(auditLogs.createdAt))
+    .limit(limit);
 }

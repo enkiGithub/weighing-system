@@ -38,15 +38,13 @@ import { z } from "zod";
 import { toast } from "sonner";
 import type { CabinetGroup } from "../../../drizzle/schema";
 
-// 柜组基本信息schema
+// 柜组基本信息schema - 适配新字段
 const cabinetSchema = z.object({
+  assetCode: z.string().min(1, "资产编码不能为空").max(50, "资产编码过长"),
   name: z.string().min(1, "名称不能为空").max(100, "名称过长"),
   initialWeight: z.number().min(0, "初始重量不能为负数"),
   alarmThreshold: z.number().min(0, "报警阈值不能为负数"),
-  positionX: z.number(),
-  positionY: z.number(),
-  positionZ: z.number(),
-  description: z.string().optional(),
+  remark: z.string().optional(),
 });
 
 type CabinetForm = z.infer<typeof cabinetSchema>;
@@ -65,54 +63,21 @@ export default function Cabinets() {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
 
   // 绑定配置状态
-  const [selectedGatewayId, setSelectedGatewayId] = useState<number | null>(null);
-  const [selectedComPortId, setSelectedComPortId] = useState<number | null>(null);
-  const [selectedInstrumentId, setSelectedInstrumentId] = useState<number | null>(null);
-  const [selectedSensorChannel, setSelectedSensorChannel] = useState<number | null>(null);
+  const [selectedChannelId, setSelectedChannelId] = useState<number | null>(null);
+  const [bindingCoefficient, setBindingCoefficient] = useState(1.0);
+  const [bindingOffset, setBindingOffset] = useState(0.0);
 
   const utils = trpc.useUtils();
 
   // 查询数据
   const { data: cabinets, isLoading } = trpc.cabinetGroups.list.useQuery();
-  const { data: gateways } = trpc.gateways.list.useQuery();
-  const { data: instruments } = trpc.instruments.list.useQuery();
+  const { data: allChannels } = trpc.channels.listAll.useQuery();
 
-  // 根据选择的网关查询COM端口
-  const { data: comPorts } = trpc.gatewayComPorts.listByGateway.useQuery(
-    { gatewayId: selectedGatewayId || 0 },
-    { enabled: !!selectedGatewayId }
-  );
-
-  // 根据选择的COM端口查询绑定的仪表
-  const { data: comPortInstruments } = trpc.instruments.getByComPort.useQuery(
-    { comPortId: selectedComPortId || 0 },
-    { enabled: !!selectedComPortId }
-  );
-
-  // 查询当前柜组的网关绑定
-  const { data: gatewayBinding } = trpc.cabinetGroups.getGatewayBinding.useQuery(
-    { cabinetGroupId: bindingCabinetId || 0 },
+  // 查询当前柜组的通道绑定
+  const { data: bindings, refetch: refetchBindings } = trpc.cabinetGroups.getBindings.useQuery(
+    { groupId: bindingCabinetId || 0 },
     { enabled: !!bindingCabinetId }
   );
-
-  // 查询当前柜组的传感器绑定
-  const { data: sensorBindings, refetch: refetchSensorBindings } = trpc.cabinetGroups.getSensorBindings.useQuery(
-    { cabinetGroupId: bindingCabinetId || 0 },
-    { enabled: !!bindingCabinetId }
-  );
-
-  // 获取选中仪表的型号信息
-  const selectedInstrument = useMemo(() => {
-    if (!selectedInstrumentId) return null;
-    return comPortInstruments?.find(i => i.id === selectedInstrumentId) || instruments?.find(i => i.id === selectedInstrumentId) || null;
-  }, [selectedInstrumentId, comPortInstruments, instruments]);
-
-  // 可用的传感器通道
-  const availableChannels = useMemo(() => {
-    if (!selectedInstrument) return [];
-    const maxChannels = selectedInstrument.modelType === "DY7001" ? 1 : 4;
-    return Array.from({ length: maxChannels }, (_, i) => i + 1);
-  }, [selectedInstrument]);
 
   // 分页计算
   const totalItems = cabinets?.length || 0;
@@ -127,6 +92,13 @@ export default function Cabinets() {
   const isAllSelected = paginatedCabinets.length > 0 && paginatedCabinets.every(c => selectedIds.has(c.id));
   const isSomeSelected = paginatedCabinets.some(c => selectedIds.has(c.id));
 
+  // 可用通道列表（排除已绑定到其他柜组的通道）
+  const availableChannels = useMemo(() => {
+    if (!allChannels) return [];
+    // 只显示启用的通道
+    return allChannels.filter(ch => ch.enabled);
+  }, [allChannels]);
+
   // 柜组CRUD mutations
   const createMutation = trpc.cabinetGroups.create.useMutation({
     onSuccess: () => {
@@ -135,7 +107,7 @@ export default function Cabinets() {
       setIsDialogOpen(false);
       reset();
     },
-    onError: (error) => toast.error(`创建失败: ${error.message}`),
+    onError: (error: any) => toast.error(`创建失败: ${error.message}`),
   });
 
   const updateMutation = trpc.cabinetGroups.update.useMutation({
@@ -146,7 +118,7 @@ export default function Cabinets() {
       setEditingCabinet(null);
       reset();
     },
-    onError: (error) => toast.error(`更新失败: ${error.message}`),
+    onError: (error: any) => toast.error(`更新失败: ${error.message}`),
   });
 
   const deleteMutation = trpc.cabinetGroups.delete.useMutation({
@@ -154,45 +126,38 @@ export default function Cabinets() {
       utils.cabinetGroups.list.invalidate();
       toast.success("保险柜组删除成功");
     },
-    onError: (error) => toast.error(`删除失败: ${error.message}`),
+    onError: (error: any) => toast.error(`删除失败: ${error.message}`),
   });
 
   const batchDeleteMutation = trpc.cabinetGroups.batchDelete.useMutation({
-    onSuccess: (data) => {
+    onSuccess: (data: any) => {
       utils.cabinetGroups.list.invalidate();
       setSelectedIds(new Set());
       toast.success(`成功删除 ${data.count} 个保险柜组`);
     },
-    onError: (error) => toast.error(`批量删除失败: ${error.message}`),
+    onError: (error: any) => toast.error(`批量删除失败: ${error.message}`),
   });
 
   // 绑定mutations
-  const setGatewayBindingMutation = trpc.cabinetGroups.setGatewayBinding.useMutation({
+  const addBindingMutation = trpc.cabinetGroups.addBinding.useMutation({
     onSuccess: () => {
-      utils.cabinetGroups.getGatewayBinding.invalidate();
-      toast.success("网关绑定成功");
+      utils.cabinetGroups.getBindings.invalidate();
+      refetchBindings();
+      toast.success("通道绑定成功");
+      setSelectedChannelId(null);
+      setBindingCoefficient(1.0);
+      setBindingOffset(0.0);
     },
-    onError: (error) => toast.error(`绑定失败: ${error.message}`),
+    onError: (error: any) => toast.error(`绑定失败: ${error.message}`),
   });
 
-  const addSensorBindingMutation = trpc.cabinetGroups.addSensorBinding.useMutation({
+  const removeBindingMutation = trpc.cabinetGroups.removeBinding.useMutation({
     onSuccess: () => {
-      utils.cabinetGroups.getSensorBindings.invalidate();
-      refetchSensorBindings();
-      toast.success("传感器绑定成功");
-      setSelectedInstrumentId(null);
-      setSelectedSensorChannel(null);
+      utils.cabinetGroups.getBindings.invalidate();
+      refetchBindings();
+      toast.success("通道绑定已移除");
     },
-    onError: (error) => toast.error(`绑定失败: ${error.message}`),
-  });
-
-  const removeSensorBindingMutation = trpc.cabinetGroups.removeSensorBinding.useMutation({
-    onSuccess: () => {
-      utils.cabinetGroups.getSensorBindings.invalidate();
-      refetchSensorBindings();
-      toast.success("传感器绑定已移除");
-    },
-    onError: (error) => toast.error(`移除失败: ${error.message}`),
+    onError: (error: any) => toast.error(`移除失败: ${error.message}`),
   });
 
   // 表单
@@ -203,10 +168,9 @@ export default function Cabinets() {
     formState: { errors },
   } = useForm<CabinetForm>({
     resolver: zodResolver(cabinetSchema),
-    defaultValues: { positionX: 0, positionY: 0, positionZ: 0 },
   });
 
-  const onSubmit = (data: any) => {
+  const onSubmit = (data: CabinetForm) => {
     const dataInGrams = {
       ...data,
       initialWeight: Math.round(data.initialWeight * 1000),
@@ -222,26 +186,24 @@ export default function Cabinets() {
   const handleEdit = (cabinet: CabinetGroup) => {
     setEditingCabinet(cabinet);
     reset({
+      assetCode: cabinet.assetCode,
       name: cabinet.name,
       initialWeight: cabinet.initialWeight / 1000,
       alarmThreshold: cabinet.alarmThreshold / 1000,
-      positionX: cabinet.positionX,
-      positionY: cabinet.positionY,
-      positionZ: cabinet.positionZ,
-      description: cabinet.description || "",
+      remark: cabinet.remark || "",
     });
     setIsDialogOpen(true);
   };
 
   const handleDelete = (id: number) => {
-    if (confirm("确定要删除此保险柜组吗？")) {
+    if (confirm("确定要删除此保险柜组吗？关联的通道绑定也将被删除。")) {
       deleteMutation.mutate({ id });
     }
   };
 
   const handleAdd = () => {
     setEditingCabinet(null);
-    reset({ name: "", initialWeight: 0, alarmThreshold: 1, positionX: 0, positionY: 0, positionZ: 0, description: "" });
+    reset({ assetCode: "", name: "", initialWeight: 0, alarmThreshold: 1, remark: "" });
     setIsDialogOpen(true);
   };
 
@@ -274,46 +236,31 @@ export default function Cabinets() {
   // 打开绑定配置对话框
   const handleOpenBinding = (cabinetId: number) => {
     setBindingCabinetId(cabinetId);
-    setSelectedGatewayId(null);
-    setSelectedComPortId(null);
-    setSelectedInstrumentId(null);
-    setSelectedSensorChannel(null);
+    setSelectedChannelId(null);
+    setBindingCoefficient(1.0);
+    setBindingOffset(0.0);
     setIsBindingDialogOpen(true);
   };
 
-  // 保存网关绑定
-  const handleSaveGatewayBinding = () => {
-    if (!bindingCabinetId || !selectedComPortId) {
-      toast.error("请选择网关和COM端口");
+  // 添加通道绑定
+  const handleAddBinding = () => {
+    if (!bindingCabinetId || !selectedChannelId) {
+      toast.error("请选择通道");
       return;
     }
-    setGatewayBindingMutation.mutate({
-      cabinetGroupId: bindingCabinetId,
-      gatewayComPortId: selectedComPortId,
+    addBindingMutation.mutate({
+      groupId: bindingCabinetId,
+      channelId: selectedChannelId,
+      coefficient: bindingCoefficient,
+      offset: bindingOffset,
     });
   };
 
-  // 添加传感器绑定
-  const handleAddSensorBinding = () => {
-    if (!bindingCabinetId || !selectedInstrumentId || !selectedSensorChannel) {
-      toast.error("请选择仪表和传感器通道");
-      return;
-    }
-    addSensorBindingMutation.mutate({
-      cabinetGroupId: bindingCabinetId,
-      instrumentId: selectedInstrumentId,
-      sensorChannel: selectedSensorChannel,
-    });
-  };
-
-  // 获取仪表名称
-  const getInstrumentName = (instrumentId: number) => {
-    return instruments?.find((i) => i.id === instrumentId)?.name || `仪表#${instrumentId}`;
-  };
-
-  // 获取仪表型号
-  const getInstrumentModel = (instrumentId: number) => {
-    return instruments?.find((i) => i.id === instrumentId)?.modelType || "未知";
+  // 获取通道显示信息
+  const getChannelLabel = (channelId: number) => {
+    const ch = allChannels?.find(c => c.id === channelId);
+    if (!ch) return `通道#${channelId}`;
+    return ch.label;
   };
 
   const getStatusBadge = (status: string) => {
@@ -349,7 +296,7 @@ export default function Cabinets() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-foreground">保险柜组管理</h1>
-          <p className="text-muted-foreground mt-2">管理保险柜组的基本配置、网关绑定和传感器绑定</p>
+          <p className="text-muted-foreground mt-2">管理保险柜组的基本配置和通道绑定</p>
         </div>
         <div className="flex gap-2">
           {selectedIds.size > 0 && (
@@ -369,7 +316,7 @@ export default function Cabinets() {
       <Card>
         <CardHeader>
           <CardTitle>保险柜组列表</CardTitle>
-          <CardDescription>查看和管理所有保险柜组的配置信息，点击"配置绑定"设置网关和传感器关联</CardDescription>
+          <CardDescription>查看和管理所有保险柜组的配置信息，点击"配置绑定"设置通道关联</CardDescription>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -390,19 +337,20 @@ export default function Cabinets() {
                       />
                     </TableHead>
                     <TableHead className="w-16">序号</TableHead>
+                    <TableHead>资产编码</TableHead>
                     <TableHead>名称</TableHead>
                     <TableHead>当前重量</TableHead>
                     <TableHead>初始重量</TableHead>
                     <TableHead>报警阈值</TableHead>
                     <TableHead>状态</TableHead>
-                    <TableHead>位置</TableHead>
+                    <TableHead>备注</TableHead>
                     <TableHead className="text-right">操作</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {paginatedCabinets.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
+                      <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
                         暂无保险柜组
                       </TableCell>
                     </TableRow>
@@ -419,6 +367,7 @@ export default function Cabinets() {
                         <TableCell className="text-muted-foreground">
                           {(currentPage - 1) * pageSize + index + 1}
                         </TableCell>
+                        <TableCell className="font-mono text-sm">{cabinet.assetCode}</TableCell>
                         <TableCell className="font-medium">{cabinet.name}</TableCell>
                         <TableCell className="font-semibold">
                           {(cabinet.currentWeight / 1000).toFixed(2)} kg
@@ -430,8 +379,8 @@ export default function Cabinets() {
                           {(cabinet.alarmThreshold / 1000).toFixed(2)} kg
                         </TableCell>
                         <TableCell>{getStatusBadge(cabinet.status)}</TableCell>
-                        <TableCell className="font-mono text-xs text-muted-foreground">
-                          ({cabinet.positionX}, {cabinet.positionY}, {cabinet.positionZ})
+                        <TableCell className="max-w-xs truncate text-sm text-muted-foreground">
+                          {cabinet.remark || "-"}
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-1">
@@ -439,7 +388,7 @@ export default function Cabinets() {
                               variant="ghost"
                               size="sm"
                               onClick={() => handleOpenBinding(cabinet.id)}
-                              title="配置绑定"
+                              title="配置通道绑定"
                             >
                               <Settings2 className="h-4 w-4 text-primary" />
                             </Button>
@@ -507,11 +456,17 @@ export default function Cabinets() {
           <DialogHeader>
             <DialogTitle>{editingCabinet ? "编辑保险柜组" : "添加保险柜组"}</DialogTitle>
             <DialogDescription>
-              {editingCabinet ? "修改保险柜组基本配置" : "创建新的保险柜组，创建后可配置网关和传感器绑定"}
+              {editingCabinet ? "修改保险柜组基本配置" : "创建新的保险柜组，创建后可配置通道绑定"}
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmit(onSubmit)}>
             <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label htmlFor="assetCode">资产编码 *</Label>
+                <Input id="assetCode" placeholder="例如：GZ-001" {...register("assetCode")} />
+                {errors.assetCode && <p className="text-sm text-destructive">{errors.assetCode.message}</p>}
+              </div>
+
               <div className="grid gap-2">
                 <Label htmlFor="name">名称 *</Label>
                 <Input id="name" placeholder="例如：1号保险柜组" {...register("name")} />
@@ -531,28 +486,9 @@ export default function Cabinets() {
                 </div>
               </div>
 
-              <div className="border-t border-border pt-4">
-                <Label className="text-base">3D位置坐标</Label>
-                <p className="text-sm text-muted-foreground mb-3">设置柜子组在3D监视界面中的显示位置</p>
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="grid gap-2">
-                    <Label htmlFor="positionX">X轴</Label>
-                    <Input id="positionX" type="number" placeholder="0" {...register("positionX", { valueAsNumber: true })} />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="positionY">Y轴</Label>
-                    <Input id="positionY" type="number" placeholder="0" {...register("positionY", { valueAsNumber: true })} />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="positionZ">Z轴</Label>
-                    <Input id="positionZ" type="number" placeholder="0" {...register("positionZ", { valueAsNumber: true })} />
-                  </div>
-                </div>
-              </div>
-
               <div className="grid gap-2">
-                <Label htmlFor="description">描述</Label>
-                <Textarea id="description" placeholder="保险柜组的详细描述信息" {...register("description")} />
+                <Label htmlFor="remark">备注</Label>
+                <Textarea id="remark" placeholder="保险柜组的备注信息" {...register("remark")} />
               </div>
             </div>
             <DialogFooter>
@@ -568,197 +504,123 @@ export default function Cabinets() {
         </DialogContent>
       </Dialog>
 
-      {/* 绑定配置对话框 */}
+      {/* 通道绑定配置对话框 */}
       <Dialog open={isBindingDialogOpen} onOpenChange={setIsBindingDialogOpen}>
         <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Link2 className="h-5 w-5" />
-              配置硬件绑定
+              配置通道绑定
             </DialogTitle>
             <DialogDescription>
-              为柜组 <span className="font-semibold text-foreground">{cabinets?.find(c => c.id === bindingCabinetId)?.name}</span> 配置网关COM端口和传感器绑定关系
+              为柜组 <span className="font-semibold text-foreground">{cabinets?.find(c => c.id === bindingCabinetId)?.name}</span> 配置仪表通道绑定关系
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-6 py-4">
-            {/* 第一步：选择网关和COM端口 */}
+            {/* 已绑定的通道列表 */}
             <div className="space-y-4">
               <div className="flex items-center gap-2">
                 <div className="h-6 w-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold">1</div>
-                <h3 className="text-base font-semibold">选择网关和COM端口</h3>
+                <h3 className="text-base font-semibold">已绑定通道</h3>
               </div>
 
-              {gatewayBinding && (
-                <div className="bg-muted/50 rounded-lg p-3 text-sm">
-                  <span className="text-muted-foreground">当前绑定：</span>
-                  <span className="font-medium ml-1">COM端口 #{gatewayBinding.gatewayComPortId}</span>
+              {bindings && bindings.length > 0 ? (
+                <div className="space-y-2">
+                  {bindings.map((binding: any) => (
+                    <div key={binding.id} className="flex items-center justify-between bg-muted/50 rounded-lg px-3 py-2">
+                      <div className="flex items-center gap-3">
+                        <Link2 className="h-4 w-4 text-primary" />
+                        <span className="text-sm font-medium">{getChannelLabel(binding.channelId)}</span>
+                        <Badge variant="outline" className="text-xs">
+                          系数: {binding.coefficient}
+                        </Badge>
+                        <Badge variant="outline" className="text-xs">
+                          偏移: {binding.offset}
+                        </Badge>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeBindingMutation.mutate({ id: binding.id })}
+                        disabled={removeBindingMutation.isPending}
+                      >
+                        <Unlink className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-sm text-muted-foreground bg-muted/30 rounded-lg p-3">
+                  暂无绑定通道
                 </div>
               )}
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>选择网关</Label>
-                  <Select
-                    value={selectedGatewayId?.toString() || ""}
-                    onValueChange={(val) => {
-                      setSelectedGatewayId(parseInt(val));
-                      setSelectedComPortId(null);
-                      setSelectedInstrumentId(null);
-                      setSelectedSensorChannel(null);
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="选择网关" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {gateways?.map(gw => (
-                        <SelectItem key={gw.id} value={gw.id.toString()}>
-                          {gw.name} ({gw.ipAddress})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>选择COM端口</Label>
-                  <Select
-                    value={selectedComPortId?.toString() || ""}
-                    onValueChange={(val) => {
-                      setSelectedComPortId(parseInt(val));
-                      setSelectedInstrumentId(null);
-                      setSelectedSensorChannel(null);
-                    }}
-                    disabled={!selectedGatewayId}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder={selectedGatewayId ? "选择COM端口" : "请先选择网关"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {comPorts?.map(port => (
-                        <SelectItem key={port.id} value={port.id.toString()}>
-                          {port.portNumber} (波特率: {port.baudRate})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <Button
-                size="sm"
-                onClick={handleSaveGatewayBinding}
-                disabled={!selectedComPortId || setGatewayBindingMutation.isPending}
-              >
-                {setGatewayBindingMutation.isPending && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}
-                保存网关绑定
-              </Button>
             </div>
 
             <Separator />
 
-            {/* 第二步：选择仪表和端子 */}
+            {/* 添加新的通道绑定 */}
             <div className="space-y-4">
               <div className="flex items-center gap-2">
                 <div className="h-6 w-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold">2</div>
-                <h3 className="text-base font-semibold">配置传感器绑定</h3>
+                <h3 className="text-base font-semibold">添加通道绑定</h3>
               </div>
 
-              {/* 已绑定的传感器列表 */}
-              {sensorBindings && sensorBindings.length > 0 && (
-                <div className="space-y-2">
-                  <Label className="text-sm text-muted-foreground">已绑定的传感器：</Label>
-                  <div className="space-y-2">
-                    {sensorBindings.map(binding => (
-                      <div key={binding.id} className="flex items-center justify-between bg-muted/50 rounded-lg px-3 py-2">
-                        <div className="flex items-center gap-3">
-                          <Link2 className="h-4 w-4 text-primary" />
-                          <span className="text-sm font-medium">{getInstrumentName(binding.instrumentId)}</span>
-                          <Badge variant="outline" className="text-xs">
-                            {getInstrumentModel(binding.instrumentId)}
-                          </Badge>
-                          <span className="text-sm text-muted-foreground">端子 {binding.sensorChannel}</span>
-                        </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => removeSensorBindingMutation.mutate({ id: binding.id })}
-                          disabled={removeSensorBindingMutation.isPending}
-                        >
-                          <Unlink className="h-4 w-4 text-destructive" />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* 添加新的传感器绑定 */}
               <div className="border rounded-lg p-4 space-y-4">
-                <Label className="text-sm font-medium">添加传感器绑定</Label>
+                <div className="space-y-2">
+                  <Label className="text-sm">选择通道</Label>
+                  <Select
+                    value={selectedChannelId?.toString() || ""}
+                    onValueChange={(val) => setSelectedChannelId(parseInt(val))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="选择仪表通道" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableChannels.map(ch => (
+                        <SelectItem key={ch.id} value={ch.id.toString()}>
+                          {ch.label} (ID: {ch.instrumentId})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label className="text-xs text-muted-foreground">选择仪表</Label>
-                    <Select
-                      value={selectedInstrumentId?.toString() || ""}
-                      onValueChange={(val) => {
-                        setSelectedInstrumentId(parseInt(val));
-                        setSelectedSensorChannel(null);
-                      }}
-                      disabled={!selectedComPortId}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder={selectedComPortId ? "选择仪表" : "请先选择COM端口"} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {comPortInstruments?.map(inst => (
-                          <SelectItem key={inst.id} value={inst.id.toString()}>
-                            {inst.name} ({inst.modelType})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <Label className="text-sm">权重系数</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={bindingCoefficient}
+                      onChange={(e) => setBindingCoefficient(parseFloat(e.target.value) || 1.0)}
+                    />
+                    <p className="text-xs text-muted-foreground">通道值 × 系数 + 偏移 = 最终重量贡献</p>
                   </div>
-
                   <div className="space-y-2">
-                    <Label className="text-xs text-muted-foreground">选择端子通道</Label>
-                    <Select
-                      value={selectedSensorChannel?.toString() || ""}
-                      onValueChange={(val) => setSelectedSensorChannel(parseInt(val))}
-                      disabled={!selectedInstrumentId}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder={selectedInstrumentId ? "选择端子" : "请先选择仪表"} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {availableChannels.map(ch => (
-                          <SelectItem key={ch} value={ch.toString()}>
-                            端子 {ch}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <Label className="text-sm">偏移量</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={bindingOffset}
+                      onChange={(e) => setBindingOffset(parseFloat(e.target.value) || 0.0)}
+                    />
                   </div>
                 </div>
 
-                {selectedInstrument && (
-                  <div className="text-xs text-muted-foreground bg-muted/30 rounded p-2">
-                    <span className="font-medium">{selectedInstrument.modelType}</span>
-                    {selectedInstrument.modelType === "DY7001" ? " - 单通道仪表，仅有端子1" : " - 四通道仪表，端子1-4可用"}
-                  </div>
-                )}
-
                 <Button
                   size="sm"
-                  onClick={handleAddSensorBinding}
-                  disabled={!selectedInstrumentId || !selectedSensorChannel || addSensorBindingMutation.isPending}
+                  onClick={handleAddBinding}
+                  disabled={!selectedChannelId || addBindingMutation.isPending}
                 >
-                  {addSensorBindingMutation.isPending && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}
+                  {addBindingMutation.isPending && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}
                   <Plus className="mr-1 h-3 w-3" />
                   添加绑定
                 </Button>
+              </div>
+
+              <div className="text-xs text-muted-foreground bg-muted/30 rounded p-2">
+                <strong>计算公式：</strong>柜组总重量 = Σ (通道值 × 系数 + 偏移)，每个绑定的通道值经过系数和偏移校正后累加得到最终重量。
               </div>
             </div>
           </div>

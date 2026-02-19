@@ -1,0 +1,52 @@
+{
+  "query": "SHOW TABLES;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user KBF53B6TGXz9Z1D.root --database SQ6yxhwuwXauyoM9DVdVk2 --execute SHOW TABLES;",
+  "rows": [
+    {
+      "Tables_in_SQ6yxhwuwXauyoM9DVdVk2": "__drizzle_migrations"
+    },
+    {
+      "Tables_in_SQ6yxhwuwXauyoM9DVdVk2": "alarmRecords"
+    },
+    {
+      "Tables_in_SQ6yxhwuwXauyoM9DVdVk2": "auditLogs"
+    },
+    {
+      "Tables_in_SQ6yxhwuwXauyoM9DVdVk2": "cabinetGroupGatewayBindings"
+    },
+    {
+      "Tables_in_SQ6yxhwuwXauyoM9DVdVk2": "cabinetGroupSensorBindings"
+    },
+    {
+      "Tables_in_SQ6yxhwuwXauyoM9DVdVk2": "cabinetGroups"
+    },
+    {
+      "Tables_in_SQ6yxhwuwXauyoM9DVdVk2": "gatewayComPorts"
+    },
+    {
+      "Tables_in_SQ6yxhwuwXauyoM9DVdVk2": "gateways"
+    },
+    {
+      "Tables_in_SQ6yxhwuwXauyoM9DVdVk2": "groupChannelBindings"
+    },
+    {
+      "Tables_in_SQ6yxhwuwXauyoM9DVdVk2": "instrumentChannels"
+    },
+    {
+      "Tables_in_SQ6yxhwuwXauyoM9DVdVk2": "users"
+    },
+    {
+      "Tables_in_SQ6yxhwuwXauyoM9DVdVk2": "vaultLayouts"
+    },
+    {
+      "Tables_in_SQ6yxhwuwXauyoM9DVdVk2": "weighingInstruments"
+    },
+    {
+      "Tables_in_SQ6yxhwuwXauyoM9DVdVk2": "weightChangeRecords"
+    }
+  ],
+  "messages": [],
+  "stdout": "Tables_in_SQ6yxhwuwXauyoM9DVdVk2\n__drizzle_migrations\nalarmRecords\nauditLogs\ncabinetGroupGatewayBindings\ncabinetGroupSensorBindings\ncabinetGroups\ngatewayComPorts\ngateways\ngroupChannelBindings\ninstrumentChannels\nusers\nvaultLayouts\nweighingInstruments\nweightChangeRecords\n",
+  "stderr": "",
+  "execution_time_ms": 1586
+}

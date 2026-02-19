@@ -112,3 +112,32 @@
 - [x] 网关管理页面：添加序号列、多选复选框、分页、多选删除
 - [x] 柜组管理页面：添加序号列、多选复选框、分页、多选删除
 - [x] 后端添加批量删除API（仪表、网关、柜组）
+
+## 硬件配置体系结构化改造（新需求）
+### 数据库改造
+- [x] 新增InstrumentChannel通道表（自动按型号生成CH1-CHn）
+- [x] 新增GroupChannelBinding柜组通道绑定表（含系数k和offset）
+- [x] 为仪表表添加deviceCode字段（管理标识，如C001）
+- [x] 为COM端口表添加protocolType和timeout/retry字段
+- [x] 移除旧的cabinetGroupSensorBindings表
+- [x] 移除旧的cabinetGroupGatewayBindings表
+### 后端API改造
+- [x] 仪表创建时自动生成通道（DY7001→1通道，DY7004→4通道）
+- [x] 通道CRUD API（启用/禁用、标签、scale/offset、单位/精度）
+- [x] slaveId同COM端口唯一性冲突检测
+- [x] 柜组通道绑定API（保存/读取GroupChannelBinding）
+- [x] 通信测试接口（模拟读取仪表通道值）
+- [x] 删除仪表/通道时影响分析（提示关联柜组）
+- [x] 操作审计日志记录
+### 前端硬件配置中心
+- [x] 层级导航页面：网关→COM端口→仪表→通道
+- [x] 网关层：IP/端口/在线状态/心跳/备注/CRUD
+- [x] COM层：串口参数/协议类型/超时重试/CRUD
+- [x] 仪表层：设备ID/型号/slaveId/CRUD/冲突校验
+- [x] 通道层：自动生成列表/启用禁用/标签/scale/offset/单位/精度
+- [x] 通信测试功能：读取仪表通道值/展示结果
+### 柜组管理增强
+- [x] 重量来源配置区块：级联选择网关→COM→仪表→通道
+- [x] 通道权重系数k和offset配置
+- [x] 计算公式展示和实时预览
+- [x] 绑定校验：通道启用检查/仪表在线提示/重复绑定检测

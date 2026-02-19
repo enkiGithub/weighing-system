@@ -45,18 +45,23 @@ const comPortSchema = z.object({
   dataBits: z.number().int().optional(),
   stopBits: z.number().int().optional(),
   parity: z.string().optional(),
-  description: z.string().optional(),
+  protocolType: z.string().optional(),
+  timeoutMs: z.number().int().optional(),
+  retryCount: z.number().int().optional(),
+  remark: z.string().optional(),
 });
 
 type ComPortForm = z.infer<typeof comPortSchema>;
 
 // 仪表表单schema
 const instrumentSchema = z.object({
-  name: z.string().min(1, "名称不能为空").max(100, "名称过长"),
+  deviceCode: z.string().min(1, "设备编码不能为空").max(50),
+  name: z.string().max(100).optional(),
   modelType: z.enum(["DY7001", "DY7004"], { message: "请选择仪表型号" }),
-  gatewayComPortId: z.number({ message: "请选择网关COM端口" }),
-  slaveAddress: z.number().int().min(1, "从站地址必须大于0").max(247, "从站地址无效"),
-  description: z.string().optional(),
+  comPortId: z.number({ message: "请选择网关COM端口" }),
+  slaveId: z.number().int().min(1, "从站地址必须大于0").max(247, "从站地址无效"),
+  location: z.string().optional(),
+  remark: z.string().optional(),
 });
 
 type InstrumentForm = z.infer<typeof instrumentSchema>;
@@ -219,7 +224,10 @@ export default function Devices() {
       dataBits: port.dataBits,
       stopBits: port.stopBits,
       parity: port.parity,
-      description: port.description || "",
+      protocolType: port.protocolType || "modbus_rtu",
+      timeoutMs: port.timeoutMs || 1000,
+      retryCount: port.retryCount || 3,
+      remark: port.remark || "",
     });
     setIsComPortDialogOpen(true);
   };
@@ -228,11 +236,13 @@ export default function Devices() {
   const handleEditInstrument = (instrument: any) => {
     setEditingInstrument(instrument);
     resetInstrumentForm({
-      name: instrument.name,
+      deviceCode: instrument.deviceCode,
+      name: instrument.name || "",
       modelType: instrument.modelType,
-      gatewayComPortId: instrument.gatewayComPortId,
-      slaveAddress: instrument.slaveAddress,
-      description: instrument.description || "",
+      comPortId: instrument.comPortId,
+      slaveId: instrument.slaveId,
+      location: instrument.location || "",
+      remark: instrument.remark || "",
     });
     setIsInstrumentDialogOpen(true);
   };
@@ -337,7 +347,10 @@ export default function Devices() {
                         <TableHead>数据位</TableHead>
                         <TableHead>停止位</TableHead>
                         <TableHead>奇偶校验</TableHead>
-                        <TableHead>描述</TableHead>
+                        <TableHead>协议类型</TableHead>
+                        <TableHead>超时(ms)</TableHead>
+                        <TableHead>重试</TableHead>
+                        <TableHead>备注</TableHead>
                         <TableHead className="text-right">操作</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -350,7 +363,10 @@ export default function Devices() {
                           <TableCell>{port.dataBits}</TableCell>
                           <TableCell>{port.stopBits}</TableCell>
                           <TableCell>{port.parity}</TableCell>
-                          <TableCell className="text-sm text-muted-foreground">{port.description || "-"}</TableCell>
+                          <TableCell className="text-sm">{port.protocolType}</TableCell>
+                          <TableCell className="text-sm">{port.timeoutMs}</TableCell>
+                          <TableCell className="text-sm">{port.retryCount}</TableCell>
+                          <TableCell className="text-sm text-muted-foreground">{port.remark || "-"}</TableCell>
                           <TableCell className="text-right space-x-2">
                             <Button variant="ghost" size="sm" onClick={() => handleEditComPort(port)}>
                               <Edit className="h-4 w-4" />
@@ -417,12 +433,14 @@ export default function Devices() {
                             />
                           </TableHead>
                           <TableHead className="w-16">序号</TableHead>
-                          <TableHead>仪表名称</TableHead>
+                          <TableHead>设备编码</TableHead>
+                          <TableHead>名称</TableHead>
                           <TableHead>型号</TableHead>
-                          <TableHead>网关COM端口</TableHead>
+                          <TableHead>COM端口</TableHead>
                           <TableHead>从站地址</TableHead>
                           <TableHead>状态</TableHead>
-                          <TableHead>描述</TableHead>
+                          <TableHead>位置</TableHead>
+                          <TableHead>备注</TableHead>
                           <TableHead className="text-right">操作</TableHead>
                         </TableRow>
                       </TableHeader>
@@ -439,7 +457,8 @@ export default function Devices() {
                             <TableCell className="text-muted-foreground">
                               {(instrumentPage - 1) * instrumentPageSize + index + 1}
                             </TableCell>
-                            <TableCell className="font-medium">{instrument.name}</TableCell>
+                            <TableCell className="font-mono text-sm">{instrument.deviceCode}</TableCell>
+                            <TableCell className="font-medium">{instrument.name || "-"}</TableCell>
                             <TableCell>
                               <Badge variant="outline">
                                 {instrument.modelType}
@@ -447,15 +466,16 @@ export default function Devices() {
                                 {instrument.modelType === "DY7004" && " (4通道)"}
                               </Badge>
                             </TableCell>
-                            <TableCell className="text-sm">{getComPortInfo(instrument.gatewayComPortId)}</TableCell>
-                            <TableCell>{instrument.slaveAddress}</TableCell>
+                            <TableCell className="text-sm">{getComPortInfo(instrument.comPortId)}</TableCell>
+                            <TableCell>{instrument.slaveId}</TableCell>
                             <TableCell>
                               <Badge variant={instrument.status === "online" ? "default" : "destructive"}>
                                 {instrument.status === "online" ? <Wifi className="h-3 w-3 mr-1" /> : <WifiOff className="h-3 w-3 mr-1" />}
                                 {instrument.status === "online" ? "在线" : "离线"}
                               </Badge>
                             </TableCell>
-                            <TableCell className="text-sm text-muted-foreground">{instrument.description || "-"}</TableCell>
+                            <TableCell className="text-sm text-muted-foreground">{instrument.location || "-"}</TableCell>
+                            <TableCell className="text-sm text-muted-foreground">{instrument.remark || "-"}</TableCell>
                             <TableCell className="text-right space-x-2">
                               <Button variant="ghost" size="sm" onClick={() => handleEditInstrument(instrument)}>
                                 <Edit className="h-4 w-4" />
@@ -584,9 +604,38 @@ export default function Devices() {
               </div>
             </div>
 
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <Label htmlFor="protocolType">协议类型</Label>
+                <Controller
+                  name="protocolType"
+                  control={controlComPort}
+                  render={({ field }) => (
+                    <Select value={field.value || "modbus_rtu"} onValueChange={field.onChange}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="modbus_rtu">Modbus RTU</SelectItem>
+                        <SelectItem value="custom">自定义协议</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+              </div>
+              <div>
+                <Label htmlFor="timeoutMs">超时(ms)</Label>
+                <Input id="timeoutMs" type="number" {...registerComPort("timeoutMs", { valueAsNumber: true })} />
+              </div>
+              <div>
+                <Label htmlFor="retryCount">重试次数</Label>
+                <Input id="retryCount" type="number" {...registerComPort("retryCount", { valueAsNumber: true })} />
+              </div>
+            </div>
+
             <div>
-              <Label htmlFor="description">描述</Label>
-              <Textarea id="description" placeholder="可选的描述信息" {...registerComPort("description")} />
+              <Label htmlFor="remark">备注</Label>
+              <Textarea id="remark" placeholder="可选的备注信息" {...registerComPort("remark")} />
             </div>
 
             <DialogFooter>
@@ -609,9 +658,14 @@ export default function Devices() {
           </DialogHeader>
           <form onSubmit={handleInstrumentSubmit(onInstrumentSubmit)} className="space-y-4">
             <div>
-              <Label htmlFor="name">仪表名称</Label>
-              <Input id="name" placeholder="如 仪表1" {...registerInstrument("name")} />
-              {instrumentErrors.name && <p className="text-sm text-red-500">{instrumentErrors.name.message}</p>}
+              <Label htmlFor="deviceCode">设备编码 *</Label>
+              <Input id="deviceCode" placeholder="如 C001, C002" {...registerInstrument("deviceCode")} />
+              {instrumentErrors.deviceCode && <p className="text-sm text-red-500">{instrumentErrors.deviceCode.message}</p>}
+            </div>
+
+            <div>
+              <Label htmlFor="name">显示名称</Label>
+              <Input id="name" placeholder="可选，如 1号仪表" {...registerInstrument("name")} />
             </div>
 
             <div>
@@ -635,9 +689,9 @@ export default function Devices() {
             </div>
 
             <div>
-              <Label htmlFor="gatewayComPortId">网关COM端口</Label>
+              <Label htmlFor="comPortId">网关COM端口 *</Label>
               <Controller
-                name="gatewayComPortId"
+                name="comPortId"
                 control={controlInstrument}
                 render={({ field }) => (
                   <Select value={field.value?.toString() || ""} onValueChange={(val) => field.onChange(parseInt(val))}>
@@ -657,18 +711,23 @@ export default function Devices() {
                   </Select>
                 )}
               />
-              {instrumentErrors.gatewayComPortId && <p className="text-sm text-red-500">{instrumentErrors.gatewayComPortId.message}</p>}
+              {instrumentErrors.comPortId && <p className="text-sm text-red-500">{instrumentErrors.comPortId.message}</p>}
             </div>
 
             <div>
-              <Label htmlFor="slaveAddress">从站地址</Label>
-              <Input id="slaveAddress" type="number" min="1" max="247" placeholder="1-247" {...registerInstrument("slaveAddress", { valueAsNumber: true })} />
-              {instrumentErrors.slaveAddress && <p className="text-sm text-red-500">{instrumentErrors.slaveAddress.message}</p>}
+              <Label htmlFor="slaveId">从站地址 *</Label>
+              <Input id="slaveId" type="number" min="1" max="247" placeholder="1-247" {...registerInstrument("slaveId", { valueAsNumber: true })} />
+              {instrumentErrors.slaveId && <p className="text-sm text-red-500">{instrumentErrors.slaveId.message}</p>}
             </div>
 
             <div>
-              <Label htmlFor="description">描述</Label>
-              <Textarea id="description" placeholder="可选的描述信息" {...registerInstrument("description")} />
+              <Label htmlFor="location">安装位置</Label>
+              <Input id="location" placeholder="可选，如 A区1号柜" {...registerInstrument("location")} />
+            </div>
+
+            <div>
+              <Label htmlFor="remark">备注</Label>
+              <Textarea id="remark" placeholder="可选的备注信息" {...registerInstrument("remark")} />
             </div>
 
             <DialogFooter>

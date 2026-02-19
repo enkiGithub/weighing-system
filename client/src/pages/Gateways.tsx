@@ -42,7 +42,8 @@ const gatewaySchema = z.object({
   name: z.string().min(1, "名称不能为空").max(100, "名称过长"),
   ipAddress: z.string().min(1, "IP地址不能为空").max(45, "IP地址过长"),
   port: z.number().int().min(1, "端口必须大于0").max(65535, "端口号无效"),
-  description: z.string().optional(),
+  model: z.string().max(50).optional(),
+  remark: z.string().optional(),
 });
 
 type GatewayForm = z.infer<typeof gatewaySchema>;
@@ -131,7 +132,8 @@ export default function Gateways() {
       name: gateway.name,
       ipAddress: gateway.ipAddress,
       port: gateway.port,
-      description: gateway.description || "",
+      model: gateway.model || "",
+      remark: gateway.remark || "",
     });
     setIsDialogOpen(true);
   };
@@ -144,7 +146,7 @@ export default function Gateways() {
 
   const handleAdd = () => {
     setEditingGateway(null);
-    reset({ name: "", ipAddress: "", port: 502, description: "" });
+    reset({ name: "", ipAddress: "", port: 502, model: "", remark: "" });
     setIsDialogOpen(true);
   };
 
@@ -234,14 +236,15 @@ export default function Gateways() {
                     <TableHead>端口</TableHead>
                     <TableHead>状态</TableHead>
                     <TableHead>最后心跳</TableHead>
-                    <TableHead>描述</TableHead>
+                    <TableHead>型号</TableHead>
+                    <TableHead>备注</TableHead>
                     <TableHead className="text-right">操作</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {paginatedGateways.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
+                      <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
                         暂无网关设备
                       </TableCell>
                     </TableRow>
@@ -279,8 +282,11 @@ export default function Gateways() {
                             ? format(new Date(gateway.lastHeartbeat), "yyyy-MM-dd HH:mm:ss")
                             : "-"}
                         </TableCell>
+                        <TableCell className="text-sm">
+                          {gateway.model || "-"}
+                        </TableCell>
                         <TableCell className="max-w-xs truncate text-sm text-muted-foreground">
-                          {gateway.description || "-"}
+                          {gateway.remark || "-"}
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-2">
@@ -368,8 +374,12 @@ export default function Gateways() {
                 {errors.port && <p className="text-sm text-destructive">{errors.port.message}</p>}
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="description">描述</Label>
-                <Textarea id="description" placeholder="网关的详细描述信息" {...register("description")} />
+                <Label htmlFor="model">型号</Label>
+                <Input id="model" placeholder="例如：ZLAN6808" {...register("model")} />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="remark">备注</Label>
+                <Textarea id="remark" placeholder="网关的备注信息" {...register("remark")} />
               </div>
             </div>
             <DialogFooter>

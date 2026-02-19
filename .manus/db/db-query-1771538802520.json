@@ -1,0 +1,155 @@
+{
+  "query": "SELECT id, name, assetCode FROM cabinetGroups;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user KBF53B6TGXz9Z1D.root --database SQ6yxhwuwXauyoM9DVdVk2 --execute SELECT id, name, assetCode FROM cabinetGroups;",
+  "rows": [
+    {
+      "id": "1",
+      "name": "内圈#1",
+      "assetCode": ""
+    },
+    {
+      "id": "2",
+      "name": "Binding Test Cabinet",
+      "assetCode": ""
+    },
+    {
+      "id": "3",
+      "name": "Sensor Binding Test Cabinet",
+      "assetCode": ""
+    },
+    {
+      "id": "4",
+      "name": "Remove Sensor Test Cabinet",
+      "assetCode": ""
+    },
+    {
+      "id": "5",
+      "name": "Binding Test Cabinet",
+      "assetCode": ""
+    },
+    {
+      "id": "6",
+      "name": "Sensor Binding Test Cabinet",
+      "assetCode": ""
+    },
+    {
+      "id": "7",
+      "name": "Remove Sensor Test Cabinet",
+      "assetCode": ""
+    },
+    {
+      "id": "8",
+      "name": "Binding Test Cabinet",
+      "assetCode": ""
+    },
+    {
+      "id": "9",
+      "name": "Sensor Binding Test Cabinet",
+      "assetCode": ""
+    },
+    {
+      "id": "10",
+      "name": "Remove Sensor Test Cabinet",
+      "assetCode": ""
+    },
+    {
+      "id": "11",
+      "name": "Binding Test Cabinet",
+      "assetCode": ""
+    },
+    {
+      "id": "12",
+      "name": "Sensor Binding Test Cabinet",
+      "assetCode": ""
+    },
+    {
+      "id": "13",
+      "name": "Remove Sensor Test Cabinet",
+      "assetCode": ""
+    },
+    {
+      "id": "14",
+      "name": "Layout Bind Test Cabinet",
+      "assetCode": ""
+    },
+    {
+      "id": "15",
+      "name": "Binding Test Cabinet",
+      "assetCode": ""
+    },
+    {
+      "id": "16",
+      "name": "Sensor Binding Test Cabinet",
+      "assetCode": ""
+    },
+    {
+      "id": "17",
+      "name": "Remove Sensor Test Cabinet",
+      "assetCode": ""
+    },
+    {
+      "id": "18",
+      "name": "Layout Bind Test Cabinet",
+      "assetCode": ""
+    },
+    {
+      "id": "19",
+      "name": "Binding Test Cabinet",
+      "assetCode": ""
+    },
+    {
+      "id": "20",
+      "name": "Sensor Binding Test Cabinet",
+      "assetCode": ""
+    },
+    {
+      "id": "21",
+      "name": "Remove Sensor Test Cabinet",
+      "assetCode": ""
+    },
+    {
+      "id": "22",
+      "name": "Layout Bind Test Cabinet",
+      "assetCode": ""
+    },
+    {
+      "id": "23",
+      "name": "Binding Test Cabinet",
+      "assetCode": ""
+    },
+    {
+      "id": "24",
+      "name": "Sensor Binding Test Cabinet",
+      "assetCode": ""
+    },
+    {
+      "id": "25",
+      "name": "Remove Sensor Test Cabinet",
+      "assetCode": ""
+    },
+    {
+      "id": "26",
+      "name": "Layout Bind Test Cabinet",
+      "assetCode": ""
+    },
+    {
+      "id": "27",
+      "name": "Binding Test Cabinet",
+      "assetCode": ""
+    },
+    {
+      "id": "28",
+      "name": "Sensor Binding Test Cabinet",
+      "assetCode": ""
+    },
+    {
+      "id": "29",
+      "name": "Remove Sensor Test Cabinet",
+      "assetCode": ""
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\tassetCode\n1\t内圈#1\t\n2\tBinding Test Cabinet\t\n3\tSensor Binding Test Cabinet\t\n4\tRemove Sensor Test Cabinet\t\n5\tBinding Test Cabinet\t\n6\tSensor Binding Test Cabinet\t\n7\tRemove Sensor Test Cabinet\t\n8\tBinding Test Cabinet\t\n9\tSensor Binding Test Cabinet\t\n10\tRemove Sensor Test Cabinet\t\n11\tBinding Test Cabinet\t\n12\tSensor Binding Test Cabinet\t\n13\tRemove Sensor Test Cabinet\t\n14\tLayout Bind Test Cabinet\t\n15\tBinding Test Cabinet\t\n16\tSensor Binding Test Cabinet\t\n17\tRemove Sensor Test Cabinet\t\n18\tLayout Bind Test Cabinet\t\n19\tBinding Test Cabinet\t\n20\tSensor Binding Test Cabinet\t\n21\tRemove Sensor Test Cabinet\t\n22\tLayout Bind Test Cabinet\t\n23\tBinding Test Cabinet\t\n24\tSensor Binding Test Cabinet\t\n25\tRemove Sensor Test Cabinet\t\n26\tLayout Bind Test Cabinet\t\n27\tBinding Test Cabinet\t\n28\tSensor Binding Test Cabinet\t\n29\tRemove Sensor Test Cabinet\t\n",
+  "stderr": "",
+  "execution_time_ms": 1553
+}

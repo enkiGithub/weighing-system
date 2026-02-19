@@ -1,0 +1,25 @@
+{
+  "query": "SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME IN ('instrumentChannels', 'groupChannelBindings', 'auditLogs', 'cabinets', 'cabinetGroupLayouts', 'cabinetGroupGatewayBindings', 'cabinetGroupSensorBindings');",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user KBF53B6TGXz9Z1D.root --database SQ6yxhwuwXauyoM9DVdVk2 --execute SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME IN ('instrumentChannels', 'groupChannelBindings', 'auditLogs', 'cabinets', 'cabinetGroupLayouts', 'cabinetGroupGatewayBindings', 'cabinetGroupSensorBindings');",
+  "rows": [
+    {
+      "TABLE_NAME": "instrumentChannels"
+    },
+    {
+      "TABLE_NAME": "groupChannelBindings"
+    },
+    {
+      "TABLE_NAME": "cabinetGroupSensorBindings"
+    },
+    {
+      "TABLE_NAME": "cabinetGroupGatewayBindings"
+    },
+    {
+      "TABLE_NAME": "auditLogs"
+    }
+  ],
+  "messages": [],
+  "stdout": "TABLE_NAME\ninstrumentChannels\ngroupChannelBindings\ncabinetGroupSensorBindings\ncabinetGroupGatewayBindings\nauditLogs\n",
+  "stderr": "",
+  "execution_time_ms": 1579
+}

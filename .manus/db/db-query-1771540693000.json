@@ -1,0 +1,19 @@
+{
+  "query": "SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME LIKE 'cabinet%' ORDER BY TABLE_NAME;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user KBF53B6TGXz9Z1D.root --database SQ6yxhwuwXauyoM9DVdVk2 --execute SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME LIKE 'cabinet%' ORDER BY TABLE_NAME;",
+  "rows": [
+    {
+      "TABLE_NAME": "cabinetGroupGatewayBindings"
+    },
+    {
+      "TABLE_NAME": "cabinetGroupSensorBindings"
+    },
+    {
+      "TABLE_NAME": "cabinetGroups"
+    }
+  ],
+  "messages": [],
+  "stdout": "TABLE_NAME\ncabinetGroupGatewayBindings\ncabinetGroupSensorBindings\ncabinetGroups\n",
+  "stderr": "",
+  "execution_time_ms": 1576
+}
