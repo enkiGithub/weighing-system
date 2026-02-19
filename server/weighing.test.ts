@@ -591,3 +591,88 @@ describe("Cabinet Group Hardware Binding", () => {
     expect(bindings.length).toBe(0);
   });
 });
+
+
+describe("Batch Delete Operations", () => {
+  it("should batch delete gateways", async () => {
+    const ctx = createAdminContext();
+    const caller = appRouter.createCaller(ctx);
+
+    // Create two gateways
+    const gw1 = await caller.gateways.create({
+      name: "Batch Del GW 1",
+      ipAddress: "192.168.99.1",
+      port: 502,
+    });
+    const gw2 = await caller.gateways.create({
+      name: "Batch Del GW 2",
+      ipAddress: "192.168.99.2",
+      port: 502,
+    });
+
+    const result = await caller.gateways.batchDelete({ ids: [gw1.id, gw2.id] });
+    expect(result.count).toBe(2);
+  });
+
+  it("should batch delete instruments", async () => {
+    const ctx = createAdminContext();
+    const caller = appRouter.createCaller(ctx);
+
+    // Create gateway and COM port first
+    const gw = await caller.gateways.create({
+      name: "Batch Del Inst GW",
+      ipAddress: "192.168.99.3",
+      port: 502,
+    });
+    const comPort = await caller.gatewayComPorts.create({
+      gatewayId: gw.id,
+      portNumber: "COM1",
+    });
+
+    // Create two instruments
+    const inst1 = await caller.instruments.create({
+      name: "Batch Del Inst 1",
+      modelType: "DY7001",
+      gatewayComPortId: comPort.id,
+      slaveAddress: 10,
+    });
+    const inst2 = await caller.instruments.create({
+      name: "Batch Del Inst 2",
+      modelType: "DY7004",
+      gatewayComPortId: comPort.id,
+      slaveAddress: 11,
+    });
+
+    const result = await caller.instruments.batchDelete({ ids: [inst1.id, inst2.id] });
+    expect(result.count).toBe(2);
+  });
+
+  it("should batch delete cabinet groups", async () => {
+    const ctx = createAdminContext();
+    const caller = appRouter.createCaller(ctx);
+
+    // Create two cabinet groups
+    const cab1 = await caller.cabinetGroups.create({
+      name: "Batch Del Cab 1",
+      initialWeight: 10000,
+      alarmThreshold: 1000,
+    });
+    const cab2 = await caller.cabinetGroups.create({
+      name: "Batch Del Cab 2",
+      initialWeight: 20000,
+      alarmThreshold: 2000,
+    });
+
+    const result = await caller.cabinetGroups.batchDelete({ ids: [cab1.id, cab2.id] });
+    expect(result.count).toBe(2);
+  });
+
+  it("should deny batch delete for non-admin users", async () => {
+    const ctx = createUserContext();
+    const caller = appRouter.createCaller(ctx);
+
+    await expect(caller.gateways.batchDelete({ ids: [1] })).rejects.toThrow();
+    await expect(caller.instruments.batchDelete({ ids: [1] })).rejects.toThrow();
+    await expect(caller.cabinetGroups.batchDelete({ ids: [1] })).rejects.toThrow();
+  });
+});

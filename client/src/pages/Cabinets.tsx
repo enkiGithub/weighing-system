@@ -29,8 +29,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
-import { Plus, Edit, Trash2, Loader2, AlertTriangle, CheckCircle2, Link2, Unlink, Settings2 } from "lucide-react";
+import { Plus, Edit, Trash2, Loader2, AlertTriangle, CheckCircle2, Link2, Unlink, Settings2, ChevronLeft, ChevronRight } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -50,11 +51,18 @@ const cabinetSchema = z.object({
 
 type CabinetForm = z.infer<typeof cabinetSchema>;
 
+const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
+
 export default function Cabinets() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isBindingDialogOpen, setIsBindingDialogOpen] = useState(false);
   const [editingCabinet, setEditingCabinet] = useState<CabinetGroup | null>(null);
   const [bindingCabinetId, setBindingCabinetId] = useState<number | null>(null);
+
+  // 分页和多选状态
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
 
   // 绑定配置状态
   const [selectedGatewayId, setSelectedGatewayId] = useState<number | null>(null);
@@ -106,6 +114,19 @@ export default function Cabinets() {
     return Array.from({ length: maxChannels }, (_, i) => i + 1);
   }, [selectedInstrument]);
 
+  // 分页计算
+  const totalItems = cabinets?.length || 0;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const paginatedCabinets = useMemo(() => {
+    if (!cabinets) return [];
+    const start = (currentPage - 1) * pageSize;
+    return cabinets.slice(start, start + pageSize);
+  }, [cabinets, currentPage, pageSize]);
+
+  const currentPageIds = useMemo(() => new Set(paginatedCabinets.map(c => c.id)), [paginatedCabinets]);
+  const isAllSelected = paginatedCabinets.length > 0 && paginatedCabinets.every(c => selectedIds.has(c.id));
+  const isSomeSelected = paginatedCabinets.some(c => selectedIds.has(c.id));
+
   // 柜组CRUD mutations
   const createMutation = trpc.cabinetGroups.create.useMutation({
     onSuccess: () => {
@@ -134,6 +155,15 @@ export default function Cabinets() {
       toast.success("保险柜组删除成功");
     },
     onError: (error) => toast.error(`删除失败: ${error.message}`),
+  });
+
+  const batchDeleteMutation = trpc.cabinetGroups.batchDelete.useMutation({
+    onSuccess: (data) => {
+      utils.cabinetGroups.list.invalidate();
+      setSelectedIds(new Set());
+      toast.success(`成功删除 ${data.count} 个保险柜组`);
+    },
+    onError: (error) => toast.error(`批量删除失败: ${error.message}`),
   });
 
   // 绑定mutations
@@ -211,16 +241,34 @@ export default function Cabinets() {
 
   const handleAdd = () => {
     setEditingCabinet(null);
-    reset({
-      name: "",
-      initialWeight: 0,
-      alarmThreshold: 1,
-      positionX: 0,
-      positionY: 0,
-      positionZ: 0,
-      description: "",
-    });
+    reset({ name: "", initialWeight: 0, alarmThreshold: 1, positionX: 0, positionY: 0, positionZ: 0, description: "" });
     setIsDialogOpen(true);
+  };
+
+  // 多选操作
+  const handleToggleSelect = (id: number) => {
+    const next = new Set(selectedIds);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    setSelectedIds(next);
+  };
+
+  const handleToggleAll = () => {
+    if (isAllSelected) {
+      const next = new Set(selectedIds);
+      currentPageIds.forEach(id => next.delete(id));
+      setSelectedIds(next);
+    } else {
+      const next = new Set(selectedIds);
+      currentPageIds.forEach(id => next.add(id));
+      setSelectedIds(next);
+    }
+  };
+
+  const handleBatchDelete = () => {
+    if (selectedIds.size === 0) return;
+    if (confirm(`确定要删除选中的 ${selectedIds.size} 个保险柜组吗？`)) {
+      batchDeleteMutation.mutate({ ids: Array.from(selectedIds) });
+    }
   };
 
   // 打开绑定配置对话框
@@ -303,10 +351,19 @@ export default function Cabinets() {
           <h1 className="text-3xl font-bold tracking-tight text-foreground">保险柜组管理</h1>
           <p className="text-muted-foreground mt-2">管理保险柜组的基本配置、网关绑定和传感器绑定</p>
         </div>
-        <Button onClick={handleAdd}>
-          <Plus className="mr-2 h-4 w-4" />
-          添加保险柜组
-        </Button>
+        <div className="flex gap-2">
+          {selectedIds.size > 0 && (
+            <Button variant="destructive" onClick={handleBatchDelete} disabled={batchDeleteMutation.isPending}>
+              {batchDeleteMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              <Trash2 className="mr-2 h-4 w-4" />
+              删除选中 ({selectedIds.size})
+            </Button>
+          )}
+          <Button onClick={handleAdd}>
+            <Plus className="mr-2 h-4 w-4" />
+            添加保险柜组
+          </Button>
+        </div>
       </div>
 
       <Card>
@@ -320,75 +377,126 @@ export default function Cabinets() {
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>名称</TableHead>
-                  <TableHead>当前重量</TableHead>
-                  <TableHead>初始重量</TableHead>
-                  <TableHead>报警阈值</TableHead>
-                  <TableHead>状态</TableHead>
-                  <TableHead>位置</TableHead>
-                  <TableHead className="text-right">操作</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {cabinets?.length === 0 ? (
+            <>
+              <Table>
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
-                      暂无保险柜组
-                    </TableCell>
+                    <TableHead className="w-12">
+                      <Checkbox
+                        checked={isAllSelected}
+                        onCheckedChange={handleToggleAll}
+                        aria-label="全选"
+                        {...(isSomeSelected && !isAllSelected ? { "data-state": "indeterminate" } : {})}
+                      />
+                    </TableHead>
+                    <TableHead className="w-16">序号</TableHead>
+                    <TableHead>名称</TableHead>
+                    <TableHead>当前重量</TableHead>
+                    <TableHead>初始重量</TableHead>
+                    <TableHead>报警阈值</TableHead>
+                    <TableHead>状态</TableHead>
+                    <TableHead>位置</TableHead>
+                    <TableHead className="text-right">操作</TableHead>
                   </TableRow>
-                ) : (
-                  cabinets?.map((cabinet) => (
-                    <TableRow key={cabinet.id}>
-                      <TableCell className="font-medium">{cabinet.name}</TableCell>
-                      <TableCell className="font-semibold">
-                        {(cabinet.currentWeight / 1000).toFixed(2)} kg
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {(cabinet.initialWeight / 1000).toFixed(2)} kg
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {(cabinet.alarmThreshold / 1000).toFixed(2)} kg
-                      </TableCell>
-                      <TableCell>{getStatusBadge(cabinet.status)}</TableCell>
-                      <TableCell className="font-mono text-xs text-muted-foreground">
-                        ({cabinet.positionX}, {cabinet.positionY}, {cabinet.positionZ})
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-1">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleOpenBinding(cabinet.id)}
-                            title="配置绑定"
-                          >
-                            <Settings2 className="h-4 w-4 text-primary" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleEdit(cabinet)}
-                            title="编辑"
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleDelete(cabinet.id)}
-                            title="删除"
-                          >
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
-                        </div>
+                </TableHeader>
+                <TableBody>
+                  {paginatedCabinets.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
+                        暂无保险柜组
                       </TableCell>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
+                  ) : (
+                    paginatedCabinets.map((cabinet, index) => (
+                      <TableRow key={cabinet.id} className={selectedIds.has(cabinet.id) ? "bg-muted/50" : ""}>
+                        <TableCell>
+                          <Checkbox
+                            checked={selectedIds.has(cabinet.id)}
+                            onCheckedChange={() => handleToggleSelect(cabinet.id)}
+                            aria-label={`选择 ${cabinet.name}`}
+                          />
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {(currentPage - 1) * pageSize + index + 1}
+                        </TableCell>
+                        <TableCell className="font-medium">{cabinet.name}</TableCell>
+                        <TableCell className="font-semibold">
+                          {(cabinet.currentWeight / 1000).toFixed(2)} kg
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {(cabinet.initialWeight / 1000).toFixed(2)} kg
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {(cabinet.alarmThreshold / 1000).toFixed(2)} kg
+                        </TableCell>
+                        <TableCell>{getStatusBadge(cabinet.status)}</TableCell>
+                        <TableCell className="font-mono text-xs text-muted-foreground">
+                          ({cabinet.positionX}, {cabinet.positionY}, {cabinet.positionZ})
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleOpenBinding(cabinet.id)}
+                              title="配置绑定"
+                            >
+                              <Settings2 className="h-4 w-4 text-primary" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleEdit(cabinet)}
+                              title="编辑"
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDelete(cabinet.id)}
+                              title="删除"
+                            >
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+
+              {/* 分页控件 */}
+              <div className="flex items-center justify-between mt-4 pt-4 border-t">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <span>共 {totalItems} 条</span>
+                  <span>·</span>
+                  <span>每页</span>
+                  <Select value={pageSize.toString()} onValueChange={(val) => { setPageSize(Number(val)); setCurrentPage(1); }}>
+                    <SelectTrigger className="w-20 h-8">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PAGE_SIZE_OPTIONS.map(size => (
+                        <SelectItem key={size} value={size.toString()}>{size} 条</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage <= 1}>
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <span className="text-sm text-muted-foreground px-2">
+                    第 {currentPage} / {totalPages} 页
+                  </span>
+                  <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage >= totalPages}>
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>

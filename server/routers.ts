@@ -102,6 +102,15 @@ export const appRouter = router({
         await db.deleteGateway(input.id);
         return { success: true };
       }),
+
+    batchDelete: adminProcedure
+      .input(z.object({ ids: z.array(z.number()).min(1) }))
+      .mutation(async ({ input }) => {
+        for (const id of input.ids) {
+          await db.deleteGateway(id);
+        }
+        return { success: true, count: input.ids.length };
+      }),
     
     updateStatus: protectedProcedure
       .input(z.object({
@@ -213,6 +222,15 @@ export const appRouter = router({
         await db.deleteInstrument(input.id);
         return { success: true };
       }),
+
+    batchDelete: adminProcedure
+      .input(z.object({ ids: z.array(z.number()).min(1) }))
+      .mutation(async ({ input }) => {
+        for (const id of input.ids) {
+          await db.deleteInstrument(id);
+        }
+        return { success: true, count: input.ids.length };
+      }),
     
     updateStatus: protectedProcedure
       .input(z.object({
@@ -277,6 +295,15 @@ export const appRouter = router({
       .mutation(async ({ input }) => {
         await db.deleteCabinetGroup(input.id);
         return { success: true };
+      }),
+
+    batchDelete: adminProcedure
+      .input(z.object({ ids: z.array(z.number()).min(1) }))
+      .mutation(async ({ input }) => {
+        for (const id of input.ids) {
+          await db.deleteCabinetGroup(id);
+        }
+        return { success: true, count: input.ids.length };
       }),
     
     // 配置网关绑定
