@@ -31,10 +31,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Switch } from "@/components/ui/switch";
 import {
   Plus, Edit, Trash2, Loader2, WifiOff, Wifi,
   ChevronLeft, ChevronRight, ChevronDown, ChevronRight as ChevronRightIcon,
-  Server, Cable, Radio,
+  Server, Cable, Radio, Zap, Activity,
 } from "lucide-react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -55,12 +56,92 @@ type InstrumentForm = z.infer<typeof instrumentSchema>;
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
 
-// 通道子行组件
+// 通道子行组件（含内联编辑和通信测试）
 function ChannelSubRows({ instrumentId }: { instrumentId: number }) {
+  const [editingChannel, setEditingChannel] = useState<any>(null);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [testingChannelId, setTestingChannelId] = useState<number | null>(null);
+
+  // 编辑表单状态
+  const [editLabel, setEditLabel] = useState("");
+  const [editEnabled, setEditEnabled] = useState(true);
+  const [editScale, setEditScale] = useState(1.0);
+  const [editOffset, setEditOffset] = useState(0.0);
+  const [editUnit, setEditUnit] = useState("g");
+  const [editPrecision, setEditPrecision] = useState(2);
+  const [editRemark, setEditRemark] = useState("");
+
+  const utils = trpc.useUtils();
+
   const { data: channels, isLoading } = trpc.channels.listByInstrument.useQuery(
     { instrumentId },
     { enabled: true }
   );
+
+  // 更新通道
+  const updateMutation = trpc.channels.update.useMutation({
+    onSuccess: () => {
+      utils.channels.listByInstrument.invalidate({ instrumentId });
+      toast.success("通道参数更新成功");
+      setIsEditDialogOpen(false);
+      setEditingChannel(null);
+    },
+    onError: (error) => toast.error(`更新失败: ${error.message}`),
+  });
+
+  // 通信测试
+  const testReadMutation = trpc.channels.testRead.useMutation({
+    onSuccess: (data) => {
+      utils.channels.listByInstrument.invalidate({ instrumentId });
+      toast.success(
+        `通信测试成功！原始值: ${data.rawValue}，校准值: ${data.calibratedValue} ${data.unit}`
+      );
+      setTestingChannelId(null);
+    },
+    onError: (error) => {
+      toast.error(`通信测试失败: ${error.message}`);
+      setTestingChannelId(null);
+    },
+  });
+
+  const handleEdit = (channel: any) => {
+    setEditingChannel(channel);
+    setEditLabel(channel.label);
+    setEditEnabled(!!channel.enabled);
+    setEditScale(channel.scale);
+    setEditOffset(channel.offset);
+    setEditUnit(channel.unit);
+    setEditPrecision(channel.precision);
+    setEditRemark(channel.remark || "");
+    setIsEditDialogOpen(true);
+  };
+
+  const handleSave = () => {
+    if (!editingChannel) return;
+    updateMutation.mutate({
+      id: editingChannel.id,
+      label: editLabel,
+      enabled: editEnabled ? 1 : 0,
+      scale: editScale,
+      offset: editOffset,
+      unit: editUnit,
+      precision: editPrecision,
+      remark: editRemark || undefined,
+    });
+  };
+
+  const handleTestRead = (channelId: number) => {
+    setTestingChannelId(channelId);
+    testReadMutation.mutate({ channelId });
+  };
+
+  // 快速切换启用/禁用
+  const handleToggleEnabled = (channel: any) => {
+    updateMutation.mutate({
+      id: channel.id,
+      enabled: channel.enabled ? 0 : 1,
+    });
+  };
 
   if (isLoading) {
     return (
@@ -81,7 +162,7 @@ function ChannelSubRows({ instrumentId }: { instrumentId: number }) {
         <TableCell colSpan={11} className="bg-muted/20 border-l-2 border-l-primary/20">
           <div className="flex items-center gap-2 ml-16 pl-4 py-3">
             <Radio className="h-4 w-4 text-muted-foreground" />
-            <span className="text-sm text-muted-foreground italic">暂无通道数据</span>
+            <span className="text-sm text-muted-foreground italic">暂无通道数据（通道在创建仪表时自动生成）</span>
           </div>
         </TableCell>
       </TableRow>
@@ -98,18 +179,17 @@ function ChannelSubRows({ instrumentId }: { instrumentId: number }) {
               <span className="font-medium text-sm min-w-[60px]">{ch.label}</span>
               <Badge
                 variant={ch.enabled ? "default" : "secondary"}
-                className={`text-xs ${ch.enabled ? "bg-emerald-600/80 text-white" : ""}`}
+                className={`text-xs cursor-pointer select-none ${ch.enabled ? "bg-emerald-600/80 text-white hover:bg-emerald-700" : "hover:bg-muted"}`}
+                onClick={() => handleToggleEnabled(ch)}
+                title={ch.enabled ? "点击禁用" : "点击启用"}
               >
                 {ch.enabled ? "启用" : "禁用"}
               </Badge>
               <span className="text-xs text-muted-foreground">
-                单位: {ch.unit}
+                {ch.unit} · {ch.precision}位精度
               </span>
               <span className="text-xs text-muted-foreground">
-                精度: {ch.precision}位
-              </span>
-              <span className="text-xs text-muted-foreground">
-                校准: {ch.scale}x + {ch.offset}
+                校准: {ch.scale}× + {ch.offset}
               </span>
               {ch.currentValue !== null && ch.currentValue !== undefined && (
                 <span className="text-xs font-medium text-primary">
@@ -117,14 +197,150 @@ function ChannelSubRows({ instrumentId }: { instrumentId: number }) {
                 </span>
               )}
               {ch.lastReadAt && (
-                <span className="text-xs text-muted-foreground ml-auto">
+                <span className="text-xs text-muted-foreground">
                   最后读取: {new Date(ch.lastReadAt).toLocaleString()}
                 </span>
               )}
+              {/* 操作按钮 */}
+              <div className="flex items-center gap-1 ml-auto shrink-0">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 w-7 p-0"
+                  onClick={() => handleTestRead(ch.id)}
+                  disabled={testingChannelId === ch.id}
+                  title="通信测试"
+                >
+                  {testingChannelId === ch.id ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Zap className="h-3.5 w-3.5 text-amber-500" />
+                  )}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 w-7 p-0"
+                  onClick={() => handleEdit(ch)}
+                  title="编辑通道参数"
+                >
+                  <Edit className="h-3.5 w-3.5" />
+                </Button>
+              </div>
             </div>
           </TableCell>
         </TableRow>
       ))}
+
+      {/* 通道参数编辑对话框 */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Activity className="h-5 w-5" />
+              编辑通道参数
+            </DialogTitle>
+            <DialogDescription>
+              修改通道 <span className="font-semibold text-foreground">{editingChannel?.label}</span> 的校准和显示参数
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="ch-label">通道标签</Label>
+              <Input
+                id="ch-label"
+                value={editLabel}
+                onChange={(e) => setEditLabel(e.target.value)}
+                placeholder="例如：CH1-仪表A"
+              />
+            </div>
+
+            <div className="flex items-center justify-between">
+              <div>
+                <Label>启用状态</Label>
+                <p className="text-xs text-muted-foreground">禁用后通道不参与数据采集</p>
+              </div>
+              <Switch checked={editEnabled} onCheckedChange={setEditEnabled} />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="ch-scale">校准系数 (Scale)</Label>
+                <Input
+                  id="ch-scale"
+                  type="number"
+                  step="0.001"
+                  value={editScale}
+                  onChange={(e) => setEditScale(parseFloat(e.target.value) || 1.0)}
+                />
+                <p className="text-xs text-muted-foreground">校准值 = 原始值 × 系数 + 偏移</p>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="ch-offset">偏移量 (Offset)</Label>
+                <Input
+                  id="ch-offset"
+                  type="number"
+                  step="0.01"
+                  value={editOffset}
+                  onChange={(e) => setEditOffset(parseFloat(e.target.value) || 0.0)}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="ch-unit">单位</Label>
+                <Select value={editUnit} onValueChange={setEditUnit}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="g">克 (g)</SelectItem>
+                    <SelectItem value="kg">千克 (kg)</SelectItem>
+                    <SelectItem value="t">吨 (t)</SelectItem>
+                    <SelectItem value="N">牛顿 (N)</SelectItem>
+                    <SelectItem value="mV/V">mV/V</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="ch-precision">小数精度</Label>
+                <Select value={editPrecision.toString()} onValueChange={(val) => setEditPrecision(parseInt(val))}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {[0, 1, 2, 3, 4, 5, 6].map(p => (
+                      <SelectItem key={p} value={p.toString()}>{p} 位小数</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="ch-remark">备注</Label>
+              <Textarea
+                id="ch-remark"
+                value={editRemark}
+                onChange={(e) => setEditRemark(e.target.value)}
+                placeholder="通道备注信息"
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+              取消
+            </Button>
+            <Button onClick={handleSave} disabled={updateMutation.isPending}>
+              {updateMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              保存
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
@@ -198,7 +414,7 @@ export default function Devices() {
   const createMutation = trpc.instruments.create.useMutation({
     onSuccess: () => {
       utils.instruments.list.invalidate();
-      toast.success("仪表创建成功");
+      toast.success("仪表创建成功，通道已自动生成");
       setIsDialogOpen(false);
       resetForm();
       setSelectedComPortId(null);
@@ -228,7 +444,7 @@ export default function Devices() {
         return;
       }
       utils.instruments.list.invalidate();
-      toast.success("仪表删除成功");
+      toast.success("仪表及其通道已删除");
     },
     onError: (error) => toast.error(`删除失败: ${error.message}`),
   });
@@ -321,7 +537,7 @@ export default function Devices() {
 
   const handleBatchDelete = () => {
     if (selectedIds.size === 0) return;
-    if (confirm(`确定要删除选中的 ${selectedIds.size} 个仪表吗？`)) {
+    if (confirm(`确定要删除选中的 ${selectedIds.size} 个仪表吗？相关通道将一并删除。`)) {
       batchDeleteMutation.mutate({ ids: Array.from(selectedIds) });
     }
   };
@@ -340,7 +556,9 @@ export default function Devices() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-foreground">仪表管理</h1>
-          <p className="text-muted-foreground mt-2">管理所有RS485称重仪表设备，点击箭头展开查看通道配置</p>
+          <p className="text-muted-foreground mt-2">
+            管理所有RS485称重仪表及其通道。创建仪表时根据型号自动生成通道（DY7001: 1通道, DY7004: 4通道），通道数量固定不可增减。
+          </p>
         </div>
         <div className="flex gap-2">
           {selectedIds.size > 0 && (
@@ -360,7 +578,9 @@ export default function Devices() {
       <Card>
         <CardHeader>
           <CardTitle>仪表列表</CardTitle>
-          <CardDescription>点击行首箭头展开查看该仪表下的通道配置详情</CardDescription>
+          <CardDescription>
+            点击行首 ▶ 箭头展开查看通道配置。每个通道可直接编辑参数或进行通信测试。
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {instrumentsLoading ? (
@@ -412,7 +632,7 @@ export default function Devices() {
                               <button
                                 onClick={() => toggleInstrumentExpand(instrument.id)}
                                 className="p-1 rounded hover:bg-muted transition-colors"
-                                title={isExpanded ? "收起通道" : "展开查看通道"}
+                                title={isExpanded ? "收起通道" : "展开查看通道配置"}
                               >
                                 {isExpanded ? (
                                   <ChevronDown className="h-4 w-4 text-primary" />
@@ -447,7 +667,7 @@ export default function Devices() {
                                 <Edit className="h-4 w-4" />
                               </Button>
                               <Button variant="ghost" size="sm" onClick={() => {
-                                if (confirm("确定要删除此仪表吗？")) {
+                                if (confirm("确定要删除此仪表吗？相关通道将一并删除。")) {
                                   setPendingDeleteId(instrument.id);
                                   deleteMutation.mutate({ id: instrument.id });
                                 }
@@ -496,7 +716,7 @@ export default function Devices() {
             </>
           ) : (
             <div className="text-center py-8 text-muted-foreground">
-              暂无仪表数据
+              暂无仪表数据，点击"添加仪表"开始配置
             </div>
           )}
         </CardContent>
@@ -516,7 +736,12 @@ export default function Devices() {
             <div className="flex-1 p-6 overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>{editingInstrument ? "编辑仪表" : "添加仪表"}</DialogTitle>
-                <DialogDescription>配置RS485称重仪表参数，在右侧选择绑定的COM端口</DialogDescription>
+                <DialogDescription>
+                  {editingInstrument
+                    ? "修改仪表参数。型号确定后通道数量固定不可更改。"
+                    : "配置RS485称重仪表参数。选择型号后将自动生成对应通道（DY7001: CH1, DY7004: CH1-CH4）。"
+                  }
+                </DialogDescription>
               </DialogHeader>
               <form id="instrument-form" onSubmit={handleSubmit(onSubmit)} className="space-y-4 mt-4">
                 <div className="grid grid-cols-2 gap-4">
@@ -543,8 +768,8 @@ export default function Devices() {
                             <SelectValue placeholder="选择仪表型号" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="DY7001">DY7001 (1个传感器通道)</SelectItem>
-                            <SelectItem value="DY7004">DY7004 (4个传感器通道)</SelectItem>
+                            <SelectItem value="DY7001">DY7001 (自动生成1个通道: CH1)</SelectItem>
+                            <SelectItem value="DY7004">DY7004 (自动生成4个通道: CH1-CH4)</SelectItem>
                           </SelectContent>
                         </Select>
                       )}
