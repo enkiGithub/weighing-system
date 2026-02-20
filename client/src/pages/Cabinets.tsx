@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, Fragment } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -486,9 +486,8 @@ export default function Cabinets() {
                     paginatedCabinets.map((cabinet, index) => {
                       const isExpanded = expandedGroupIds.has(cabinet.id);
                       return (
-                        <>
+                        <Fragment key={cabinet.id}>
                           <TableRow
-                            key={cabinet.id}
                             className={`${selectedIds.has(cabinet.id) ? "bg-muted/50" : ""} ${isExpanded ? "border-b-0" : ""}`}
                           >
                             <TableCell>
@@ -561,7 +560,7 @@ export default function Cabinets() {
                             </TableCell>
                           </TableRow>
                           {isExpanded && <InstrumentSubRow groupId={cabinet.id} />}
-                        </>
+                        </Fragment>
                       );
                     })
                   )}

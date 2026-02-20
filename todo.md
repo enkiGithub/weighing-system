@@ -153,3 +153,4 @@
 - [x] 资产编码(assetCode)字段替换为"区域"(area)字段
 - [x] 展开仪表子节点不显示网关信息
 - [x] 仪表子节点再展开可查看通道信息
+- [x] 修复Cabinets.tsx中TableBody子元素缺少key属性的React警告
