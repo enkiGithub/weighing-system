@@ -290,6 +290,14 @@ export async function deleteInstrument(id: number) {
   await db.delete(weighingInstruments).where(eq(weighingInstruments.id, id));
 }
 
+/** 批量删除仪表 */
+export async function deleteInstrumentsByIds(ids: number[]) {
+  if (ids.length === 0) return;
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(weighingInstruments).where(inArray(weighingInstruments.id, ids));
+}
+
 export async function updateInstrumentStatus(id: number, status: 'online' | 'offline', lastHeartbeat?: Date) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
@@ -337,6 +345,16 @@ export async function getChannelsByInstrument(instrumentId: number) {
     .orderBy(instrumentChannels.channelNo);
 }
 
+/** 批量获取多个仪表的所有通道 */
+export async function getChannelsByInstrumentIds(instrumentIds: number[]) {
+  if (instrumentIds.length === 0) return [];
+  const db = await getDb();
+  if (!db) return [];
+  return await db.select()
+    .from(instrumentChannels)
+    .where(inArray(instrumentChannels.instrumentId, instrumentIds));
+}
+
 export async function getChannelById(id: number) {
   const db = await getDb();
   if (!db) return undefined;
@@ -373,6 +391,14 @@ export async function deleteChannelsByInstrument(instrumentId: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   await db.delete(instrumentChannels).where(eq(instrumentChannels.instrumentId, instrumentId));
+}
+
+/** 批量删除多个仪表的所有通道 */
+export async function deleteChannelsByInstrumentIds(instrumentIds: number[]) {
+  if (instrumentIds.length === 0) return;
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(instrumentChannels).where(inArray(instrumentChannels.instrumentId, instrumentIds));
 }
 
 /** 为仪表自动生成通道（DY7001→1通道，DY7004→4通道） */
@@ -529,6 +555,25 @@ export async function deleteBindingsByChannel(channelId: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   await db.delete(groupChannelBindings).where(eq(groupChannelBindings.channelId, channelId));
+}
+
+/** 批量删除多个通道的所有绑定 */
+export async function deleteBindingsByChannelIds(channelIds: number[]) {
+  if (channelIds.length === 0) return;
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(groupChannelBindings).where(inArray(groupChannelBindings.channelId, channelIds));
+}
+
+/** 批量查询哪些通道已被绑定，返回已绑定的channelId列表 */
+export async function getBoundChannelIds(channelIds: number[]): Promise<number[]> {
+  if (channelIds.length === 0) return [];
+  const db = await getDb();
+  if (!db) return [];
+  const result = await db.select({ channelId: groupChannelBindings.channelId })
+    .from(groupChannelBindings)
+    .where(inArray(groupChannelBindings.channelId, channelIds));
+  return Array.from(new Set(result.map(r => r.channelId)));
 }
 
 /** 检查通道是否已被其他柜组绑定（排除指定groupId） */

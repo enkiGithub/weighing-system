@@ -481,29 +481,35 @@ export const appRouter = router({
     batchDelete: instrumentOperate
       .input(z.object({ ids: z.array(z.number()).min(1), force: z.boolean().optional() }))
       .mutation(async ({ input, ctx }) => {
-        // 先检查所有仪表的绑定情况
-        const allBound: { id: number; channels: string[] }[] = [];
-        for (const id of input.ids) {
-          const channels = await db.getChannelsByInstrument(id);
-          const bound: string[] = [];
-          for (const ch of channels) {
-            const bindings = await db.getBindingsByChannel(ch.id);
-            if (bindings.length > 0) bound.push(ch.label);
+        // 批量获取所有相关通道
+        const allChannels = await db.getChannelsByInstrumentIds(input.ids);
+        const allChannelIds = allChannels.map(ch => ch.id);
+
+        // 检查绑定情况（如果有通道的话）
+        if (allChannelIds.length > 0 && !input.force) {
+          const boundChannels = await db.getBoundChannelIds(allChannelIds);
+          if (boundChannels.length > 0) {
+            // 组装绑定信息
+            const boundSet = new Set(boundChannels);
+            const allBound: { id: number; channels: string[] }[] = [];
+            for (const id of input.ids) {
+              const bound = allChannels
+                .filter(ch => ch.instrumentId === id && boundSet.has(ch.id))
+                .map(ch => ch.label);
+              if (bound.length > 0) allBound.push({ id, channels: bound });
+            }
+            if (allBound.length > 0) {
+              return { success: false, needConfirm: true, boundInstruments: allBound, count: 0 };
+            }
           }
-          if (bound.length > 0) allBound.push({ id, channels: bound });
         }
-        if (allBound.length > 0 && !input.force) {
-          return { success: false, needConfirm: true, boundInstruments: allBound, count: 0 };
+
+        // 批量级联删除：绑定 → 通道 → 仪表
+        if (allChannelIds.length > 0) {
+          await db.deleteBindingsByChannelIds(allChannelIds);
+          await db.deleteChannelsByInstrumentIds(input.ids);
         }
-        // 级联删除
-        for (const id of input.ids) {
-          const channels = await db.getChannelsByInstrument(id);
-          for (const ch of channels) {
-            await db.deleteBindingsByChannel(ch.id);
-          }
-          await db.deleteChannelsByInstrument(id);
-          await db.deleteInstrument(id);
-        }
+        await db.deleteInstrumentsByIds(input.ids);
         await audit(ctx.user.id, ctx.user.name, "batchDelete", "instrument", null, `批量删除仪表: ${input.ids.join(",")}（含级联解绑）`, { ids: input.ids });
         return { success: true, count: input.ids.length };
       }),

@@ -229,3 +229,6 @@
 ## Bug修复：DXF解析依赖Python ezdxf
 - [x] 将DXF解析从Python ezdxf改为纯Node.js dxf-parser方案
 - [x] 消除部署环境对Python的依赖
+
+## Bug修复：仪表配置中删除仪表失败
+- [x] 诊断并修复仪表删除失败的问题（根因：批量删陨97个仪表时串行SQL导致超时，改为批量SQL操作）
