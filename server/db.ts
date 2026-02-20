@@ -407,17 +407,44 @@ export async function updateCabinetGroupWeight(id: number, currentWeight: number
   await db.update(cabinetGroups).set({ currentWeight, status }).where(eq(cabinetGroups.id, id));
 }
 
-/** 检查assetCode是否已存在（排除指定id） */
-export async function checkAssetCodeConflict(assetCode: string, excludeId?: number) {
+/** 根据柜组ID获取关联的仪表和通道信息（通过通道绑定反查） */
+export async function getGroupBoundInstruments(groupId: number) {
   const db = await getDb();
-  if (!db) return false;
-  const result = await db.select({ id: cabinetGroups.id })
-    .from(cabinetGroups)
-    .where(eq(cabinetGroups.assetCode, assetCode));
-  if (excludeId) {
-    return result.some(r => r.id !== excludeId);
-  }
-  return result.length > 0;
+  if (!db) return [];
+  // 获取柜组绑定的所有通道
+  const bindings = await db.select()
+    .from(groupChannelBindings)
+    .where(eq(groupChannelBindings.groupId, groupId));
+  if (bindings.length === 0) return [];
+  
+  // 获取所有绑定的通道信息
+  const channelIds = bindings.map(b => b.channelId);
+  const channels = await db.select()
+    .from(instrumentChannels)
+    .where(inArray(instrumentChannels.id, channelIds));
+  
+  // 获取关联的仪表
+  const instrumentIds = Array.from(new Set(channels.map(c => c.instrumentId)));
+  if (instrumentIds.length === 0) return [];
+  const instruments = await db.select()
+    .from(weighingInstruments)
+    .where(inArray(weighingInstruments.id, instrumentIds));
+  
+  // 组装树形结构：仪表 -> 通道
+  return instruments.map(inst => ({
+    ...inst,
+    channels: channels
+      .filter(ch => ch.instrumentId === inst.id)
+      .map(ch => {
+        const binding = bindings.find(b => b.channelId === ch.id);
+        return {
+          ...ch,
+          coefficient: binding?.coefficient ?? 1,
+          offset: binding?.offset ?? 0,
+          bindingEnabled: binding?.enabled ?? 1,
+        };
+      }),
+  }));
 }
 
 // ==================== 柜组通道绑定管理 ====================

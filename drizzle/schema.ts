@@ -134,8 +134,8 @@ export type InsertInstrumentChannel = typeof instrumentChannels.$inferInsert;
  */
 export const cabinetGroups = mysqlTable("cabinetGroups", {
   id: int("id").autoincrement().primaryKey(),
-  /** 柜组资产编码 */
-  assetCode: varchar("assetCode", { length: 50 }).notNull().unique(),
+  /** 区域标识 */
+  area: varchar("area", { length: 100 }).notNull().default(""),
   name: varchar("name", { length: 100 }).notNull(),
   /** 初始重量(kg) */
   initialWeight: float("initialWeight").notNull().default(0),

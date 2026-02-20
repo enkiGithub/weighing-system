@@ -31,16 +31,20 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
-import { Plus, Edit, Trash2, Loader2, AlertTriangle, CheckCircle2, Link2, Unlink, Settings2, ChevronLeft, ChevronRight } from "lucide-react";
+import {
+  Plus, Edit, Trash2, Loader2, AlertTriangle, CheckCircle2,
+  Link2, Unlink, Settings2, ChevronLeft, ChevronRight,
+  ChevronDown, ChevronRightIcon, Gauge, Radio,
+} from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
 import type { CabinetGroup } from "../../../drizzle/schema";
 
-// 柜组基本信息schema - 适配新字段
+// 柜组基本信息schema - area替代assetCode
 const cabinetSchema = z.object({
-  assetCode: z.string().min(1, "资产编码不能为空").max(50, "资产编码过长"),
+  area: z.string().max(100, "区域名称过长").optional(),
   name: z.string().min(1, "名称不能为空").max(100, "名称过长"),
   initialWeight: z.number().min(0, "初始重量不能为负数"),
   alarmThreshold: z.number().min(0, "报警阈值不能为负数"),
@@ -51,11 +55,123 @@ type CabinetForm = z.infer<typeof cabinetSchema>;
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
 
+// 展开行子组件：仪表列表
+function InstrumentSubRow({ groupId }: { groupId: number }) {
+  const [expandedInstrumentIds, setExpandedInstrumentIds] = useState<Set<number>>(new Set());
+
+  const { data: boundInstruments, isLoading } = trpc.cabinetGroups.getBoundInstruments.useQuery(
+    { groupId },
+    { enabled: true }
+  );
+
+  const toggleInstrument = (id: number) => {
+    setExpandedInstrumentIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  if (isLoading) {
+    return (
+      <TableRow>
+        <TableCell colSpan={10} className="bg-muted/20">
+          <div className="flex items-center gap-2 pl-12 py-2">
+            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            <span className="text-sm text-muted-foreground">加载仪表信息...</span>
+          </div>
+        </TableCell>
+      </TableRow>
+    );
+  }
+
+  if (!boundInstruments || boundInstruments.length === 0) {
+    return (
+      <TableRow>
+        <TableCell colSpan={10} className="bg-muted/20">
+          <div className="flex items-center gap-2 pl-12 py-3">
+            <Gauge className="h-4 w-4 text-muted-foreground" />
+            <span className="text-sm text-muted-foreground italic">暂无绑定仪表，请通过"配置绑定"添加通道</span>
+          </div>
+        </TableCell>
+      </TableRow>
+    );
+  }
+
+  return (
+    <>
+      {boundInstruments.map((inst: any) => {
+        const isExpanded = expandedInstrumentIds.has(inst.id);
+        return (
+          <TableRow key={`inst-${inst.id}`} className="bg-muted/20 hover:bg-muted/30">
+            <TableCell colSpan={10}>
+              {/* 仪表行 */}
+              <div className="flex items-center gap-2 pl-10">
+                <button
+                  onClick={() => toggleInstrument(inst.id)}
+                  className="p-0.5 rounded hover:bg-muted transition-colors"
+                >
+                  {isExpanded ? (
+                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                  ) : (
+                    <ChevronRightIcon className="h-4 w-4 text-muted-foreground" />
+                  )}
+                </button>
+                <Gauge className="h-4 w-4 text-blue-500" />
+                <span className="text-sm font-medium">{inst.name || inst.deviceCode}</span>
+                <Badge variant="outline" className="text-xs">{inst.modelType}</Badge>
+                <span className="text-xs text-muted-foreground">设备编码: {inst.deviceCode}</span>
+                <span className="text-xs text-muted-foreground">· SlaveID: {inst.slaveId}</span>
+                <Badge variant={inst.status === "online" ? "default" : "secondary"} className={`text-xs ${inst.status === "online" ? "bg-emerald-600 text-white" : ""}`}>
+                  {inst.status === "online" ? "在线" : "离线"}
+                </Badge>
+                <span className="text-xs text-muted-foreground ml-auto">
+                  {inst.channels?.length || 0} 个通道已绑定
+                </span>
+              </div>
+
+              {/* 通道子行 */}
+              {isExpanded && inst.channels && inst.channels.length > 0 && (
+                <div className="pl-20 mt-2 mb-1 space-y-1">
+                  {inst.channels.map((ch: any) => (
+                    <div
+                      key={`ch-${ch.id}`}
+                      className="flex items-center gap-3 bg-background/60 rounded px-3 py-1.5 text-sm"
+                    >
+                      <Radio className="h-3.5 w-3.5 text-amber-500" />
+                      <span className="font-medium min-w-[60px]">{ch.label}</span>
+                      <Badge variant={ch.enabled ? "default" : "secondary"} className={`text-xs ${ch.enabled ? "bg-emerald-600/80 text-white" : ""}`}>
+                        {ch.enabled ? "启用" : "禁用"}
+                      </Badge>
+                      <span className="text-xs text-muted-foreground">
+                        单位: {ch.unit} · 精度: {ch.precision}位
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        校准: {ch.scale}x + {ch.offset}
+                      </span>
+                      <span className="text-xs font-medium text-primary ml-auto">
+                        绑定系数: {ch.coefficient} · 偏移: {ch.offset}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </TableCell>
+          </TableRow>
+        );
+      })}
+    </>
+  );
+}
+
 export default function Cabinets() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isBindingDialogOpen, setIsBindingDialogOpen] = useState(false);
   const [editingCabinet, setEditingCabinet] = useState<CabinetGroup | null>(null);
   const [bindingCabinetId, setBindingCabinetId] = useState<number | null>(null);
+
+  // 展开状态
+  const [expandedGroupIds, setExpandedGroupIds] = useState<Set<number>>(new Set());
 
   // 分页和多选状态
   const [currentPage, setCurrentPage] = useState(1);
@@ -95,9 +211,17 @@ export default function Cabinets() {
   // 可用通道列表（排除已绑定到其他柜组的通道）
   const availableChannels = useMemo(() => {
     if (!allChannels) return [];
-    // 只显示启用的通道
     return allChannels.filter(ch => ch.enabled);
   }, [allChannels]);
+
+  // 展开/收起柜组
+  const toggleGroupExpand = (id: number) => {
+    setExpandedGroupIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
 
   // 柜组CRUD mutations
   const createMutation = trpc.cabinetGroups.create.useMutation({
@@ -142,6 +266,7 @@ export default function Cabinets() {
   const addBindingMutation = trpc.cabinetGroups.addBinding.useMutation({
     onSuccess: () => {
       utils.cabinetGroups.getBindings.invalidate();
+      utils.cabinetGroups.getBoundInstruments.invalidate();
       refetchBindings();
       toast.success("通道绑定成功");
       setSelectedChannelId(null);
@@ -154,6 +279,7 @@ export default function Cabinets() {
   const removeBindingMutation = trpc.cabinetGroups.removeBinding.useMutation({
     onSuccess: () => {
       utils.cabinetGroups.getBindings.invalidate();
+      utils.cabinetGroups.getBoundInstruments.invalidate();
       refetchBindings();
       toast.success("通道绑定已移除");
     },
@@ -173,6 +299,7 @@ export default function Cabinets() {
   const onSubmit = (data: CabinetForm) => {
     const dataInGrams = {
       ...data,
+      area: data.area || "",
       initialWeight: Math.round(data.initialWeight * 1000),
       alarmThreshold: Math.round(data.alarmThreshold * 1000),
     };
@@ -186,7 +313,7 @@ export default function Cabinets() {
   const handleEdit = (cabinet: CabinetGroup) => {
     setEditingCabinet(cabinet);
     reset({
-      assetCode: cabinet.assetCode,
+      area: cabinet.area || "",
       name: cabinet.name,
       initialWeight: cabinet.initialWeight / 1000,
       alarmThreshold: cabinet.alarmThreshold / 1000,
@@ -203,7 +330,7 @@ export default function Cabinets() {
 
   const handleAdd = () => {
     setEditingCabinet(null);
-    reset({ assetCode: "", name: "", initialWeight: 0, alarmThreshold: 1, remark: "" });
+    reset({ area: "", name: "", initialWeight: 0, alarmThreshold: 1, remark: "" });
     setIsDialogOpen(true);
   };
 
@@ -296,7 +423,7 @@ export default function Cabinets() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-foreground">保险柜组管理</h1>
-          <p className="text-muted-foreground mt-2">管理保险柜组的基本配置和通道绑定</p>
+          <p className="text-muted-foreground mt-2">管理保险柜组配置，点击箭头展开查看绑定的仪表和通道</p>
         </div>
         <div className="flex gap-2">
           {selectedIds.size > 0 && (
@@ -316,7 +443,7 @@ export default function Cabinets() {
       <Card>
         <CardHeader>
           <CardTitle>保险柜组列表</CardTitle>
-          <CardDescription>查看和管理所有保险柜组的配置信息，点击"配置绑定"设置通道关联</CardDescription>
+          <CardDescription>点击行首箭头展开查看绑定的仪表和通道详情</CardDescription>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -336,8 +463,9 @@ export default function Cabinets() {
                         {...(isSomeSelected && !isAllSelected ? { "data-state": "indeterminate" } : {})}
                       />
                     </TableHead>
+                    <TableHead className="w-10"></TableHead>
                     <TableHead className="w-16">序号</TableHead>
-                    <TableHead>资产编码</TableHead>
+                    <TableHead>区域</TableHead>
                     <TableHead>名称</TableHead>
                     <TableHead>当前重量</TableHead>
                     <TableHead>初始重量</TableHead>
@@ -350,68 +478,92 @@ export default function Cabinets() {
                 <TableBody>
                   {paginatedCabinets.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
+                      <TableCell colSpan={11} className="text-center text-muted-foreground py-8">
                         暂无保险柜组
                       </TableCell>
                     </TableRow>
                   ) : (
-                    paginatedCabinets.map((cabinet, index) => (
-                      <TableRow key={cabinet.id} className={selectedIds.has(cabinet.id) ? "bg-muted/50" : ""}>
-                        <TableCell>
-                          <Checkbox
-                            checked={selectedIds.has(cabinet.id)}
-                            onCheckedChange={() => handleToggleSelect(cabinet.id)}
-                            aria-label={`选择 ${cabinet.name}`}
-                          />
-                        </TableCell>
-                        <TableCell className="text-muted-foreground">
-                          {(currentPage - 1) * pageSize + index + 1}
-                        </TableCell>
-                        <TableCell className="font-mono text-sm">{cabinet.assetCode}</TableCell>
-                        <TableCell className="font-medium">{cabinet.name}</TableCell>
-                        <TableCell className="font-semibold">
-                          {(cabinet.currentWeight / 1000).toFixed(2)} kg
-                        </TableCell>
-                        <TableCell className="text-muted-foreground">
-                          {(cabinet.initialWeight / 1000).toFixed(2)} kg
-                        </TableCell>
-                        <TableCell className="text-muted-foreground">
-                          {(cabinet.alarmThreshold / 1000).toFixed(2)} kg
-                        </TableCell>
-                        <TableCell>{getStatusBadge(cabinet.status)}</TableCell>
-                        <TableCell className="max-w-xs truncate text-sm text-muted-foreground">
-                          {cabinet.remark || "-"}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-1">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleOpenBinding(cabinet.id)}
-                              title="配置通道绑定"
-                            >
-                              <Settings2 className="h-4 w-4 text-primary" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleEdit(cabinet)}
-                              title="编辑"
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleDelete(cabinet.id)}
-                              title="删除"
-                            >
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))
+                    paginatedCabinets.map((cabinet, index) => {
+                      const isExpanded = expandedGroupIds.has(cabinet.id);
+                      return (
+                        <>
+                          <TableRow
+                            key={cabinet.id}
+                            className={`${selectedIds.has(cabinet.id) ? "bg-muted/50" : ""} ${isExpanded ? "border-b-0" : ""}`}
+                          >
+                            <TableCell>
+                              <Checkbox
+                                checked={selectedIds.has(cabinet.id)}
+                                onCheckedChange={() => handleToggleSelect(cabinet.id)}
+                                aria-label={`选择 ${cabinet.name}`}
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <button
+                                onClick={() => toggleGroupExpand(cabinet.id)}
+                                className="p-1 rounded hover:bg-muted transition-colors"
+                                title={isExpanded ? "收起" : "展开查看仪表"}
+                              >
+                                {isExpanded ? (
+                                  <ChevronDown className="h-4 w-4 text-primary" />
+                                ) : (
+                                  <ChevronRightIcon className="h-4 w-4 text-muted-foreground" />
+                                )}
+                              </button>
+                            </TableCell>
+                            <TableCell className="text-muted-foreground">
+                              {(currentPage - 1) * pageSize + index + 1}
+                            </TableCell>
+                            <TableCell className="text-sm">
+                              {cabinet.area || <span className="text-muted-foreground italic">未设置</span>}
+                            </TableCell>
+                            <TableCell className="font-medium">{cabinet.name}</TableCell>
+                            <TableCell className="font-semibold">
+                              {(cabinet.currentWeight / 1000).toFixed(2)} kg
+                            </TableCell>
+                            <TableCell className="text-muted-foreground">
+                              {(cabinet.initialWeight / 1000).toFixed(2)} kg
+                            </TableCell>
+                            <TableCell className="text-muted-foreground">
+                              {(cabinet.alarmThreshold / 1000).toFixed(2)} kg
+                            </TableCell>
+                            <TableCell>{getStatusBadge(cabinet.status)}</TableCell>
+                            <TableCell className="max-w-xs truncate text-sm text-muted-foreground">
+                              {cabinet.remark || "-"}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex justify-end gap-1">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleOpenBinding(cabinet.id)}
+                                  title="配置通道绑定"
+                                >
+                                  <Settings2 className="h-4 w-4 text-primary" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleEdit(cabinet)}
+                                  title="编辑"
+                                >
+                                  <Edit className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleDelete(cabinet.id)}
+                                  title="删除"
+                                >
+                                  <Trash2 className="h-4 w-4 text-destructive" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                          {isExpanded && <InstrumentSubRow groupId={cabinet.id} />}
+                        </>
+                      );
+                    })
                   )}
                 </TableBody>
               </Table>
@@ -462,9 +614,9 @@ export default function Cabinets() {
           <form onSubmit={handleSubmit(onSubmit)}>
             <div className="grid gap-4 py-4">
               <div className="grid gap-2">
-                <Label htmlFor="assetCode">资产编码 *</Label>
-                <Input id="assetCode" placeholder="例如：GZ-001" {...register("assetCode")} />
-                {errors.assetCode && <p className="text-sm text-destructive">{errors.assetCode.message}</p>}
+                <Label htmlFor="area">区域</Label>
+                <Input id="area" placeholder="例如：A区、B区、1号库房" {...register("area")} />
+                {errors.area && <p className="text-sm text-destructive">{errors.area.message}</p>}
               </div>
 
               <div className="grid gap-2">
@@ -579,7 +731,7 @@ export default function Cabinets() {
                     <SelectContent>
                       {availableChannels.map(ch => (
                         <SelectItem key={ch.id} value={ch.id.toString()}>
-                          {ch.label} (ID: {ch.instrumentId})
+                          {ch.label} (仪表ID: {ch.instrumentId})
                         </SelectItem>
                       ))}
                     </SelectContent>

@@ -222,41 +222,19 @@ describe("Cabinet Group Management", () => {
     expect(Array.isArray(result)).toBe(true);
   });
 
-  it("should create a cabinet group with assetCode", async () => {
+  it("should create a cabinet group with area", async () => {
     const ctx = createAdminContext();
     const caller = appRouter.createCaller(ctx);
 
     const group = await caller.cabinetGroups.create({
-      assetCode: `GZ-TEST-001-${rnd()}`,
+      area: `A区-${rnd()}`,
       name: "Test Cabinet Group",
       initialWeight: 50000,
       alarmThreshold: 5000,
     });
 
     expect(group.id).toBeGreaterThan(0);
-    expect(group.assetCode).toContain("GZ-TEST-001");
-  });
-
-  it("should detect assetCode conflict", async () => {
-    const ctx = createAdminContext();
-    const caller = appRouter.createCaller(ctx);
-    const uniqueAssetCode = `GZ-UNIQUE-${rnd()}`;
-
-    await caller.cabinetGroups.create({
-      assetCode: uniqueAssetCode,
-      name: "Unique Code Group",
-      initialWeight: 10000,
-      alarmThreshold: 1000,
-    });
-
-    await expect(
-      caller.cabinetGroups.create({
-      assetCode: uniqueAssetCode,
-      name: "Duplicate Code Group",
-        initialWeight: 20000,
-        alarmThreshold: 2000,
-      })
-    ).rejects.toThrow("资产编码");
+    expect(group.name).toBe("Test Cabinet Group");
   });
 });
 
@@ -288,7 +266,7 @@ describe("Channel Binding Management", () => {
 
     // Create cabinet group
     const group = await caller.cabinetGroups.create({
-      assetCode: `GZ-BIND-${rnd()}`,
+      area: `A区`,
       name: "Binding Test Group",
       initialWeight: 30000,
       alarmThreshold: 3000,
@@ -332,7 +310,7 @@ describe("Channel Binding Management", () => {
     const channels = await caller.channels.listByInstrument({ instrumentId: instrument.id });
 
     const group = await caller.cabinetGroups.create({
-      assetCode: `GZ-UNBIND-${rnd()}`,
+      area: `B区`,
       name: "Unbind Test Group",
       initialWeight: 20000,
       alarmThreshold: 2000,
@@ -374,7 +352,7 @@ describe("Channel Binding Management", () => {
     const channels = await caller.channels.listByInstrument({ instrumentId: instrument.id });
 
     const group = await caller.cabinetGroups.create({
-      assetCode: `GZ-DUP-BIND-${rnd()}`,
+      area: `C区`,
       name: "Dup Binding Group",
       initialWeight: 10000,
       alarmThreshold: 1000,
@@ -673,13 +651,13 @@ describe("Batch Delete Operations", () => {
     const caller = appRouter.createCaller(ctx);
 
     const cab1 = await caller.cabinetGroups.create({
-      assetCode: `GZ-BATCH-DEL-${rnd()}`,
+      area: `D区`,
       name: "Batch Del Cab 1",
       initialWeight: 10000,
       alarmThreshold: 1000,
     });
     const cab2 = await caller.cabinetGroups.create({
-      assetCode: `GZ-BATCH-DEL-${rnd()}`,
+      area: `D区`,
       name: "Batch Del Cab 2",
       initialWeight: 20000,
       alarmThreshold: 2000,

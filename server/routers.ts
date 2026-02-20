@@ -462,30 +462,26 @@ export const appRouter = router({
     
     create: adminProcedure
       .input(z.object({
-        assetCode: z.string().min(1).max(50),
+        area: z.string().max(100).optional(),
         name: z.string().min(1).max(100),
         initialWeight: z.number().min(0).default(0),
         alarmThreshold: z.number().min(0).default(5),
         remark: z.string().optional(),
       }))
       .mutation(async ({ input, ctx }) => {
-        // 检查assetCode唯一性
-        const conflict = await db.checkAssetCodeConflict(input.assetCode);
-        if (conflict) {
-          throw new TRPCError({ code: 'BAD_REQUEST', message: `资产编码 ${input.assetCode} 已存在` });
-        }
         const id = await db.createCabinetGroup({
           ...input,
+          area: input.area || "",
           currentWeight: input.initialWeight,
         });
-        await audit(ctx.user.id, ctx.user.name, "create", "cabinetGroup", id, `创建柜组: ${input.name} (${input.assetCode})`, input);
+        await audit(ctx.user.id, ctx.user.name, "create", "cabinetGroup", id, `创建柜组: ${input.name}`, input);
         return { id, ...input };
       }),
     
     update: adminProcedure
       .input(z.object({
         id: z.number(),
-        assetCode: z.string().min(1).max(50).optional(),
+        area: z.string().max(100).optional(),
         name: z.string().min(1).max(100).optional(),
         initialWeight: z.number().min(0).optional(),
         alarmThreshold: z.number().min(0).optional(),
@@ -493,12 +489,6 @@ export const appRouter = router({
       }))
       .mutation(async ({ input, ctx }) => {
         const { id, ...data } = input;
-        if (data.assetCode) {
-          const conflict = await db.checkAssetCodeConflict(data.assetCode, id);
-          if (conflict) {
-            throw new TRPCError({ code: 'BAD_REQUEST', message: `资产编码 ${data.assetCode} 已存在` });
-          }
-        }
         await db.updateCabinetGroup(id, data);
         await audit(ctx.user.id, ctx.user.name, "update", "cabinetGroup", id, `更新柜组 #${id}`, data);
         return { success: true };
@@ -523,6 +513,13 @@ export const appRouter = router({
         }
         await audit(ctx.user.id, ctx.user.name, "batchDelete", "cabinetGroup", null, `批量删除柜组: ${input.ids.join(",")}`, { ids: input.ids });
         return { success: true, count: input.ids.length };
+      }),
+
+    // 获取柜组关联的仪表和通道树形结构
+    getBoundInstruments: protectedProcedure
+      .input(z.object({ groupId: z.number() }))
+      .query(async ({ input }) => {
+        return await db.getGroupBoundInstruments(input.groupId);
       }),
 
     // 通道绑定管理
