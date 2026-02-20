@@ -1,0 +1,60 @@
+{
+  "query": "SELECT up.module, up.canView, up.canOperate FROM users u JOIN userPermissions up ON u.id = up.userId WHERE u.username = 'lilian';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user KBF53B6TGXz9Z1D.root --database SQ6yxhwuwXauyoM9DVdVk2 --execute SELECT up.module, up.canView, up.canOperate FROM users u JOIN userPermissions up ON u.id = up.userId WHERE u.username = 'lilian';",
+  "rows": [
+    {
+      "module": "dashboard",
+      "canView": "1",
+      "canOperate": "0"
+    },
+    {
+      "module": "gateway_config",
+      "canView": "1",
+      "canOperate": "0"
+    },
+    {
+      "module": "instrument_config",
+      "canView": "1",
+      "canOperate": "0"
+    },
+    {
+      "module": "cabinet_group",
+      "canView": "1",
+      "canOperate": "0"
+    },
+    {
+      "module": "data_records",
+      "canView": "1",
+      "canOperate": "0"
+    },
+    {
+      "module": "alarm_management",
+      "canView": "0",
+      "canOperate": "0"
+    },
+    {
+      "module": "data_analysis",
+      "canView": "0",
+      "canOperate": "0"
+    },
+    {
+      "module": "audit_logs",
+      "canView": "0",
+      "canOperate": "0"
+    },
+    {
+      "module": "user_management",
+      "canView": "0",
+      "canOperate": "0"
+    },
+    {
+      "module": "layout_editor",
+      "canView": "0",
+      "canOperate": "0"
+    }
+  ],
+  "messages": [],
+  "stdout": "module\tcanView\tcanOperate\ndashboard\t1\t0\ngateway_config\t1\t0\ninstrument_config\t1\t0\ncabinet_group\t1\t0\ndata_records\t1\t0\nalarm_management\t0\t0\ndata_analysis\t0\t0\naudit_logs\t0\t0\nuser_management\t0\t0\nlayout_editor\t0\t0\n",
+  "stderr": "",
+  "execution_time_ms": 1659
+}

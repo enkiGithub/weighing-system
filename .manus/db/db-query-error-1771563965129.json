@@ -1,0 +1,8 @@
+{
+  "query": "SELECT u.id, u.username, u.role, up.module, up.canView, up.canOperate FROM users u LEFT JOIN user_permissions up ON u.id = up.userId WHERE u.username = 'lilian';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user KBF53B6TGXz9Z1D.root --database SQ6yxhwuwXauyoM9DVdVk2 --execute SELECT u.id, u.username, u.role, up.module, up.canView, up.canOperate FROM users u LEFT JOIN user_permissions up ON u.id = up.userId WHERE u.username = 'lilian';",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1146 (42S02) at line 1: Table 'sq6yxhwuwxauyom9dvdvk2.user_permissions' doesn't exist"
+  ]
+}

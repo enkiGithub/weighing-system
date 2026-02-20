@@ -1,12 +1,13 @@
 import { usePermissions, type ModuleId } from "@/hooks/usePermissions";
-import { ShieldAlert } from "lucide-react";
+import { ShieldAlert, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useLocation } from "wouter";
+import { Suspense, lazy, type ComponentType, type ReactNode } from "react";
 
 interface PermissionGuardProps {
   moduleId: ModuleId;
   action?: "view" | "operate";
-  children: React.ReactNode;
+  children: ReactNode;
   /** 无权限时是否隐藏（默认显示无权限提示） */
   hide?: boolean;
 }
@@ -14,12 +15,19 @@ interface PermissionGuardProps {
 /**
  * 权限保护组件
  * 包裹页面或功能区域，根据用户权限决定是否渲染内容
+ * 无权限时不渲染 children，避免子组件发起无效 API 请求
  */
 export function PermissionGuard({ moduleId, action = "view", children, hide }: PermissionGuardProps) {
   const { canView, canOperate, isAdmin, isLoading } = usePermissions();
 
-  // 加载中时不显示任何内容
-  if (isLoading) return null;
+  // 权限数据加载中时显示加载指示器
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[40vh]">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   // 管理员始终放行
   if (isAdmin) return <>{children}</>;
@@ -55,7 +63,7 @@ function NoPermission() {
  * 操作权限保护组件
  * 用于包裹按钮等操作元素，无操作权限时隐藏
  */
-export function OperateGuard({ moduleId, children }: { moduleId: ModuleId; children: React.ReactNode }) {
+export function OperateGuard({ moduleId, children }: { moduleId: ModuleId; children: ReactNode }) {
   return (
     <PermissionGuard moduleId={moduleId} action="operate" hide>
       {children}

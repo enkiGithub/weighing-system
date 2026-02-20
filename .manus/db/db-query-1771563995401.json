@@ -1,0 +1,13 @@
+{
+  "query": "SHOW TABLES LIKE 'userPermissions';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user KBF53B6TGXz9Z1D.root --database SQ6yxhwuwXauyoM9DVdVk2 --execute SHOW TABLES LIKE 'userPermissions';",
+  "rows": [
+    {
+      "Tables_in_SQ6yxhwuwXauyoM9DVdVk2 (userPermissions)": "userPermissions"
+    }
+  ],
+  "messages": [],
+  "stdout": "Tables_in_SQ6yxhwuwXauyoM9DVdVk2 (userPermissions)\nuserPermissions\n",
+  "stderr": "",
+  "execution_time_ms": 1492
+}
