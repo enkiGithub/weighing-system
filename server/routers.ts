@@ -414,6 +414,7 @@ export const appRouter = router({
         id: z.number(),
         deviceCode: z.string().min(1).max(50).optional(),
         name: z.string().max(100).optional(),
+        modelType: z.enum(["DY7001", "DY7004"]).optional(),
         slaveId: z.number().int().min(1).max(247).optional(),
         comPortId: z.number().optional(),
         location: z.string().optional(),
@@ -445,6 +446,41 @@ export const appRouter = router({
         }
         
         await db.updateInstrument(id, data);
+        
+        // 如果型号变更，需要调整通道数量
+        if (data.modelType && data.modelType !== existing.modelType) {
+          const oldChannelCount = existing.modelType === "DY7001" ? 1 : 4;
+          const newChannelCount = data.modelType === "DY7001" ? 1 : 4;
+          
+          if (newChannelCount > oldChannelCount) {
+            // 型号升级（如DY7001→DY7004）：补充新通道
+            const existingChannels = await db.getChannelsByInstrument(id);
+            const existingNos = new Set(existingChannels.map(ch => ch.channelNo));
+            for (let i = 1; i <= newChannelCount; i++) {
+              if (!existingNos.has(i)) {
+                await db.createChannel({
+                  instrumentId: id,
+                  channelNo: i,
+                  label: `CH${i}`,
+                  enabled: 1,
+                  scale: 1.0,
+                  offset: 0.0,
+                  unit: "g",
+                  precision: 2,
+                });
+              }
+            }
+          } else if (newChannelCount < oldChannelCount) {
+            // 型号降级（如DY7004→DY7001）：删除多余通道（先解除绑定）
+            const existingChannels = await db.getChannelsByInstrument(id);
+            const toRemove = existingChannels.filter(ch => ch.channelNo > newChannelCount);
+            for (const ch of toRemove) {
+              await db.deleteBindingsByChannel(ch.id);
+              await db.deleteChannel(ch.id);
+            }
+          }
+        }
+        
         await audit(ctx.user.id, ctx.user.name, "update", "instrument", id, `更新仪表 #${id}`, data);
         return { success: true };
       }),
