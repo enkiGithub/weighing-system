@@ -245,3 +245,13 @@
 - [x] 添加afterAll清理逻辑，测试结束后自动删除所有测试创建的网关、仪表、柜组、布局数据
 - [x] 所有测试数据使用随机后缀避免名称冲突
 - [x] 全部42项测试通过，测试数据不再污染生产数据库
+
+## 清理测试残留数据
+- [x] 删除数据库中的测试残留柜组（Binding Test Group、Test Cabinet Group、Dup Binding Group）
+- [x] 删除数据库中的测试残留网关（Channel Test GW、Channel Update GW、test-gw-xxx）
+- [x] 验证清理后真实数据完整性（C001/C002/C003仪表及通道、内圈1~6柜组）
+- [x] 确保测试afterAll清理逻辑可靠，不再产生残留
+- [x] 修复weighing.test.ts: afterAll改为先删柜组再用force=true删仪表
+- [x] 修复permissions.test.ts: 添加afterAll清理测试网关和测试用户
+- [x] 修复permissions.test.ts: 移除旧OAuth字段(openId/email/avatarUrl)
+- [x] 42项测试全部通过，测试后数据库完全干净

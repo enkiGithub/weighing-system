@@ -62,16 +62,7 @@ afterAll(async () => {
   const ctx = createAdminContext();
   const caller = appRouter.createCaller(ctx);
 
-  // Delete instruments first (they depend on gateways via COM ports)
-  if (createdInstrumentIds.length > 0) {
-    try {
-      await caller.instruments.batchDelete({ ids: createdInstrumentIds });
-    } catch {
-      // Ignore cleanup errors
-    }
-  }
-
-  // Delete cabinet groups
+  // 1. Delete cabinet groups first (this removes bindings that reference channels)
   if (createdCabinetGroupIds.length > 0) {
     try {
       await caller.cabinetGroups.batchDelete({ ids: createdCabinetGroupIds });
@@ -80,7 +71,16 @@ afterAll(async () => {
     }
   }
 
-  // Delete gateways (cascade deletes COM ports)
+  // 2. Delete instruments with force=true to bypass binding checks and cascade delete channels
+  if (createdInstrumentIds.length > 0) {
+    try {
+      await caller.instruments.batchDelete({ ids: createdInstrumentIds, force: true });
+    } catch {
+      // Ignore cleanup errors
+    }
+  }
+
+  // 3. Delete gateways (cascade deletes COM ports)
   if (createdGatewayIds.length > 0) {
     try {
       await caller.gateways.batchDelete({ ids: createdGatewayIds });
@@ -89,7 +89,7 @@ afterAll(async () => {
     }
   }
 
-  // Delete test layouts
+  // 4. Delete test layouts
   for (const id of createdLayoutIds) {
     try {
       await caller.layoutEditor.vaultLayouts.delete({ id });
