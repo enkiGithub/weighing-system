@@ -5,41 +5,44 @@ const layoutOperate = createModuleOperateProcedure('layout_editor');
 import { z } from "zod";
 import * as db from "../db";
 import { TRPCError } from "@trpc/server";
+import { parseDxfFile } from "../dxfParser";
 
-// 布局实例的JSON结构验证
-const instanceSchema = z.object({
-  instanceId: z.string(),
-  type: z.enum(["cabinetGroup"]),
+// DXF布局数据schema（新的2D布局格式）
+const dxfCabinetSchema = z.object({
+  id: z.number(),
+  blockName: z.string(),
+  centerX: z.number(),
+  centerY: z.number(),
+  rotation: z.number(),
+  corners: z.array(z.tuple([z.number(), z.number()])),
+  crossLines: z.array(z.tuple([z.tuple([z.number(), z.number()]), z.tuple([z.number(), z.number()])])),
   cabinetGroupId: z.number().nullable(),
-  transform: z.object({
-    position: z.object({ x: z.number(), y: z.number(), z: z.number() }),
-    rotation: z.object({ x: z.number(), y: z.number(), z: z.number() }),
-    scale: z.object({ x: z.number(), y: z.number(), z: z.number() }),
-  }),
-  model: z.object({
-    columns: z.number().int().min(1).max(20).default(2),
-    columnSpacing: z.number().default(0.05),
-    cabinetWidth: z.number().default(0.6),
-    cabinetHeight: z.number().default(1.8),
-    cabinetDepth: z.number().default(0.5),
-    shelves: z.number().int().min(1).max(20).default(6),
-  }),
-  meta: z.object({
-    label: z.string().default(""),
-    remark: z.string().default(""),
-  }).default({ label: "", remark: "" }),
 });
 
-const layoutDataSchema = z.object({
-  scene: z.object({
-    gridSize: z.number().default(20),
-    unit: z.string().default("m"),
-    cameraDefault: z.object({
-      position: z.object({ x: z.number(), y: z.number(), z: z.number() }).default({ x: 8, y: 6, z: 8 }),
-      target: z.object({ x: z.number(), y: z.number(), z: z.number() }).default({ x: 0, y: 0, z: 0 }),
-    }).default({ position: { x: 8, y: 6, z: 8 }, target: { x: 0, y: 0, z: 0 } }),
-  }).default({ gridSize: 20, unit: "m", cameraDefault: { position: { x: 8, y: 6, z: 8 }, target: { x: 0, y: 0, z: 0 } } }),
-  instances: z.array(instanceSchema).default([]),
+const dxfPolylineSchema = z.object({
+  points: z.array(z.tuple([z.number(), z.number()])),
+  closed: z.boolean(),
+  layer: z.string(),
+});
+
+const dxfLineSchema = z.object({
+  x1: z.number(),
+  y1: z.number(),
+  x2: z.number(),
+  y2: z.number(),
+  layer: z.string(),
+});
+
+const dxfLayoutDataSchema = z.object({
+  bounds: z.object({
+    minX: z.number(),
+    minY: z.number(),
+    maxX: z.number(),
+    maxY: z.number(),
+  }),
+  lines: z.array(dxfLineSchema).default([]),
+  polylines: z.array(dxfPolylineSchema).default([]),
+  cabinets: z.array(dxfCabinetSchema).default([]),
 });
 
 export const layoutEditorRouter = router({
@@ -61,6 +64,34 @@ export const layoutEditorRouter = router({
       return layout || null;
     }),
 
+    /** 上传DXF文件并解析为布局数据 */
+    parseDxf: layoutOperate
+      .input(z.object({
+        /** base64编码的DXF文件内容 */
+        fileBase64: z.string(),
+        fileName: z.string(),
+      }))
+      .mutation(async ({ input }) => {
+        try {
+          const buffer = Buffer.from(input.fileBase64, 'base64');
+          const layoutData = await parseDxfFile(buffer);
+          return {
+            success: true,
+            data: layoutData,
+            stats: {
+              cabinets: layoutData.cabinets.length,
+              polylines: layoutData.polylines.length,
+              lines: layoutData.lines.length,
+            },
+          };
+        } catch (e: any) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: `DXF解析失败: ${e.message}`,
+          });
+        }
+      }),
+
     create: layoutOperate
       .input(z.object({
         name: z.string().min(1).max(100),
@@ -70,8 +101,7 @@ export const layoutEditorRouter = router({
       .mutation(async ({ input, ctx }) => {
         // 验证layoutData是合法JSON
         try {
-          const parsed = JSON.parse(input.layoutData);
-          layoutDataSchema.parse(parsed);
+          JSON.parse(input.layoutData);
         } catch {
           throw new TRPCError({ code: 'BAD_REQUEST', message: '布局数据格式不正确' });
         }
@@ -90,45 +120,65 @@ export const layoutEditorRouter = router({
         layoutData: z.string().optional(),
       }))
       .mutation(async ({ input }) => {
-        // 如果更新了layoutData，验证绑定冲突
         if (input.layoutData) {
           try {
-            const parsed = JSON.parse(input.layoutData);
-            const data = layoutDataSchema.parse(parsed);
-            
-            // 检查同一布局内是否有重复绑定
-            const boundIds = data.instances
-              .filter((inst: z.infer<typeof instanceSchema>) => inst.cabinetGroupId !== null)
-              .map((inst: z.infer<typeof instanceSchema>) => inst.cabinetGroupId);
-            const uniqueIds = new Set(boundIds);
-            if (boundIds.length !== uniqueIds.size) {
-              throw new TRPCError({ 
-                code: 'BAD_REQUEST', 
-                message: '同一布局内不允许重复绑定同一个柜组资产' 
-              });
-            }
-
-            // 检查绑定的柜组是否存在
-            for (const groupId of boundIds) {
-              if (groupId !== null) {
-                const group = await db.getCabinetGroupById(groupId);
-                if (!group) {
-                  throw new TRPCError({ 
-                    code: 'BAD_REQUEST', 
-                    message: `柜组资产ID ${groupId} 不存在` 
-                  });
-                }
-              }
-            }
-          } catch (e) {
-            if (e instanceof TRPCError) throw e;
+            JSON.parse(input.layoutData);
+          } catch {
             throw new TRPCError({ code: 'BAD_REQUEST', message: '布局数据格式不正确' });
           }
         }
-
         const { id, ...data } = input;
         await db.updateVaultLayout(id, data);
         return { success: true };
+      }),
+
+    /** 更新柜列绑定关系（批量绑定多个柜列到一个柜组） */
+    bindCabinets: layoutOperate
+      .input(z.object({
+        layoutId: z.number(),
+        /** 要绑定的柜列ID列表 */
+        cabinetIds: z.array(z.number()),
+        /** 目标柜组ID，null表示解绑 */
+        cabinetGroupId: z.number().nullable(),
+      }))
+      .mutation(async ({ input }) => {
+        const layout = await db.getVaultLayoutById(input.layoutId);
+        if (!layout) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: '布局不存在' });
+        }
+        
+        // 验证柜组存在
+        if (input.cabinetGroupId !== null) {
+          const group = await db.getCabinetGroupById(input.cabinetGroupId);
+          if (!group) {
+            throw new TRPCError({ code: 'BAD_REQUEST', message: '柜组不存在' });
+          }
+        }
+
+        // 解析布局数据
+        let layoutData: any;
+        try {
+          layoutData = JSON.parse(layout.layoutData);
+        } catch {
+          throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: '布局数据损坏' });
+        }
+
+        // 更新指定柜列的绑定
+        const cabinetIdSet = new Set(input.cabinetIds);
+        if (layoutData.cabinets) {
+          for (const cab of layoutData.cabinets) {
+            if (cabinetIdSet.has(cab.id)) {
+              cab.cabinetGroupId = input.cabinetGroupId;
+            }
+          }
+        }
+
+        // 保存更新后的布局数据
+        await db.updateVaultLayout(input.layoutId, {
+          layoutData: JSON.stringify(layoutData),
+        });
+
+        return { success: true, updatedCount: input.cabinetIds.length };
       }),
 
     delete: layoutOperate

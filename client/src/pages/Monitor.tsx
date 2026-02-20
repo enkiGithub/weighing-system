@@ -1,133 +1,289 @@
-import { useState, useCallback, Suspense, useMemo } from "react";
-import { Canvas } from "@react-three/fiber";
-import { OrbitControls, Html } from "@react-three/drei";
-import * as THREE from "three";
+import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, CheckCircle2, AlertTriangle, AlertOctagon, Activity } from "lucide-react";
-import { CabinetGroup3D } from "@/components/three/CabinetGroup3D";
-import type { CabinetGroupModelParams } from "@/components/three/CabinetGroup3D";
-import { SceneSetup } from "@/components/three/SceneSetup";
+import { Button } from "@/components/ui/button";
+import { Loader2, CheckCircle2, AlertTriangle, AlertOctagon, Activity, ZoomIn, ZoomOut, Maximize2 } from "lucide-react";
 
-// Types matching editor
-interface LayoutInstance {
-  instanceId: string;
-  type: "cabinetGroup";
+// ===== Types =====
+interface DxfCabinet {
+  id: number;
+  blockName: string;
+  centerX: number;
+  centerY: number;
+  rotation: number;
+  corners: [number, number][];
+  crossLines: [[number, number], [number, number]][];
   cabinetGroupId: number | null;
-  transform: {
-    position: { x: number; y: number; z: number };
-    rotation: { x: number; y: number; z: number };
-    scale: { x: number; y: number; z: number };
-  };
-  model: CabinetGroupModelParams;
-  meta: { label: string; remark: string };
 }
 
-interface LayoutData {
-  scene: {
-    gridSize: number;
-    unit: string;
-    cameraDefault: {
-      position: { x: number; y: number; z: number };
-      target: { x: number; y: number; z: number };
-    };
-  };
-  instances: LayoutInstance[];
+interface DxfPolyline {
+  points: [number, number][];
+  closed: boolean;
+  layer: string;
 }
 
-// Monitor Instance Component
-function MonitorInstance({
-  instance,
-  groupData,
-  onHover,
-  onLeave,
+interface DxfLine {
+  x1: number; y1: number; x2: number; y2: number;
+  layer: string;
+}
+
+interface DxfLayoutData {
+  bounds: { minX: number; minY: number; maxX: number; maxY: number };
+  lines: DxfLine[];
+  polylines: DxfPolyline[];
+  cabinets: DxfCabinet[];
+}
+
+// ===== Color palette =====
+const GROUP_COLORS = [
+  "#06b6d4", "#f59e0b", "#10b981", "#ef4444", "#8b5cf6",
+  "#ec4899", "#14b8a6", "#f97316", "#6366f1", "#84cc16",
+  "#e11d48", "#0ea5e9", "#d946ef", "#22c55e", "#eab308",
+  "#3b82f6", "#a855f7", "#f43f5e", "#059669", "#7c3aed",
+];
+
+function getGroupColor(groupId: number): string {
+  return GROUP_COLORS[groupId % GROUP_COLORS.length];
+}
+
+// Status color helpers
+function getStatusColor(status: string): string {
+  if (status === "alarm") return "#ef4444";
+  if (status === "warning") return "#f59e0b";
+  return "#06b6d4";
+}
+
+function getStatusFill(status: string): string {
+  if (status === "alarm") return "#7f1d1d";
+  if (status === "warning") return "#78350f";
+  return "#164e63";
+}
+
+// ===== Monitor SVG Renderer =====
+function MonitorSVG({
+  layoutData,
+  cabinetGroupsMap,
+  groupColorMap,
+  onCabinetHover,
+  onCabinetLeave,
 }: {
-  instance: LayoutInstance;
-  groupData?: { name: string; status: string; currentWeight: number; initialWeight: number; alarmThreshold: number };
-  onHover: (inst: LayoutInstance, gd: any) => void;
-  onLeave: () => void;
+  layoutData: DxfLayoutData;
+  cabinetGroupsMap: Map<number, any>;
+  groupColorMap: Map<number, string>;
+  onCabinetHover: (cabId: number, screenX: number, screenY: number) => void;
+  onCabinetLeave: () => void;
 }) {
-  const [hovered, setHovered] = useState(false);
-  const status = (groupData?.status as "normal" | "warning" | "alarm") || "normal";
+  const svgRef = useRef<SVGSVGElement>(null);
+  const [isPanning, setIsPanning] = useState(false);
+  const [panStart, setPanStart] = useState({ x: 0, y: 0, vx: 0, vy: 0 });
+
+  // Compute initial viewBox from bounds
+  const initialViewBox = useMemo(() => {
+    const { bounds } = layoutData;
+    const padding = Math.max(bounds.maxX - bounds.minX, bounds.maxY - bounds.minY) * 0.05;
+    return {
+      x: bounds.minX - padding,
+      y: bounds.minY - padding,
+      w: (bounds.maxX - bounds.minX) + padding * 2,
+      h: (bounds.maxY - bounds.minY) + padding * 2,
+    };
+  }, [layoutData]);
+
+  const [viewBox, setViewBox] = useState(initialViewBox);
+  useEffect(() => { setViewBox(initialViewBox); }, [initialViewBox]);
+
+  const screenToSvg = useCallback((clientX: number, clientY: number) => {
+    if (!svgRef.current) return { x: 0, y: 0 };
+    const rect = svgRef.current.getBoundingClientRect();
+    const x = viewBox.x + (clientX - rect.left) / rect.width * viewBox.w;
+    const y = viewBox.y + (clientY - rect.top) / rect.height * viewBox.h;
+    return { x, y };
+  }, [viewBox]);
+
+  const handleWheel = useCallback((e: React.WheelEvent) => {
+    e.preventDefault();
+    const factor = e.deltaY > 0 ? 1.1 : 0.9;
+    const svgPt = screenToSvg(e.clientX, e.clientY);
+    setViewBox(prev => ({
+      x: svgPt.x - (svgPt.x - prev.x) * factor,
+      y: svgPt.y - (svgPt.y - prev.y) * factor,
+      w: prev.w * factor,
+      h: prev.h * factor,
+    }));
+  }, [screenToSvg]);
+
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    if (e.button === 0 || e.button === 1) {
+      setIsPanning(true);
+      setPanStart({ x: e.clientX, y: e.clientY, vx: viewBox.x, vy: viewBox.y });
+    }
+  }, [viewBox]);
+
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    if (isPanning && svgRef.current) {
+      const rect = svgRef.current.getBoundingClientRect();
+      const dx = (e.clientX - panStart.x) / rect.width * viewBox.w;
+      const dy = (e.clientY - panStart.y) / rect.height * viewBox.h;
+      setViewBox(prev => ({ ...prev, x: panStart.vx - dx, y: panStart.vy - dy }));
+    }
+  }, [isPanning, panStart, viewBox]);
+
+  const handleMouseUp = useCallback(() => { setIsPanning(false); }, []);
+
+  const zoomIn = useCallback(() => {
+    setViewBox(prev => {
+      const cx = prev.x + prev.w / 2, cy = prev.y + prev.h / 2;
+      const nw = prev.w * 0.75, nh = prev.h * 0.75;
+      return { x: cx - nw / 2, y: cy - nh / 2, w: nw, h: nh };
+    });
+  }, []);
+
+  const zoomOut = useCallback(() => {
+    setViewBox(prev => {
+      const cx = prev.x + prev.w / 2, cy = prev.y + prev.h / 2;
+      const nw = prev.w * 1.33, nh = prev.h * 1.33;
+      return { x: cx - nw / 2, y: cy - nh / 2, w: nw, h: nh };
+    });
+  }, []);
+
+  const fitAll = useCallback(() => { setViewBox(initialViewBox); }, [initialViewBox]);
+
+  // Background geometry
+  const bgElements = useMemo(() => (
+    <>
+      {layoutData.polylines.map((pl, i) => {
+        const pts = pl.points.map(p => `${p[0]},${p[1]}`).join(" ");
+        return pl.closed ? (
+          <polygon key={`pl-${i}`} points={pts} fill="none" stroke="#94a3b8" strokeWidth={0.5} strokeOpacity={0.4} />
+        ) : (
+          <polyline key={`pl-${i}`} points={pts} fill="none" stroke="#94a3b8" strokeWidth={0.5} strokeOpacity={0.4} />
+        );
+      })}
+      {layoutData.lines.map((l, i) => (
+        <line key={`ln-${i}`} x1={l.x1} y1={l.y1} x2={l.x2} y2={l.y2} stroke="#94a3b8" strokeWidth={0.5} strokeOpacity={0.4} />
+      ))}
+    </>
+  ), [layoutData.polylines, layoutData.lines]);
+
+  // Cabinet elements with status coloring
+  const cabinetElements = useMemo(() => {
+    return layoutData.cabinets.map(cab => {
+      const groupId = cab.cabinetGroupId;
+      const groupData = groupId !== null ? cabinetGroupsMap.get(groupId) : undefined;
+      const status = groupData?.status || "normal";
+      const isBound = groupId !== null;
+
+      let fillColor: string;
+      let fillOpacity: number;
+      let strokeColor: string;
+
+      if (isBound && groupData) {
+        fillColor = getStatusFill(status);
+        fillOpacity = 0.7;
+        strokeColor = getStatusColor(status);
+      } else if (isBound) {
+        const color = groupColorMap.get(groupId!) || getGroupColor(groupId!);
+        fillColor = color;
+        fillOpacity = 0.3;
+        strokeColor = color;
+      } else {
+        fillColor = "#334155";
+        fillOpacity = 0.15;
+        strokeColor = "#64748b";
+      }
+
+      const pts = cab.corners.map(c => `${c[0]},${c[1]}`).join(" ");
+
+      return (
+        <g
+          key={cab.id}
+          onMouseEnter={(e) => {
+            if (isBound) onCabinetHover(cab.id, e.clientX, e.clientY);
+          }}
+          onMouseMove={(e) => {
+            if (isBound) onCabinetHover(cab.id, e.clientX, e.clientY);
+          }}
+          onMouseLeave={onCabinetLeave}
+          style={{ cursor: isBound ? "pointer" : "default" }}
+        >
+          <polygon
+            points={pts}
+            fill={fillColor}
+            fillOpacity={fillOpacity}
+            stroke={strokeColor}
+            strokeWidth={0.8}
+          />
+          {cab.crossLines.map((cl, i) => (
+            <line
+              key={i}
+              x1={cl[0][0]} y1={cl[0][1]}
+              x2={cl[1][0]} y2={cl[1][1]}
+              stroke={strokeColor}
+              strokeWidth={0.3}
+              strokeOpacity={0.4}
+            />
+          ))}
+          {/* Alarm pulse animation */}
+          {status === "alarm" && (
+            <polygon
+              points={pts}
+              fill="none"
+              stroke="#ef4444"
+              strokeWidth={1.5}
+              strokeOpacity={0.6}
+            >
+              <animate attributeName="stroke-opacity" values="0.6;0.1;0.6" dur="1.5s" repeatCount="indefinite" />
+            </polygon>
+          )}
+        </g>
+      );
+    });
+  }, [layoutData.cabinets, cabinetGroupsMap, groupColorMap, onCabinetHover, onCabinetLeave]);
 
   return (
-    <group
-      position={[instance.transform.position.x, Math.max(0, instance.transform.position.y), instance.transform.position.z]}
-      rotation={[0, instance.transform.rotation.y, 0]}
-      scale={[instance.transform.scale.x, instance.transform.scale.y, instance.transform.scale.z]}
-    >
-      <CabinetGroup3D
-        model={instance.model}
-        status={status}
-        selected={false}
-        hovered={hovered}
-        onPointerOver={(e: any) => {
-          e.stopPropagation();
-          setHovered(true);
-          if (groupData) onHover(instance, groupData);
-        }}
-        onPointerOut={() => {
-          setHovered(false);
-          onLeave();
-        }}
-      />
-      {/* Floating label always visible */}
-      <Html
-        position={[0, instance.model.cabinetHeight + 0.25, 0]}
-        center
-        distanceFactor={8}
-        style={{ pointerEvents: "none" }}
-      >
-        <div className={`rounded-lg px-3 py-2 text-center whitespace-nowrap backdrop-blur-md border shadow-lg transition-all ${
-          hovered ? "scale-110" : ""
-        } ${
-          status === "alarm"
-            ? "bg-red-950/90 border-red-500/50 shadow-red-500/20"
-            : status === "warning"
-            ? "bg-amber-950/90 border-amber-500/50 shadow-amber-500/20"
-            : "bg-slate-900/90 border-cyan-500/30 shadow-cyan-500/10"
-        }`}>
-          <div className={`text-xs font-semibold ${
-            status === "alarm" ? "text-red-400" : status === "warning" ? "text-amber-400" : "text-cyan-400"
-          }`}>
-            {instance.meta.label || groupData?.name || "未绑定"}
-          </div>
-          {groupData && (
-            <div className={`text-lg font-bold mt-0.5 ${
-              status === "alarm" ? "text-red-300" : status === "warning" ? "text-amber-300" : "text-cyan-300"
-            }`}>
-              {(groupData.currentWeight / 1000).toFixed(2)}
-              <span className="text-[10px] font-normal ml-0.5 opacity-70">kg</span>
-            </div>
-          )}
-          {!groupData && instance.cabinetGroupId && (
-            <div className="text-[10px] text-slate-500 mt-0.5">数据加载中...</div>
-          )}
-        </div>
-      </Html>
+    <div className="relative w-full h-full">
+      {/* Toolbar */}
+      <div className="absolute top-3 left-3 z-10 flex items-center gap-1 bg-slate-900/90 border border-slate-700/50 rounded-lg p-1 backdrop-blur-sm">
+        <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={zoomIn} title="放大">
+          <ZoomIn className="h-3.5 w-3.5" />
+        </Button>
+        <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={zoomOut} title="缩小">
+          <ZoomOut className="h-3.5 w-3.5" />
+        </Button>
+        <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={fitAll} title="适应全部">
+          <Maximize2 className="h-3.5 w-3.5" />
+        </Button>
+      </div>
 
-      {/* Alarm pulse effect */}
-      {status === "alarm" && (
-        <mesh position={[0, instance.model.cabinetHeight / 2, 0]}>
-          <sphereGeometry args={[
-            Math.max(instance.model.columns * instance.model.cabinetWidth, instance.model.cabinetHeight) * 0.8,
-            16, 16
-          ]} />
-          <meshBasicMaterial color="#ef4444" transparent opacity={0.05} side={THREE.DoubleSide} />
-        </mesh>
-      )}
-    </group>
+      <svg
+        ref={svgRef}
+        className="w-full h-full"
+        viewBox={`${viewBox.x} ${viewBox.y} ${viewBox.w} ${viewBox.h}`}
+        onWheel={handleWheel}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseUp}
+        style={{ cursor: isPanning ? "grabbing" : "grab" }}
+      >
+        <rect x={viewBox.x} y={viewBox.y} width={viewBox.w} height={viewBox.h} fill="#0f172a" />
+        {bgElements}
+        {cabinetElements}
+      </svg>
+    </div>
   );
 }
 
+// ===== Main Monitor Component =====
 export default function Monitor() {
   const [hoveredInfo, setHoveredInfo] = useState<{
-    instance: LayoutInstance;
-    groupData: any;
+    cabinetId: number;
+    screenX: number;
+    screenY: number;
   } | null>(null);
 
-  // Queries with auto-refresh (使用monitor专用API，避免跨模块权限冲突)
+  // Queries with auto-refresh (使用monitor专用API)
   const activeLayoutQuery = trpc.monitor.getActiveLayout.useQuery(undefined, {
     refetchInterval: 10000,
   });
@@ -135,14 +291,14 @@ export default function Monitor() {
     refetchInterval: 5000,
   });
 
-  // Parse layout data
-  const layoutData = useMemo<LayoutData | null>(() => {
+  // Parse layout data (new DXF format)
+  const layoutData = useMemo<DxfLayoutData | null>(() => {
     if (!activeLayoutQuery.data?.layoutData) return null;
     try {
-      const data = JSON.parse(activeLayoutQuery.data.layoutData) as LayoutData;
-      if (!data.scene) return null;
-      if (!data.instances) data.instances = [];
-      return data;
+      const data = JSON.parse(activeLayoutQuery.data.layoutData);
+      // Check for DXF format (has bounds and cabinets)
+      if (data.bounds && data.cabinets) return data as DxfLayoutData;
+      return null;
     } catch {
       return null;
     }
@@ -151,35 +307,62 @@ export default function Monitor() {
   // Cabinet groups map
   const cabinetGroupsMap = useMemo(() => {
     const map = new Map<number, any>();
-    (cabinetGroupsQuery.data || []).forEach((g: any) => {
-      map.set(g.id, g);
+    (cabinetGroupsQuery.data || []).forEach((g: any) => map.set(g.id, g));
+    return map;
+  }, [cabinetGroupsQuery.data]);
+
+  // Group color map
+  const groupColorMap = useMemo(() => {
+    const map = new Map<number, string>();
+    (cabinetGroupsQuery.data || []).forEach((g: any, i: number) => {
+      map.set(g.id, GROUP_COLORS[i % GROUP_COLORS.length]);
     });
     return map;
   }, [cabinetGroupsQuery.data]);
 
+  // Cabinet to group mapping for hover
+  const cabinetToGroup = useMemo(() => {
+    if (!layoutData) return new Map<number, number>();
+    const map = new Map<number, number>();
+    for (const cab of layoutData.cabinets) {
+      if (cab.cabinetGroupId !== null) {
+        map.set(cab.id, cab.cabinetGroupId);
+      }
+    }
+    return map;
+  }, [layoutData]);
+
+  // Hovered group data
+  const hoveredGroupData = useMemo(() => {
+    if (!hoveredInfo) return null;
+    const groupId = cabinetToGroup.get(hoveredInfo.cabinetId);
+    if (groupId === undefined) return null;
+    return cabinetGroupsMap.get(groupId) || null;
+  }, [hoveredInfo, cabinetToGroup, cabinetGroupsMap]);
+
   // Statistics
   const stats = useMemo(() => {
-    if (!layoutData) return { total: 0, normal: 0, warning: 0, alarm: 0 };
+    if (!layoutData) return { total: 0, normal: 0, warning: 0, alarm: 0, boundGroups: new Set<number>() };
+    const boundGroups = new Set<number>();
+    for (const cab of layoutData.cabinets) {
+      if (cab.cabinetGroupId !== null) boundGroups.add(cab.cabinetGroupId);
+    }
     let normal = 0, warning = 0, alarm = 0;
-    layoutData.instances.forEach(inst => {
-      if (!inst.cabinetGroupId) return;
-      const g = cabinetGroupsMap.get(inst.cabinetGroupId);
+    boundGroups.forEach(gid => {
+      const g = cabinetGroupsMap.get(gid);
       if (!g) return;
       if (g.status === "alarm") alarm++;
       else if (g.status === "warning") warning++;
       else normal++;
     });
-    return {
-      total: layoutData.instances.filter(i => i.cabinetGroupId).length,
-      normal, warning, alarm,
-    };
+    return { total: boundGroups.size, normal, warning, alarm, boundGroups };
   }, [layoutData, cabinetGroupsMap]);
 
-  const handleHover = useCallback((inst: LayoutInstance, groupData: any) => {
-    setHoveredInfo({ instance: inst, groupData });
+  const handleCabinetHover = useCallback((cabId: number, screenX: number, screenY: number) => {
+    setHoveredInfo({ cabinetId: cabId, screenX, screenY });
   }, []);
 
-  const handleLeave = useCallback(() => {
+  const handleCabinetLeave = useCallback(() => {
     setHoveredInfo(null);
   }, []);
 
@@ -194,19 +377,17 @@ export default function Monitor() {
     );
   }
 
-  if (!layoutData || layoutData.instances.length === 0) {
+  if (!layoutData) {
     return (
       <div className="flex items-center justify-center h-[calc(100vh-4rem)]">
         <div className="text-center space-y-3">
           <Activity className="h-12 w-12 text-slate-500 mx-auto" />
           <h2 className="text-xl font-semibold text-slate-300">暂无激活布局</h2>
-          <p className="text-sm text-slate-500">请在布局编辑器中创建并激活一个保管库布局</p>
+          <p className="text-sm text-slate-500">请在布局编辑器中导入DXF文件并激活布局</p>
         </div>
       </div>
     );
   }
-
-  const cam = layoutData.scene.cameraDefault;
 
   return (
     <div className="h-[calc(100vh-2rem)] flex flex-col gap-3">
@@ -216,7 +397,7 @@ export default function Monitor() {
           <h1 className="text-2xl font-bold tracking-tight">实时监视</h1>
           <p className="text-sm text-slate-400 mt-0.5">
             {activeLayoutQuery.data?.name && `布局: ${activeLayoutQuery.data.name} · `}
-            拖拽鼠标旋转视图，悬停柜组查看详细信息
+            拖拽平移视图，滚轮缩放，悬停柜列查看柜组详情
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -235,87 +416,64 @@ export default function Monitor() {
         </div>
       </div>
 
-      {/* 3D Scene */}
+      {/* 2D SVG Scene */}
       <div className="flex-1 rounded-xl overflow-hidden border border-slate-700/50 bg-slate-950 relative">
-        <Canvas
-          shadows
-          camera={{
-            position: [cam.position.x, cam.position.y, cam.position.z],
-            fov: 50,
-            near: 0.1,
-            far: 100,
-          }}
-          gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.2 }}
-        >
-          <Suspense fallback={null}>
-            <SceneSetup gridSize={layoutData.scene.gridSize} showGizmo={false} />
-            <OrbitControls
-              makeDefault
-              enableDamping
-              dampingFactor={0.1}
-              minDistance={2}
-              maxDistance={30}
-              maxPolarAngle={Math.PI / 2.1}
-            />
-            {layoutData.instances.map((inst) => {
-              const groupData = inst.cabinetGroupId ? cabinetGroupsMap.get(inst.cabinetGroupId) : undefined;
-              return (
-                <MonitorInstance
-                  key={inst.instanceId}
-                  instance={inst}
-                  groupData={groupData}
-                  onHover={handleHover}
-                  onLeave={handleLeave}
-                />
-              );
-            })}
-          </Suspense>
-        </Canvas>
+        <MonitorSVG
+          layoutData={layoutData}
+          cabinetGroupsMap={cabinetGroupsMap}
+          groupColorMap={groupColorMap}
+          onCabinetHover={handleCabinetHover}
+          onCabinetLeave={handleCabinetLeave}
+        />
 
-        {/* Hover detail panel */}
-        {hoveredInfo && hoveredInfo.groupData && (
-          <div className="absolute top-4 right-4 w-64 pointer-events-none z-10">
-            <Card className="bg-slate-900/95 border-slate-700/50 backdrop-blur-md shadow-xl">
+        {/* Hover tooltip */}
+        {hoveredInfo && hoveredGroupData && (
+          <div
+            className="fixed z-50 pointer-events-none"
+            style={{
+              left: hoveredInfo.screenX + 16,
+              top: hoveredInfo.screenY - 10,
+            }}
+          >
+            <Card className="bg-slate-900/95 border-slate-700/50 backdrop-blur-md shadow-xl w-64">
               <CardContent className="p-4 space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-semibold text-slate-200">{hoveredInfo.groupData.name}</span>
+                  <span className="text-sm font-semibold text-slate-200">{hoveredGroupData.name}</span>
                   <Badge variant="outline" className={`text-[10px] ${
-                    hoveredInfo.groupData.status === "normal" ? "text-cyan-400 border-cyan-500/50" :
-                    hoveredInfo.groupData.status === "warning" ? "text-amber-400 border-amber-500/50" :
+                    hoveredGroupData.status === "normal" ? "text-cyan-400 border-cyan-500/50" :
+                    hoveredGroupData.status === "warning" ? "text-amber-400 border-amber-500/50" :
                     "text-red-400 border-red-500/50"
                   }`}>
-                    {hoveredInfo.groupData.status === "normal" ? "正常" : hoveredInfo.groupData.status === "warning" ? "警告" : "报警"}
+                    {hoveredGroupData.status === "normal" ? "正常" : hoveredGroupData.status === "warning" ? "警告" : "报警"}
                   </Badge>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div className="bg-slate-800/50 rounded-lg p-2">
                     <div className="text-[10px] text-slate-500">当前重量</div>
-                    <div className="text-sm font-bold text-cyan-400">{(hoveredInfo.groupData.currentWeight / 1000).toFixed(2)} kg</div>
+                    <div className="text-sm font-bold text-cyan-400">{(hoveredGroupData.currentWeight / 1000).toFixed(2)} kg</div>
                   </div>
                   <div className="bg-slate-800/50 rounded-lg p-2">
                     <div className="text-[10px] text-slate-500">初始重量</div>
-                    <div className="text-sm font-bold text-slate-300">{(hoveredInfo.groupData.initialWeight / 1000).toFixed(2)} kg</div>
+                    <div className="text-sm font-bold text-slate-300">{(hoveredGroupData.initialWeight / 1000).toFixed(2)} kg</div>
                   </div>
                   <div className="bg-slate-800/50 rounded-lg p-2">
                     <div className="text-[10px] text-slate-500">变化量</div>
                     <div className={`text-sm font-bold ${
-                      hoveredInfo.groupData.currentWeight - hoveredInfo.groupData.initialWeight > 0 ? "text-green-400" :
-                      hoveredInfo.groupData.currentWeight - hoveredInfo.groupData.initialWeight < 0 ? "text-red-400" :
+                      hoveredGroupData.currentWeight - hoveredGroupData.initialWeight > 0 ? "text-green-400" :
+                      hoveredGroupData.currentWeight - hoveredGroupData.initialWeight < 0 ? "text-red-400" :
                       "text-slate-400"
                     }`}>
-                      {((hoveredInfo.groupData.currentWeight - hoveredInfo.groupData.initialWeight) / 1000).toFixed(2)} kg
+                      {((hoveredGroupData.currentWeight - hoveredGroupData.initialWeight) / 1000).toFixed(2)} kg
                     </div>
                   </div>
                   <div className="bg-slate-800/50 rounded-lg p-2">
                     <div className="text-[10px] text-slate-500">报警阈值</div>
-                    <div className="text-sm font-bold text-amber-400">{(hoveredInfo.groupData.alarmThreshold / 1000).toFixed(2)} kg</div>
+                    <div className="text-sm font-bold text-amber-400">{(hoveredGroupData.alarmThreshold / 1000).toFixed(2)} kg</div>
                   </div>
                 </div>
-                {hoveredInfo.instance.meta.remark && (
-                  <div className="text-[10px] text-slate-500 border-t border-slate-700 pt-2">
-                    备注: {hoveredInfo.instance.meta.remark}
-                  </div>
-                )}
+                <div className="text-[10px] text-slate-500 border-t border-slate-700 pt-2">
+                  柜组ID: {hoveredGroupData.id} | 柜列数: {layoutData.cabinets.filter(c => c.cabinetGroupId === hoveredGroupData.id).length}
+                </div>
               </CardContent>
             </Card>
           </div>
@@ -330,7 +488,7 @@ export default function Monitor() {
               <Activity className="h-5 w-5 text-cyan-400" />
             </div>
             <div>
-              <div className="text-[10px] text-slate-500 uppercase">监控总数</div>
+              <div className="text-[10px] text-slate-500 uppercase">监控柜组</div>
               <div className="text-xl font-bold text-slate-200">{stats.total}</div>
             </div>
           </CardContent>
