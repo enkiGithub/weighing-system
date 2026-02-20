@@ -179,6 +179,14 @@ export async function updateGatewayStatus(id: number, status: 'online' | 'offlin
 
 // ==================== 网关COM端口管理 ====================
 
+export async function getAllComPorts() {
+  const db = await getDb();
+  if (!db) return [];
+  return await db.select()
+    .from(gatewayComPorts)
+    .orderBy(desc(gatewayComPorts.createdAt));
+}
+
 export async function getComPortsByGateway(gatewayId: number) {
   const db = await getDb();
   if (!db) return [];

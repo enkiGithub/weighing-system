@@ -29,7 +29,7 @@ import { Button } from "./ui/button";
 
 const menuItems = [
   { icon: LayoutDashboard, label: "实时监视", path: "/" },
-  { icon: Server, label: "设备管理", path: "/devices" },
+  { icon: Server, label: "仪表管理", path: "/devices" },
   { icon: Gauge, label: "网关管理", path: "/gateways" },
   { icon: Radio, label: "通道管理", path: "/channels" },
   { icon: Archive, label: "保险柜组", path: "/cabinets" },

@@ -148,6 +148,10 @@ export const appRouter = router({
 
   // 网关COM端口管理
   gatewayComPorts: router({
+    listAll: protectedProcedure.query(async () => {
+      return await db.getAllComPorts();
+    }),
+
     listByGateway: protectedProcedure
       .input(z.object({ gatewayId: z.number() }))
       .query(async ({ input }) => {
