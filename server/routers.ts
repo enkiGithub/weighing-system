@@ -661,7 +661,7 @@ export const appRouter = router({
         const id = await db.createCabinetGroup({
           ...input,
           area: input.area || "",
-          currentWeight: input.initialWeight,
+          currentWeight: 0,
         });
         await audit(ctx.user.id, ctx.user.name, "create", "cabinetGroup", id, `创建柜组: ${input.name}`, input);
         return { id, ...input };

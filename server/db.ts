@@ -1,4 +1,4 @@
-import { eq, desc, and, gte, lte, inArray, sql } from "drizzle-orm";
+import { eq, desc, asc, and, gte, lte, inArray, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { 
   InsertUser, 
@@ -426,7 +426,7 @@ export async function autoGenerateChannels(instrumentId: number, modelType: "DY7
 export async function getAllCabinetGroups() {
   const db = await getDb();
   if (!db) return [];
-  return await db.select().from(cabinetGroups).orderBy(desc(cabinetGroups.createdAt));
+  return await db.select().from(cabinetGroups).orderBy(asc(cabinetGroups.name));
 }
 
 export async function getCabinetGroupById(id: number) {

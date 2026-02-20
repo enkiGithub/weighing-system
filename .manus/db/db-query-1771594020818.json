@@ -1,0 +1,58 @@
+{
+  "query": "SELECT id, name, area, createdAt FROM cabinetGroups ORDER BY id ASC;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user KBF53B6TGXz9Z1D.root --database SQ6yxhwuwXauyoM9DVdVk2 --execute SELECT id, name, area, createdAt FROM cabinetGroups ORDER BY id ASC;",
+  "rows": [
+    {
+      "id": "90021",
+      "name": "内圈6柜组",
+      "area": "内圈",
+      "createdAt": "2026-02-20 09:54:23"
+    },
+    {
+      "id": "90022",
+      "name": "内圈5柜组",
+      "area": "内圈",
+      "createdAt": "2026-02-20 09:54:28"
+    },
+    {
+      "id": "120001",
+      "name": "内圈4柜组",
+      "area": "内圈",
+      "createdAt": "2026-02-20 11:48:47"
+    },
+    {
+      "id": "120002",
+      "name": "内圈3柜组",
+      "area": "内圈",
+      "createdAt": "2026-02-20 11:48:50"
+    },
+    {
+      "id": "120003",
+      "name": "内圈2柜组",
+      "area": "内圈",
+      "createdAt": "2026-02-20 11:48:54"
+    },
+    {
+      "id": "120004",
+      "name": "内圈1柜组",
+      "area": "内圈",
+      "createdAt": "2026-02-20 11:48:59"
+    },
+    {
+      "id": "150025",
+      "name": "内圈7柜组",
+      "area": "内圈",
+      "createdAt": "2026-02-20 13:18:22"
+    },
+    {
+      "id": "150026",
+      "name": "内圈8柜组",
+      "area": "内区",
+      "createdAt": "2026-02-20 13:19:42"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\tarea\tcreatedAt\n90021\t内圈6柜组\t内圈\t2026-02-20 09:54:23\n90022\t内圈5柜组\t内圈\t2026-02-20 09:54:28\n120001\t内圈4柜组\t内圈\t2026-02-20 11:48:47\n120002\t内圈3柜组\t内圈\t2026-02-20 11:48:50\n120003\t内圈2柜组\t内圈\t2026-02-20 11:48:54\n120004\t内圈1柜组\t内圈\t2026-02-20 11:48:59\n150025\t内圈7柜组\t内圈\t2026-02-20 13:18:22\n150026\t内圈8柜组\t内区\t2026-02-20 13:19:42\n",
+  "stderr": "",
+  "execution_time_ms": 1476
+}

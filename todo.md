@@ -255,3 +255,8 @@
 - [x] 修复permissions.test.ts: 添加afterAll清理测试网关和测试用户
 - [x] 修复permissions.test.ts: 移除旧OAuth字段(openId/email/avatarUrl)
 - [x] 42项测试全部通过，测试后数据库完全干净
+
+## Bug修复：柜组列表排序和初始重量问题
+- [x] 新添加的柜组排在序号1（已改为按名称升序排列，内圈1~8顺序正确）
+- [x] 创建柜组时initialWeight被复制到currentWeight（已修改为currentWeight初始为0）
+- [x] 已有柜组的currentWeight已重置为0
