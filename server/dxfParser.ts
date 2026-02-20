@@ -1,12 +1,9 @@
 /**
  * DXF文件解析模块
- * 使用Python ezdxf库解析DXF文件，提取柜列和背景几何体
+ * 使用纯Node.js dxf-parser库解析DXF文件，提取柜列和背景几何体
+ * 不依赖Python环境
  */
-import { execFile } from "child_process";
-import { writeFile, unlink } from "fs/promises";
-import { join } from "path";
-import { randomUUID } from "crypto";
-import { tmpdir } from "os";
+import DxfParser from "dxf-parser";
 
 export interface DxfCabinet {
   id: number;
@@ -45,116 +42,173 @@ export interface DxfLayoutData {
   cabinets: DxfCabinet[];
 }
 
-const PARSE_SCRIPT = `
-import ezdxf
-import json
-import math
-import sys
+/** 坐标变换：缩放 → 旋转 → 平移 */
+function transformPoint(
+  x: number, y: number,
+  ix: number, iy: number,
+  rot: number,
+  sx: number = 1, sy: number = 1
+): [number, number] {
+  x *= sx;
+  y *= sy;
+  const r = (rot * Math.PI) / 180;
+  const c = Math.cos(r);
+  const s = Math.sin(r);
+  return [x * c - y * s + ix, x * s + y * c + iy];
+}
 
-doc = ezdxf.readfile(sys.argv[1])
-
-cabinet_blocks = set()
-cabinet_block_info = {}
-for block in doc.blocks:
-    if block.name.startswith('*'):
-        continue
-    entities = list(block)
-    etypes = {}
-    for e in entities:
-        t = e.dxftype()
-        etypes[t] = etypes.get(t, 0) + 1
-    if etypes.get('LWPOLYLINE', 0) == 1 and etypes.get('LINE', 0) == 2 and len(etypes) == 2:
-        cabinet_blocks.add(block.name)
-        for e in entities:
-            if e.dxftype() == 'LWPOLYLINE':
-                pts = list(e.get_points(format='xy'))
-                cabinet_block_info[block.name] = {'points': pts}
-
-def tp(x, y, ix, iy, rot, sx=1.0, sy=1.0):
-    x *= sx; y *= sy
-    r = math.radians(rot)
-    c, s = math.cos(r), math.sin(r)
-    return x*c - y*s + ix, x*s + y*c + iy
-
-all_lines = []
-all_polylines = []
-all_cabinets = []
-cid = [0]
-
-def proc(entity, px=0, py=0, pr=0, psx=1, psy=1, depth=0):
-    if entity.dxftype() == 'LINE':
-        sx2, sy2 = tp(entity.dxf.start.x, entity.dxf.start.y, px, py, pr, psx, psy)
-        ex2, ey2 = tp(entity.dxf.end.x, entity.dxf.end.y, px, py, pr, psx, psy)
-        all_lines.append({'x1':round(sx2,2),'y1':round(sy2,2),'x2':round(ex2,2),'y2':round(ey2,2),'layer':entity.dxf.layer})
-    elif entity.dxftype() == 'LWPOLYLINE':
-        pts = list(entity.get_points(format='xy'))
-        wp = [tp(p[0],p[1],px,py,pr,psx,psy) for p in pts]
-        all_polylines.append({'points':[[round(p[0],2),round(p[1],2)] for p in wp],'closed':entity.closed,'layer':entity.dxf.layer})
-    elif entity.dxftype() == 'INSERT':
-        n = entity.dxf.name
-        ix, iy = entity.dxf.insert.x, entity.dxf.insert.y
-        ir = entity.dxf.get('rotation',0.0)
-        isx = entity.dxf.get('xscale',1.0)
-        isy = entity.dxf.get('yscale',1.0)
-        wx, wy = tp(ix,iy,px,py,pr,psx,psy)
-        wr, wsx, wsy = pr+ir, psx*isx, psy*isy
-        if n in cabinet_blocks:
-            info = cabinet_block_info[n]
-            wc = [tp(p[0],p[1],wx,wy,wr,wsx,wsy) for p in info['points']]
-            cx = sum(p[0] for p in wc)/len(wc)
-            cy = sum(p[1] for p in wc)/len(wc)
-            cl = []
-            try:
-                for e in doc.blocks[n]:
-                    if e.dxftype()=='LINE':
-                        s1,s2=tp(e.dxf.start.x,e.dxf.start.y,wx,wy,wr,wsx,wsy)
-                        e1,e2=tp(e.dxf.end.x,e.dxf.end.y,wx,wy,wr,wsx,wsy)
-                        cl.append([[round(s1,2),round(s2,2)],[round(e1,2),round(e2,2)]])
-            except: pass
-            all_cabinets.append({'id':cid[0],'blockName':n,'centerX':round(cx,2),'centerY':round(cy,2),'rotation':round(wr%360,2),'corners':[[round(c[0],2),round(c[1],2)] for c in wc],'crossLines':cl,'cabinetGroupId':None})
-            cid[0]+=1
-        elif depth<6:
-            try:
-                for sub in doc.blocks[n]: proc(sub,wx,wy,wr,wsx,wsy,depth+1)
-            except: pass
-
-for e in doc.modelspace(): proc(e)
-
-ax=[]; ay=[]
-for c in all_cabinets:
-    for cr in c['corners']: ax.append(cr[0]); ay.append(cr[1])
-for l in all_lines: ax.extend([l['x1'],l['x2']]); ay.extend([l['y1'],l['y2']])
-for p in all_polylines:
-    for pt in p['points']: ax.append(pt[0]); ay.append(pt[1])
-
-bounds = {'minX':round(min(ax),2),'minY':round(min(ay),2),'maxX':round(max(ax),2),'maxY':round(max(ay),2)} if ax else {'minX':0,'minY':0,'maxX':1000,'maxY':1000}
-
-print(json.dumps({'bounds':bounds,'lines':all_lines,'polylines':all_polylines,'cabinets':all_cabinets}))
-`;
+function round2(n: number): number {
+  return Math.round(n * 100) / 100;
+}
 
 export async function parseDxfFile(fileBuffer: Buffer): Promise<DxfLayoutData> {
-  const tmpId = randomUUID();
-  const tmpDxf = join(tmpdir(), `dxf_${tmpId}.dxf`);
-  const tmpPy = join(tmpdir(), `parse_${tmpId}.py`);
+  const content = fileBuffer.toString("utf-8");
+  const parser = new DxfParser();
+  const dxf = parser.parseSync(content);
 
-  try {
-    await writeFile(tmpDxf, fileBuffer);
-    await writeFile(tmpPy, PARSE_SCRIPT);
-
-    const result = await new Promise<string>((resolve, reject) => {
-      execFile("python3", [tmpPy, tmpDxf], { maxBuffer: 50 * 1024 * 1024 }, (err, stdout, stderr) => {
-        if (err) {
-          reject(new Error(`DXF parse failed: ${stderr || err.message}`));
-        } else {
-          resolve(stdout);
-        }
-      });
-    });
-
-    const data = JSON.parse(result) as DxfLayoutData;
-    return data;
-  } finally {
-    await unlink(tmpDxf).catch(() => {});
-    await unlink(tmpPy).catch(() => {});
+  if (!dxf) {
+    throw new Error("DXF文件解析失败：无法读取文件内容");
   }
+
+  // Step 1: 识别柜列块（包含1个LWPOLYLINE + 2个LINE的块）
+  const cabinetBlocks = new Set<string>();
+  const cabinetBlockInfo: Record<string, { points: [number, number][] }> = {};
+
+  for (const [name, block] of Object.entries(dxf.blocks || {})) {
+    if (name.startsWith("*")) continue;
+    const entities = block.entities || [];
+    const etypes: Record<string, number> = {};
+    for (const e of entities) {
+      etypes[e.type] = (etypes[e.type] || 0) + 1;
+    }
+    // 柜列块特征：1个矩形多段线 + 2条对角线（叉号）
+    if (etypes["LWPOLYLINE"] === 1 && etypes["LINE"] === 2 && Object.keys(etypes).length === 2) {
+      cabinetBlocks.add(name);
+      for (const e of entities) {
+        if (e.type === "LWPOLYLINE") {
+          const vertices = (e as any).vertices || [];
+          cabinetBlockInfo[name] = {
+            points: vertices.map((v: any) => [v.x, v.y] as [number, number]),
+          };
+        }
+      }
+    }
+  }
+
+  // Step 2: 递归遍历实体，展开INSERT引用
+  const allLines: DxfLine[] = [];
+  const allPolylines: DxfPolyline[] = [];
+  const allCabinets: DxfCabinet[] = [];
+  let cabinetId = 0;
+
+  function processEntity(
+    entity: any,
+    px: number, py: number, pr: number,
+    psx: number, psy: number,
+    depth: number
+  ) {
+    if (entity.type === "LINE") {
+      const vs = entity.vertices || [];
+      if (vs.length >= 2) {
+        const [sx2, sy2] = transformPoint(vs[0].x, vs[0].y, px, py, pr, psx, psy);
+        const [ex2, ey2] = transformPoint(vs[1].x, vs[1].y, px, py, pr, psx, psy);
+        allLines.push({
+          x1: round2(sx2), y1: round2(sy2),
+          x2: round2(ex2), y2: round2(ey2),
+          layer: entity.layer || "",
+        });
+      }
+    } else if (entity.type === "LWPOLYLINE") {
+      const pts: [number, number][] = (entity.vertices || []).map((v: any) => [v.x, v.y]);
+      const wp = pts.map((p) => transformPoint(p[0], p[1], px, py, pr, psx, psy));
+      allPolylines.push({
+        points: wp.map((p) => [round2(p[0]), round2(p[1])] as [number, number]),
+        closed: entity.shape || false,
+        layer: entity.layer || "",
+      });
+    } else if (entity.type === "INSERT") {
+      const n: string = entity.name;
+      const ix = entity.position?.x || 0;
+      const iy = entity.position?.y || 0;
+      const ir = entity.rotation || 0;
+      const isx = entity.xScale ?? 1;
+      const isy = entity.yScale ?? 1;
+      const [wx, wy] = transformPoint(ix, iy, px, py, pr, psx, psy);
+      const wr = pr + ir;
+      const wsx = psx * isx;
+      const wsy = psy * isy;
+
+      if (cabinetBlocks.has(n)) {
+        const info = cabinetBlockInfo[n];
+        if (info) {
+          // 变换柜列矩形顶点到世界坐标
+          const wc = info.points.map((p) => transformPoint(p[0], p[1], wx, wy, wr, wsx, wsy));
+          const cx = wc.reduce((s, p) => s + p[0], 0) / wc.length;
+          const cy = wc.reduce((s, p) => s + p[1], 0) / wc.length;
+
+          // 获取叉号线段
+          const crossLines: [[number, number], [number, number]][] = [];
+          const block = dxf!.blocks?.[n];
+          if (block) {
+            for (const e of block.entities || []) {
+              if (e.type === "LINE") {
+                const vs = (e as any).vertices || [];
+                if (vs.length >= 2) {
+                  const [s1, s2] = transformPoint(vs[0].x, vs[0].y, wx, wy, wr, wsx, wsy);
+                  const [e1, e2] = transformPoint(vs[1].x, vs[1].y, wx, wy, wr, wsx, wsy);
+                  crossLines.push([
+                    [round2(s1), round2(s2)],
+                    [round2(e1), round2(e2)],
+                  ]);
+                }
+              }
+            }
+          }
+
+          allCabinets.push({
+            id: cabinetId++,
+            blockName: n,
+            centerX: round2(cx),
+            centerY: round2(cy),
+            rotation: round2(wr % 360),
+            corners: wc.map((c) => [round2(c[0]), round2(c[1])] as [number, number]),
+            crossLines,
+            cabinetGroupId: null,
+          });
+        }
+      } else if (depth < 6) {
+        // 递归展开非柜列块引用
+        const block = dxf!.blocks?.[n];
+        if (block) {
+          for (const sub of block.entities || []) {
+            processEntity(sub, wx, wy, wr, wsx, wsy, depth + 1);
+          }
+        }
+      }
+    }
+  }
+
+  // 遍历模型空间中的所有实体
+  for (const e of dxf.entities || []) {
+    processEntity(e, 0, 0, 0, 1, 1, 0);
+  }
+
+  // Step 3: 计算边界
+  const ax: number[] = [];
+  const ay: number[] = [];
+  for (const c of allCabinets) {
+    for (const cr of c.corners) { ax.push(cr[0]); ay.push(cr[1]); }
+  }
+  for (const l of allLines) {
+    ax.push(l.x1, l.x2); ay.push(l.y1, l.y2);
+  }
+  for (const p of allPolylines) {
+    for (const pt of p.points) { ax.push(pt[0]); ay.push(pt[1]); }
+  }
+
+  const bounds = ax.length > 0
+    ? { minX: round2(Math.min(...ax)), minY: round2(Math.min(...ay)), maxX: round2(Math.max(...ax)), maxY: round2(Math.max(...ay)) }
+    : { minX: 0, minY: 0, maxX: 1000, maxY: 1000 };
+
+  return { bounds, lines: allLines, polylines: allPolylines, cabinets: allCabinets };
 }

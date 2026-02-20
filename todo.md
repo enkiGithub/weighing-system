@@ -225,3 +225,7 @@
 - [x] 布局编辑器支持多选柜列并绑定到已有柜组
 - [x] 实时监视页面展示柜组绑定信息（名称、位置、初始重量、实时重量）
 - [x] 布局从3D改为2D SVG渲染（匹配DXF导入方式）
+
+## Bug修复：DXF解析依赖Python ezdxf
+- [x] 将DXF解析从Python ezdxf改为纯Node.js dxf-parser方案
+- [x] 消除部署环境对Python的依赖
