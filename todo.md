@@ -280,3 +280,28 @@
 
 ## Bug修复：SVG背景色差
 - [x] 消除SVG区域与外部容器之间的背景色差（统一为#020617，SVG背景rect扩大褆3倍视口范围，布局编辑器和实时监视均已修复）
+
+## 本地部署移交文档包
+- [x] 扫描仓库技术栈、目录结构、关键入口
+- [x] 验证install/build/dev/DB迁移/登录/WebSocket
+- [x] handover/README.md - 总索引与快速接管
+- [x] handover/00_Project_Summary.md - 项目概述
+- [x] handover/01_Architecture.md - 架构与数据流
+- [x] handover/02_Module_Map.md - 模块地图
+- [x] handover/03_Environment_Matrix.md - 环境矩阵
+- [x] handover/04_Installation_and_Run.md - 安装与运行
+- [x] handover/05_Deployment_Options.md - 部署方案
+- [x] handover/06_Configuration_Reference.md - 配置参考
+- [x] handover/07_API_Spec.md - API文档
+- [x] handover/08_WebSocket_Spec.md - WebSocket文档
+- [x] handover/09_Database_Schema.md - 数据库Schema
+- [x] handover/10_Hardware_Integration.md - 硬件集成指南
+- [x] handover/11_Risk_Matrix.md - 风险矩阵与待办事项
+- [x] handover/12_Operations.md - 运维手册
+- [x] handover/13_Troubleshooting.md - 故障排查
+- [x] handover/14_Code_Reading_Guide.md - 代码阅读指南
+- [x] handover/15_Testing_Guide.md - 测试指南
+- [x] handover/16_Glossary.md - 术语表
+- [x] handover/templates/env-template.txt - 环境变量模板
+- [x] handover/templates/nginx.example.conf - Nginx配置模板
+- [x] handover/templates/systemd.service.example - systemd服务模板

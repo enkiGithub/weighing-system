@@ -1,0 +1,29 @@
+# ============================================================
+# 称重系统管理平台 — 环境变量配置模板
+# 使用方式: cp handover/templates/env-template.txt .env
+# 然后编辑 .env 文件填写实际值
+# ============================================================
+
+# ---- 必填 ----
+
+# MySQL 数据库连接字符串
+# 格式: mysql://用户名:密码@主机:端口/数据库名
+DATABASE_URL=mysql://weighing:your_password@localhost:3306/weighing_system
+
+# JWT 签名密钥（至少32字符，用于session cookie加密）
+# 生成方式: openssl rand -hex 32
+JWT_SECRET=
+
+# ---- 可选 ----
+
+# Web 服务监听端口（默认 3000）
+# PORT=3000
+
+# 运行环境（development 或 production）
+# NODE_ENV=production
+
+# 网站标题
+# VITE_APP_TITLE=称重系统管理平台
+
+# 网站 Logo URL
+# VITE_APP_LOGO=

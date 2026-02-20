@@ -1,0 +1,49 @@
+# ============================================================
+# 称重系统管理平台 — systemd 服务配置
+# 使用方式:
+#   sudo cp handover/templates/systemd.service.example /etc/systemd/system/weighing-system.service
+#   # 编辑文件修改 WorkingDirectory 和 User
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable weighing-system
+#   sudo systemctl start weighing-system
+# ============================================================
+
+[Unit]
+Description=称重系统管理平台
+Documentation=file:///opt/weighing-system/handover/README.md
+After=network.target mysql.service
+Wants=mysql.service
+
+[Service]
+Type=simple
+User=weighing
+Group=weighing
+WorkingDirectory=/opt/weighing-system
+ExecStart=/usr/bin/node dist/index.js
+Restart=always
+RestartSec=5
+StartLimitBurst=5
+StartLimitIntervalSec=60
+
+# 环境变量（也可通过 .env 文件配置）
+Environment=NODE_ENV=production
+Environment=PORT=3000
+EnvironmentFile=/opt/weighing-system/.env
+
+# 安全加固
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/weighing-system
+
+# 资源限制
+LimitNOFILE=65536
+MemoryMax=1G
+
+# 日志
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=weighing-system
+
+[Install]
+WantedBy=multi-user.target
