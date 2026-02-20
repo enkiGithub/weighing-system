@@ -11,7 +11,8 @@ import { Badge } from "@/components/ui/badge";
 import {
   Save, Upload, Link2, Unlink,
   Search, FolderOpen, FilePlus, Loader2, Eye,
-  ZoomIn, ZoomOut, Maximize2, MousePointer2, Square, Trash2
+  ZoomIn, ZoomOut, Maximize2, MousePointer2, Square, Trash2,
+  RotateCw, ChevronUp, ChevronDown
 } from "lucide-react";
 import { usePermissions } from "@/hooks/usePermissions";
 
@@ -43,6 +44,7 @@ interface DxfLayoutData {
   lines: DxfLine[];
   polylines: DxfPolyline[];
   cabinets: DxfCabinet[];
+  rotation?: number; // 0~360 degrees
 }
 
 // ===== Color palette for cabinet groups =====
@@ -66,6 +68,7 @@ function LayoutSVG({
   viewBox,
   groupColorMap,
   cabinetGroupsMap,
+  rotation,
 }: {
   layoutData: DxfLayoutData;
   selectedCabinetIds: Set<number>;
@@ -74,6 +77,7 @@ function LayoutSVG({
   viewBox: { x: number; y: number; w: number; h: number };
   groupColorMap: Map<number, string>;
   cabinetGroupsMap: Map<number, any>;
+  rotation: number;
 }) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [isPanning, setIsPanning] = useState(false);
@@ -289,10 +293,13 @@ function LayoutSVG({
         onMouseLeave={handleMouseUp}
         style={{ cursor: tool === "pan" || isPanning ? "grab" : "crosshair" }}
       >
-        <rect x={localViewBox.x} y={localViewBox.y} width={localViewBox.w} height={localViewBox.h} fill="#0f172a" />
-        {bgElements}
-        {cabinetElements}
-        {groupLabels}
+        {/* Oversized background rect to eliminate color gap */}
+        <rect x={localViewBox.x - localViewBox.w} y={localViewBox.y - localViewBox.h} width={localViewBox.w * 3} height={localViewBox.h * 3} fill="#020617" />
+        <g transform={`rotate(${rotation} ${viewBox.x + viewBox.w / 2} ${viewBox.y + viewBox.h / 2})`}>
+          {bgElements}
+          {cabinetElements}
+          {groupLabels}
+        </g>
         {selRect && (
           <rect
             x={Math.min(selRect.x1, selRect.x2)}
@@ -686,6 +693,52 @@ export default function LayoutEditor() {
                   </Button>
                 </div>
                 <Separator className="bg-slate-700/50" />
+                {/* Rotation control */}
+                {layoutData && (
+                  <div className="flex items-center gap-2">
+                    <RotateCw className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                    <span className="text-[10px] text-slate-400 shrink-0">旋转</span>
+                    <div className="flex items-center flex-1">
+                      <Input
+                        type="number"
+                        min={0}
+                        max={360}
+                        step={1}
+                        value={layoutData.rotation || 0}
+                        onChange={e => {
+                          let val = parseInt(e.target.value) || 0;
+                          val = ((val % 360) + 360) % 360;
+                          setLayoutData(prev => prev ? { ...prev, rotation: val } : prev);
+                        }}
+                        className="h-7 text-xs bg-slate-800 border-slate-600 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      />
+                      <div className="flex flex-col ml-1">
+                        <button
+                          className="h-3.5 w-5 flex items-center justify-center rounded-t border border-slate-600 bg-slate-800 hover:bg-slate-700 text-slate-300"
+                          onClick={() => setLayoutData(prev => {
+                            if (!prev) return prev;
+                            const cur = prev.rotation || 0;
+                            return { ...prev, rotation: (cur + 1) % 360 };
+                          })}
+                        >
+                          <ChevronUp className="h-2.5 w-2.5" />
+                        </button>
+                        <button
+                          className="h-3.5 w-5 flex items-center justify-center rounded-b border border-t-0 border-slate-600 bg-slate-800 hover:bg-slate-700 text-slate-300"
+                          onClick={() => setLayoutData(prev => {
+                            if (!prev) return prev;
+                            const cur = prev.rotation || 0;
+                            return { ...prev, rotation: ((cur - 1) % 360 + 360) % 360 };
+                          })}
+                        >
+                          <ChevronDown className="h-2.5 w-2.5" />
+                        </button>
+                      </div>
+                    </div>
+                    <span className="text-[10px] text-slate-500">°</span>
+                  </div>
+                )}
+                <Separator className="bg-slate-700/50" />
                 <input ref={fileInputRef} type="file" accept=".dxf" className="hidden" onChange={handleFileChange} />
                 <Button
                   size="sm" variant="outline"
@@ -823,7 +876,7 @@ export default function LayoutEditor() {
 
       {/* Center - SVG Canvas */}
       <div className="flex-1 flex flex-col gap-3 min-w-0">
-        <div className="flex-1 rounded-xl overflow-hidden border border-slate-700/50 bg-slate-950">
+        <div className="flex-1 rounded-xl overflow-hidden border border-slate-700/50 bg-[#020617]">
           {layoutData ? (
             <LayoutSVG
               layoutData={layoutData}
@@ -833,6 +886,7 @@ export default function LayoutEditor() {
               viewBox={viewBox}
               groupColorMap={groupColorMap}
               cabinetGroupsMap={cabinetGroupsMap}
+              rotation={layoutData.rotation || 0}
             />
           ) : (
             <div className="w-full h-full flex flex-col items-center justify-center text-center">

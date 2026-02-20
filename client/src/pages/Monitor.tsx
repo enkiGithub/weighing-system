@@ -33,6 +33,7 @@ interface DxfLayoutData {
   lines: DxfLine[];
   polylines: DxfPolyline[];
   cabinets: DxfCabinet[];
+  rotation?: number;
 }
 
 // ===== Color palette =====
@@ -47,17 +48,25 @@ function getGroupColor(groupId: number): string {
   return GROUP_COLORS[groupId % GROUP_COLORS.length];
 }
 
-// Status color helpers
-function getStatusColor(status: string): string {
+// Status color helpers - return null for normal to use group color
+function getStatusColor(status: string): string | null {
   if (status === "alarm") return "#ef4444";
   if (status === "warning") return "#f59e0b";
-  return "#06b6d4";
+  return null; // normal: use group color
 }
 
-function getStatusFill(status: string): string {
+function getStatusFill(status: string): string | null {
   if (status === "alarm") return "#7f1d1d";
   if (status === "warning") return "#78350f";
-  return "#164e63";
+  return null; // normal: use group color with opacity
+}
+
+// Darken a hex color for fill background
+function darkenColor(hex: string, factor: number = 0.3): string {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `#${Math.round(r * factor).toString(16).padStart(2, '0')}${Math.round(g * factor).toString(16).padStart(2, '0')}${Math.round(b * factor).toString(16).padStart(2, '0')}`;
 }
 
 // ===== Monitor SVG Renderer =====
@@ -182,7 +191,8 @@ function MonitorSVG({
       const cx = cabs.reduce((s, c) => s + c.centerX, 0) / cabs.length;
       const cy = cabs.reduce((s, c) => s + c.centerY, 0) / cabs.length;
       const status = group.status || "normal";
-      const color = status === "alarm" ? "#ef4444" : status === "warning" ? "#f59e0b" : "#06b6d4";
+      const groupColor = groupColorMap.get(groupId) || getGroupColor(groupId);
+      const color = status === "alarm" ? "#ef4444" : status === "warning" ? "#f59e0b" : groupColor;
       const fontSize = Math.max(viewBox.w, viewBox.h) * 0.012;
       const bgPadX = fontSize * 0.4;
       const bgPadY = fontSize * 0.25;
@@ -210,7 +220,7 @@ function MonitorSVG({
       );
     });
     return labels;
-  }, [layoutData.cabinets, cabinetGroupsMap, viewBox]);
+  }, [layoutData.cabinets, cabinetGroupsMap, groupColorMap, viewBox]);
 
   // Cabinet elements with status coloring
   const cabinetElements = useMemo(() => {
@@ -225,13 +235,17 @@ function MonitorSVG({
       let strokeColor: string;
 
       if (isBound && groupData) {
-        fillColor = getStatusFill(status);
+        const groupColor = groupColorMap.get(groupId!) || getGroupColor(groupId!);
+        const statusFill = getStatusFill(status);
+        const statusStroke = getStatusColor(status);
+        // Use status color for alarm/warning, group color for normal
+        fillColor = statusFill || darkenColor(groupColor, 0.35);
         fillOpacity = 0.7;
-        strokeColor = getStatusColor(status);
+        strokeColor = statusStroke || groupColor;
       } else if (isBound) {
         const color = groupColorMap.get(groupId!) || getGroupColor(groupId!);
-        fillColor = color;
-        fillOpacity = 0.3;
+        fillColor = darkenColor(color, 0.35);
+        fillOpacity = 0.7;
         strokeColor = color;
       } else {
         fillColor = "#334155";
@@ -313,10 +327,13 @@ function MonitorSVG({
         onMouseLeave={handleMouseUp}
         style={{ cursor: isPanning ? "grabbing" : "grab" }}
       >
-        <rect x={viewBox.x} y={viewBox.y} width={viewBox.w} height={viewBox.h} fill="#0f172a" />
-        {bgElements}
-        {cabinetElements}
-        {groupLabels}
+        {/* Use oversized rect to eliminate color gap between SVG and container */}
+        <rect x={viewBox.x - viewBox.w} y={viewBox.y - viewBox.h} width={viewBox.w * 3} height={viewBox.h * 3} fill="#020617" />
+        <g transform={`rotate(${layoutData.rotation || 0} ${viewBox.x + viewBox.w / 2} ${viewBox.y + viewBox.h / 2})`}>
+          {bgElements}
+          {cabinetElements}
+          {groupLabels}
+        </g>
       </svg>
     </div>
   );
@@ -464,7 +481,7 @@ export default function Monitor() {
       </div>
 
       {/* 2D SVG Scene */}
-      <div className="flex-1 rounded-xl overflow-hidden border border-slate-700/50 bg-slate-950 relative">
+      <div className="flex-1 rounded-xl overflow-hidden border border-slate-700/50 bg-[#020617] relative">
         <MonitorSVG
           layoutData={layoutData}
           cabinetGroupsMap={cabinetGroupsMap}
