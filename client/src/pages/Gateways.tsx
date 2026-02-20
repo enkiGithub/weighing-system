@@ -38,6 +38,7 @@ import { z } from "zod";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import type { Gateway } from "../../../drizzle/schema";
+import { usePermissions } from "@/hooks/usePermissions";
 
 const gatewaySchema = z.object({
   name: z.string().min(1, "名称不能为空").max(100, "名称过长"),
@@ -67,6 +68,8 @@ type ComPortForm = z.infer<typeof comPortSchema>;
 const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
 
 export default function Gateways() {
+  const { canOperate } = usePermissions();
+  const canEdit = canOperate('gateway_config');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingGateway, setEditingGateway] = useState<Gateway | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
@@ -286,17 +289,19 @@ export default function Gateways() {
           <p className="text-muted-foreground mt-2">管理所有RS485网关设备及其COM端口配置</p>
         </div>
         <div className="flex gap-2">
-          {selectedIds.size > 0 && (
+          {canEdit && selectedIds.size > 0 && (
             <Button variant="destructive" onClick={handleBatchDelete} disabled={batchDeleteMutation.isPending}>
               {batchDeleteMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               <Trash2 className="mr-2 h-4 w-4" />
               删除选中 ({selectedIds.size})
             </Button>
           )}
-          <Button onClick={handleAdd}>
-            <Plus className="mr-2 h-4 w-4" />
-            添加网关
-          </Button>
+          {canEdit && (
+            <Button onClick={handleAdd}>
+              <Plus className="mr-2 h-4 w-4" />
+              添加网关
+            </Button>
+          )}
         </div>
       </div>
 
@@ -389,12 +394,16 @@ export default function Gateways() {
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-1">
-                            <Button variant="ghost" size="sm" onClick={() => handleEdit(gateway)} title="编辑网关">
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button variant="ghost" size="sm" onClick={() => handleDelete(gateway.id)} title="删除网关">
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                            </Button>
+                            {canEdit && (
+                              <>
+                                <Button variant="ghost" size="sm" onClick={() => handleEdit(gateway)} title="编辑网关">
+                                  <Edit className="h-4 w-4" />
+                                </Button>
+                                <Button variant="ghost" size="sm" onClick={() => handleDelete(gateway.id)} title="删除网关">
+                                  <Trash2 className="h-4 w-4 text-destructive" />
+                                </Button>
+                              </>
+                            )}
                           </div>
                         </TableCell>
                       </TableRow>

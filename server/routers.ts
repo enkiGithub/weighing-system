@@ -1,7 +1,7 @@
 import { COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
-import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
+import { publicProcedure, protectedProcedure, router, createModuleViewProcedure, createModuleOperateProcedure } from "./_core/trpc";
 import { z } from "zod";
 import * as db from "./db";
 import { TRPCError } from "@trpc/server";
@@ -15,6 +15,22 @@ const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
   }
   return next({ ctx });
 });
+
+// 各模块的查看/操作权限中间件
+const gatewayView = createModuleViewProcedure('gateway_config');
+const gatewayOperate = createModuleOperateProcedure('gateway_config');
+const instrumentView = createModuleViewProcedure('instrument_config');
+const instrumentOperate = createModuleOperateProcedure('instrument_config');
+const cabinetView = createModuleViewProcedure('cabinet_group');
+const cabinetOperate = createModuleOperateProcedure('cabinet_group');
+const recordsView = createModuleViewProcedure('data_records');
+const alarmView = createModuleViewProcedure('alarm_management');
+const alarmOperate = createModuleOperateProcedure('alarm_management');
+const analyticsView = createModuleViewProcedure('data_analysis');
+const auditView = createModuleViewProcedure('audit_logs');
+const dashboardView = createModuleViewProcedure('dashboard');
+const layoutView = createModuleViewProcedure('layout_editor');
+const layoutOperate = createModuleOperateProcedure('layout_editor');
 
 /** 记录审计日志的辅助函数 */
 async function audit(userId: number, userName: string | null, action: string, targetType: string, targetId: number | null, summary: string, details?: unknown) {
@@ -208,17 +224,17 @@ export const appRouter = router({
 
   // 网关管理
   gateways: router({
-    list: protectedProcedure.query(async () => {
+    list: gatewayView.query(async () => {
       return await db.getAllGateways();
     }),
     
-    getById: protectedProcedure
+    getById: gatewayView
       .input(z.object({ id: z.number() }))
       .query(async ({ input }) => {
         return await db.getGatewayById(input.id);
       }),
     
-    create: adminProcedure
+    create: gatewayOperate
       .input(z.object({
         name: z.string().min(1).max(100),
         ipAddress: z.string().min(1).max(45),
@@ -232,7 +248,7 @@ export const appRouter = router({
         return { id, ...input };
       }),
     
-    update: adminProcedure
+    update: gatewayOperate
       .input(z.object({
         id: z.number(),
         name: z.string().min(1).max(100).optional(),
@@ -248,7 +264,7 @@ export const appRouter = router({
         return { success: true };
       }),
     
-    delete: adminProcedure
+    delete: gatewayOperate
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input, ctx }) => {
         await db.deleteGateway(input.id);
@@ -256,7 +272,7 @@ export const appRouter = router({
         return { success: true };
       }),
 
-    batchDelete: adminProcedure
+    batchDelete: gatewayOperate
       .input(z.object({ ids: z.array(z.number()).min(1) }))
       .mutation(async ({ input, ctx }) => {
         for (const id of input.ids) {
@@ -266,7 +282,7 @@ export const appRouter = router({
         return { success: true, count: input.ids.length };
       }),
     
-    updateStatus: protectedProcedure
+    updateStatus: gatewayOperate
       .input(z.object({
         id: z.number(),
         status: z.enum(['online', 'offline']),
@@ -279,17 +295,17 @@ export const appRouter = router({
 
   // 网关COM端口管理
   gatewayComPorts: router({
-    listAll: protectedProcedure.query(async () => {
+    listAll: gatewayView.query(async () => {
       return await db.getAllComPorts();
     }),
 
-    listByGateway: protectedProcedure
+    listByGateway: gatewayView
       .input(z.object({ gatewayId: z.number() }))
       .query(async ({ input }) => {
         return await db.getComPortsByGateway(input.gatewayId);
       }),
     
-    create: adminProcedure
+    create: gatewayOperate
       .input(z.object({
         gatewayId: z.number(),
         portNumber: z.string().min(1).max(10),
@@ -308,7 +324,7 @@ export const appRouter = router({
         return { id, ...input };
       }),
     
-    update: adminProcedure
+    update: gatewayOperate
       .input(z.object({
         id: z.number(),
         portNumber: z.string().min(1).max(10).optional(),
@@ -328,7 +344,7 @@ export const appRouter = router({
         return { success: true };
       }),
     
-    delete: adminProcedure
+    delete: gatewayOperate
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input, ctx }) => {
         // 检查是否有仪表绑定到此COM端口
@@ -347,23 +363,23 @@ export const appRouter = router({
 
   // 称重仪表管理
   instruments: router({
-    list: protectedProcedure.query(async () => {
+    list: instrumentView.query(async () => {
       return await db.getAllInstruments();
     }),
     
-    getById: protectedProcedure
+    getById: instrumentView
       .input(z.object({ id: z.number() }))
       .query(async ({ input }) => {
         return await db.getInstrumentById(input.id);
       }),
     
-    getByComPort: protectedProcedure
+    getByComPort: instrumentView
       .input(z.object({ comPortId: z.number() }))
       .query(async ({ input }) => {
         return await db.getInstrumentsByComPortId(input.comPortId);
       }),
     
-    create: adminProcedure
+    create: instrumentOperate
       .input(z.object({
         deviceCode: z.string().min(1).max(50),
         modelType: z.enum(["DY7001", "DY7004"]),
@@ -393,7 +409,7 @@ export const appRouter = router({
         return { id, channelIds, ...input };
       }),
     
-    update: adminProcedure
+    update: instrumentOperate
       .input(z.object({
         id: z.number(),
         deviceCode: z.string().min(1).max(50).optional(),
@@ -433,7 +449,7 @@ export const appRouter = router({
         return { success: true };
       }),
     
-    delete: adminProcedure
+    delete: instrumentOperate
       .input(z.object({ id: z.number(), force: z.boolean().optional() }))
       .mutation(async ({ input, ctx }) => {
         // 检查通道是否有柜组绑定
@@ -462,7 +478,7 @@ export const appRouter = router({
         return { success: true };
       }),
 
-    batchDelete: adminProcedure
+    batchDelete: instrumentOperate
       .input(z.object({ ids: z.array(z.number()).min(1), force: z.boolean().optional() }))
       .mutation(async ({ input, ctx }) => {
         // 先检查所有仪表的绑定情况
@@ -492,7 +508,7 @@ export const appRouter = router({
         return { success: true, count: input.ids.length };
       }),
     
-    updateStatus: protectedProcedure
+    updateStatus: instrumentOperate
       .input(z.object({
         id: z.number(),
         status: z.enum(['online', 'offline']),
@@ -503,7 +519,7 @@ export const appRouter = router({
       }),
 
     /** 影响分析：删除前检查关联柜组 */
-    impactAnalysis: protectedProcedure
+    impactAnalysis: instrumentView
       .input(z.object({ id: z.number() }))
       .query(async ({ input }) => {
         const channels = await db.getChannelsByInstrument(input.id);
@@ -520,23 +536,23 @@ export const appRouter = router({
 
   // 仪表通道管理
   channels: router({
-    listByInstrument: protectedProcedure
+    listByInstrument: instrumentView
       .input(z.object({ instrumentId: z.number() }))
       .query(async ({ input }) => {
         return await db.getChannelsByInstrument(input.instrumentId);
       }),
     
-    listAll: protectedProcedure.query(async () => {
+    listAll: instrumentView.query(async () => {
       return await db.getAllChannels();
     }),
 
-    getById: protectedProcedure
+    getById: instrumentView
       .input(z.object({ id: z.number() }))
       .query(async ({ input }) => {
         return await db.getChannelById(input.id);
       }),
     
-    update: adminProcedure
+    update: instrumentOperate
       .input(z.object({
         id: z.number(),
         label: z.string().min(1).max(50).optional(),
@@ -555,7 +571,7 @@ export const appRouter = router({
       }),
 
     /** 通信测试：模拟读取仪表通道值 */
-    testRead: adminProcedure
+    testRead: instrumentOperate
       .input(z.object({ channelId: z.number() }))
       .mutation(async ({ input }) => {
         const channel = await db.getChannelById(input.channelId);
@@ -581,17 +597,17 @@ export const appRouter = router({
 
   // 保险柜组管理
   cabinetGroups: router({
-    list: protectedProcedure.query(async () => {
+    list: cabinetView.query(async () => {
       return await db.getAllCabinetGroups();
     }),
     
-    getById: protectedProcedure
+    getById: cabinetView
       .input(z.object({ id: z.number() }))
       .query(async ({ input }) => {
         return await db.getCabinetGroupById(input.id);
       }),
     
-    create: adminProcedure
+    create: cabinetOperate
       .input(z.object({
         area: z.string().max(100).optional(),
         name: z.string().min(1).max(100),
@@ -609,7 +625,7 @@ export const appRouter = router({
         return { id, ...input };
       }),
     
-    update: adminProcedure
+    update: cabinetOperate
       .input(z.object({
         id: z.number(),
         area: z.string().max(100).optional(),
@@ -625,7 +641,7 @@ export const appRouter = router({
         return { success: true };
       }),
     
-    delete: adminProcedure
+    delete: cabinetOperate
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input, ctx }) => {
         // 删除关联的通道绑定
@@ -635,7 +651,7 @@ export const appRouter = router({
         return { success: true };
       }),
 
-    batchDelete: adminProcedure
+    batchDelete: cabinetOperate
       .input(z.object({ ids: z.array(z.number()).min(1) }))
       .mutation(async ({ input, ctx }) => {
         for (const id of input.ids) {
@@ -647,20 +663,20 @@ export const appRouter = router({
       }),
 
     // 获取柜组关联的仪表和通道树形结构
-    getBoundInstruments: protectedProcedure
+    getBoundInstruments: cabinetView
       .input(z.object({ groupId: z.number() }))
       .query(async ({ input }) => {
         return await db.getGroupBoundInstruments(input.groupId);
       }),
 
     // 通道绑定管理
-    getBindings: protectedProcedure
+    getBindings: cabinetView
       .input(z.object({ groupId: z.number() }))
       .query(async ({ input }) => {
         return await db.getBindingsByGroup(input.groupId);
       }),
 
-    addBinding: adminProcedure
+    addBinding: cabinetOperate
       .input(z.object({
         groupId: z.number(),
         channelId: z.number(),
@@ -693,7 +709,7 @@ export const appRouter = router({
         return { id, ...input };
       }),
 
-    batchAddBinding: adminProcedure
+    batchAddBinding: cabinetOperate
       .input(z.object({
         groupId: z.number(),
         channels: z.array(z.object({
@@ -739,7 +755,7 @@ export const appRouter = router({
         return { results, successCount, failCount: results.length - successCount };
       }),
 
-    updateBinding: adminProcedure
+    updateBinding: cabinetOperate
       .input(z.object({
         id: z.number(),
         coefficient: z.number().optional(),
@@ -754,7 +770,7 @@ export const appRouter = router({
         return { success: true };
       }),
 
-    removeBinding: adminProcedure
+    removeBinding: cabinetOperate
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input, ctx }) => {
         await db.deleteBinding(input.id);
@@ -762,7 +778,7 @@ export const appRouter = router({
         return { success: true };
       }),
     
-    updateWeight: protectedProcedure
+    updateWeight: cabinetOperate
       .input(z.object({
         id: z.number(),
         currentWeight: z.number().min(0),
@@ -802,7 +818,7 @@ export const appRouter = router({
 
   // 重量变化记录
   weightRecords: router({
-    list: protectedProcedure
+    list: recordsView
       .input(z.object({
         cabinetGroupId: z.number().optional(),
         limit: z.number().int().min(1).max(1000).default(100),
@@ -814,7 +830,7 @@ export const appRouter = router({
         return await db.getAllWeightChangeRecords(input.limit);
       }),
     
-    getByDateRange: protectedProcedure
+    getByDateRange: recordsView
       .input(z.object({
         startDate: z.date(),
         endDate: z.date(),
@@ -826,7 +842,7 @@ export const appRouter = router({
 
   // 报警记录
   alarms: router({
-    list: protectedProcedure
+    list: alarmView
       .input(z.object({
         cabinetGroupId: z.number().optional(),
         limit: z.number().int().min(1).max(1000).default(100),
@@ -838,11 +854,11 @@ export const appRouter = router({
         return await db.getAllAlarmRecords(input.limit);
       }),
     
-    getUnhandled: protectedProcedure.query(async () => {
+    getUnhandled: alarmView.query(async () => {
       return await db.getUnhandledAlarmRecords();
     }),
     
-    handle: protectedProcedure
+    handle: alarmOperate
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input, ctx }) => {
         await db.handleAlarmRecord(input.id, ctx.user.id);
@@ -852,7 +868,7 @@ export const appRouter = router({
 
   // 审计日志
   auditLogs: router({
-    list: protectedProcedure
+    list: auditView
       .input(z.object({
         limit: z.number().int().min(1).max(500).default(200),
       }))
@@ -860,7 +876,7 @@ export const appRouter = router({
         return await db.getAuditLogs(input.limit);
       }),
     
-    getByTarget: protectedProcedure
+    getByTarget: auditView
       .input(z.object({
         targetType: z.string(),
         targetId: z.number(),

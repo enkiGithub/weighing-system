@@ -42,6 +42,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
 import type { CabinetGroup } from "../../../drizzle/schema";
+import { usePermissions } from "@/hooks/usePermissions";
 
 // 柜组基本信息schema
 const cabinetSchema = z.object({
@@ -308,6 +309,8 @@ function ChannelTreeSelector({
 }
 
 export default function Cabinets() {
+  const { canOperate } = usePermissions();
+  const canEdit = canOperate('cabinet_group');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isBindingDialogOpen, setIsBindingDialogOpen] = useState(false);
   const [editingCabinet, setEditingCabinet] = useState<CabinetGroup | null>(null);
@@ -602,17 +605,19 @@ export default function Cabinets() {
           <p className="text-muted-foreground mt-2">管理保险柜组配置，点击箭头展开查看绑定的仪表和通道</p>
         </div>
         <div className="flex gap-2">
-          {selectedIds.size > 0 && (
+          {canEdit && selectedIds.size > 0 && (
             <Button variant="destructive" onClick={handleBatchDelete} disabled={batchDeleteMutation.isPending}>
               {batchDeleteMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               <Trash2 className="mr-2 h-4 w-4" />
               删除选中 ({selectedIds.size})
             </Button>
           )}
-          <Button onClick={handleAdd}>
-            <Plus className="mr-2 h-4 w-4" />
-            添加保险柜组
-          </Button>
+          {canEdit && (
+            <Button onClick={handleAdd}>
+              <Plus className="mr-2 h-4 w-4" />
+              添加保险柜组
+            </Button>
+          )}
         </div>
       </div>
 
@@ -719,22 +724,26 @@ export default function Cabinets() {
                             </TableCell>
                             <TableCell className="text-right">
                               <div className="flex justify-end gap-1">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleEdit(cabinet)}
-                                  title="编辑"
-                                >
-                                  <Edit className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleDelete(cabinet.id)}
-                                  title="删除"
-                                >
-                                  <Trash2 className="h-4 w-4 text-destructive" />
-                                </Button>
+                                {canEdit && (
+                                  <>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => handleEdit(cabinet)}
+                                      title="编辑"
+                                    >
+                                      <Edit className="h-4 w-4" />
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => handleDelete(cabinet.id)}
+                                      title="删除"
+                                    >
+                                      <Trash2 className="h-4 w-4 text-destructive" />
+                                    </Button>
+                                  </>
+                                )}
                               </div>
                             </TableCell>
                           </TableRow>

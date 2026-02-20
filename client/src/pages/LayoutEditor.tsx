@@ -22,6 +22,7 @@ import { CabinetGroup3D, DEFAULT_MODEL } from "@/components/three/CabinetGroup3D
 import type { CabinetGroupModelParams } from "@/components/three/CabinetGroup3D";
 import { SceneSetup } from "@/components/three/SceneSetup";
 import { nanoid } from "nanoid";
+import { usePermissions } from "@/hooks/usePermissions";
 
 // Types
 interface LayoutInstance {
@@ -204,6 +205,8 @@ function SceneControls({ transformActive }: { transformActive: boolean }) {
 }
 
 export default function LayoutEditor() {
+  const { canOperate } = usePermissions();
+  const canEdit = canOperate('layout_editor');
   const [layoutData, setLayoutData] = useState<LayoutData>(defaultLayoutData);
   const [selectedInstanceId, setSelectedInstanceId] = useState<string | null>(null);
   const [transformMode, setTransformMode] = useState<"translate" | "rotate" | "scale">("translate");
@@ -497,14 +500,16 @@ export default function LayoutEditor() {
                 </DialogContent>
               </Dialog>
             </div>
-            <div className="flex gap-1.5">
-              <Button size="sm" className="flex-1 h-7 text-xs bg-cyan-600 hover:bg-cyan-700" onClick={handleSave} disabled={isSaving}>
-                {isSaving ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Save className="h-3 w-3 mr-1" />}保存
-              </Button>
-              <Button size="sm" variant="outline" className="flex-1 h-7 text-xs" onClick={handleActivate} disabled={!currentLayoutId}>
-                <Eye className="h-3 w-3 mr-1" />激活
-              </Button>
-            </div>
+            {canEdit && (
+              <div className="flex gap-1.5">
+                <Button size="sm" className="flex-1 h-7 text-xs bg-cyan-600 hover:bg-cyan-700" onClick={handleSave} disabled={isSaving}>
+                  {isSaving ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Save className="h-3 w-3 mr-1" />}保存
+                </Button>
+                <Button size="sm" variant="outline" className="flex-1 h-7 text-xs" onClick={handleActivate} disabled={!currentLayoutId}>
+                  <Eye className="h-3 w-3 mr-1" />激活
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -533,9 +538,11 @@ export default function LayoutEditor() {
                   <div className="text-[10px] text-slate-500 text-center">
                     预览: {customColumns}列 × {customShelves}层
                   </div>
-                  <Button size="sm" className="w-full h-8 text-xs bg-cyan-600 hover:bg-cyan-700" onClick={() => addInstance({ columns: customColumns, shelves: customShelves })}>
-                    <Plus className="h-3.5 w-3.5 mr-1" />添加到场景
-                  </Button>
+                  {canEdit && (
+                    <Button size="sm" className="w-full h-8 text-xs bg-cyan-600 hover:bg-cyan-700" onClick={() => addInstance({ columns: customColumns, shelves: customShelves })}>
+                      <Plus className="h-3.5 w-3.5 mr-1" />添加到场景
+                    </Button>
+                  )}
                 </div>
 
                 <Separator className="bg-slate-700/50 my-3" />
@@ -579,12 +586,16 @@ export default function LayoutEditor() {
               ))}
             </div>
             <Separator orientation="vertical" className="h-6 bg-slate-700" />
-            <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={duplicateInstance} disabled={!selectedInstance}>
-              <Copy className="h-3.5 w-3.5 mr-1" />复制
-            </Button>
-            <Button size="sm" variant="ghost" className="h-7 px-2 text-xs text-red-400 hover:text-red-300" onClick={deleteInstance} disabled={!selectedInstance}>
-              <Trash2 className="h-3.5 w-3.5 mr-1" />删除
-            </Button>
+            {canEdit && (
+              <>
+                <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={duplicateInstance} disabled={!selectedInstance}>
+                  <Copy className="h-3.5 w-3.5 mr-1" />复制
+                </Button>
+                <Button size="sm" variant="ghost" className="h-7 px-2 text-xs text-red-400 hover:text-red-300" onClick={deleteInstance} disabled={!selectedInstance}>
+                  <Trash2 className="h-3.5 w-3.5 mr-1" />删除
+                </Button>
+              </>
+            )}
             <div className="flex-1" />
             <div className="text-xs text-slate-400">
               实例: {layoutData.instances.length} | 已绑定: {layoutData.instances.filter(i => i.cabinetGroupId).length}

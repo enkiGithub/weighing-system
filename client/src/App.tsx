@@ -5,6 +5,7 @@ import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import DashboardLayout from "./components/DashboardLayout";
+import { PermissionGuard } from "./components/PermissionGuard";
 import Monitor from "./pages/Monitor";
 import Gateways from "./pages/Gateways";
 import Devices from "./pages/Devices";
@@ -21,16 +22,56 @@ function DashboardRouter() {
   return (
     <DashboardLayout>
       <Switch>
-        <Route path={"/"} component={Monitor} />
-        <Route path={"/gateways"} component={Gateways} />
-        <Route path={"/devices"} component={Devices} />
-        <Route path={"/cabinets"} component={Cabinets} />
-        <Route path={"/records"} component={Records} />
-        <Route path={"/alarms"} component={Alarms} />
-        <Route path={"/analytics"} component={Analytics} />
-        <Route path={"/users"} component={Users} />
-        <Route path={"/audit-logs"} component={AuditLogs} />
-        <Route path={"/layout-editor"} component={LayoutEditor} />
+        <Route path={"/"}>
+          <PermissionGuard moduleId="dashboard">
+            <Monitor />
+          </PermissionGuard>
+        </Route>
+        <Route path={"/gateways"}>
+          <PermissionGuard moduleId="gateway_config">
+            <Gateways />
+          </PermissionGuard>
+        </Route>
+        <Route path={"/devices"}>
+          <PermissionGuard moduleId="instrument_config">
+            <Devices />
+          </PermissionGuard>
+        </Route>
+        <Route path={"/cabinets"}>
+          <PermissionGuard moduleId="cabinet_group">
+            <Cabinets />
+          </PermissionGuard>
+        </Route>
+        <Route path={"/records"}>
+          <PermissionGuard moduleId="data_records">
+            <Records />
+          </PermissionGuard>
+        </Route>
+        <Route path={"/alarms"}>
+          <PermissionGuard moduleId="alarm_management">
+            <Alarms />
+          </PermissionGuard>
+        </Route>
+        <Route path={"/analytics"}>
+          <PermissionGuard moduleId="data_analysis">
+            <Analytics />
+          </PermissionGuard>
+        </Route>
+        <Route path={"/users"}>
+          <PermissionGuard moduleId="user_management">
+            <Users />
+          </PermissionGuard>
+        </Route>
+        <Route path={"/audit-logs"}>
+          <PermissionGuard moduleId="audit_logs">
+            <AuditLogs />
+          </PermissionGuard>
+        </Route>
+        <Route path={"/layout-editor"}>
+          <PermissionGuard moduleId="layout_editor">
+            <LayoutEditor />
+          </PermissionGuard>
+        </Route>
         <Route path={"/404"} component={NotFound} />
         <Route component={NotFound} />
       </Switch>

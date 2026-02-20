@@ -1,4 +1,7 @@
-import { protectedProcedure, adminProcedure, router } from "../_core/trpc";
+import { protectedProcedure, adminProcedure, router, createModuleViewProcedure, createModuleOperateProcedure } from "../_core/trpc";
+
+const layoutView = createModuleViewProcedure('layout_editor');
+const layoutOperate = createModuleOperateProcedure('layout_editor');
 import { z } from "zod";
 import * as db from "../db";
 import { TRPCError } from "@trpc/server";
@@ -42,23 +45,23 @@ const layoutDataSchema = z.object({
 export const layoutEditorRouter = router({
   // 保管库布局管理
   vaultLayouts: router({
-    list: protectedProcedure.query(async () => {
+    list: layoutView.query(async () => {
       return await db.getAllVaultLayouts();
     }),
 
-    getById: protectedProcedure
+    getById: layoutView
       .input(z.object({ id: z.number() }))
       .query(async ({ input }) => {
         const layout = await db.getVaultLayoutById(input.id);
         return layout || null;
       }),
 
-    getActive: protectedProcedure.query(async () => {
+    getActive: layoutView.query(async () => {
       const layout = await db.getActiveVaultLayout();
       return layout || null;
     }),
 
-    create: adminProcedure
+    create: layoutOperate
       .input(z.object({
         name: z.string().min(1).max(100),
         description: z.string().optional(),
@@ -79,7 +82,7 @@ export const layoutEditorRouter = router({
         return { id, ...input };
       }),
 
-    update: adminProcedure
+    update: layoutOperate
       .input(z.object({
         id: z.number(),
         name: z.string().min(1).max(100).optional(),
@@ -128,14 +131,14 @@ export const layoutEditorRouter = router({
         return { success: true };
       }),
 
-    delete: adminProcedure
+    delete: layoutOperate
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input }) => {
         await db.deleteVaultLayout(input.id);
         return { success: true };
       }),
 
-    setActive: adminProcedure
+    setActive: layoutOperate
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input }) => {
         await db.setActiveVaultLayout(input.id);

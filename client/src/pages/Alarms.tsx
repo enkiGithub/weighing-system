@@ -23,8 +23,11 @@ import { Loader2, AlertTriangle, CheckCircle2, Clock } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { usePermissions } from "@/hooks/usePermissions";
 
 export default function Alarms() {
+  const { canOperate } = usePermissions();
+  const canEdit = canOperate('alarm_management');
   const [selectedCabinetId, setSelectedCabinetId] = useState<number | undefined>(undefined);
   const utils = trpc.useUtils();
 
@@ -138,7 +141,7 @@ export default function Alarms() {
                   </TableCell>
                   {showActions && (
                     <TableCell className="text-right">
-                      {!isHandled && (
+                      {!isHandled && canEdit && (
                         <Button
                           size="sm"
                           variant="outline"

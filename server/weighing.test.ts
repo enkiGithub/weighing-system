@@ -455,7 +455,7 @@ describe("Channel Management", () => {
 
 describe("Weight Records", () => {
   it("should list weight records", async () => {
-    const ctx = createUserContext();
+    const ctx = createAdminContext();
     const caller = appRouter.createCaller(ctx);
     const result = await caller.weightRecords.list({ limit: 100 });
     expect(Array.isArray(result)).toBe(true);
@@ -464,14 +464,14 @@ describe("Weight Records", () => {
 
 describe("Alarm Management", () => {
   it("should list alarms", async () => {
-    const ctx = createUserContext();
+    const ctx = createAdminContext();
     const caller = appRouter.createCaller(ctx);
     const result = await caller.alarms.list({ limit: 100 });
     expect(Array.isArray(result)).toBe(true);
   });
 
   it("should get unhandled alarms", async () => {
-    const ctx = createUserContext();
+    const ctx = createAdminContext();
     const caller = appRouter.createCaller(ctx);
     const result = await caller.alarms.getUnhandled();
     expect(Array.isArray(result)).toBe(true);

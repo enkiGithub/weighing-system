@@ -41,6 +41,7 @@ import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
+import { usePermissions } from "@/hooks/usePermissions";
 
 // 仪表表单schema
 const instrumentSchema = z.object({
@@ -346,6 +347,8 @@ function ChannelSubRows({ instrumentId }: { instrumentId: number }) {
 }
 
 export default function Devices() {
+  const { canOperate } = usePermissions();
+  const canEdit = canOperate('instrument_config');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingInstrument, setEditingInstrument] = useState<any>(null);
   const [selectedComPortId, setSelectedComPortId] = useState<number | null>(null);
@@ -561,17 +564,19 @@ export default function Devices() {
           </p>
         </div>
         <div className="flex gap-2">
-          {selectedIds.size > 0 && (
+          {canEdit && selectedIds.size > 0 && (
             <Button variant="destructive" onClick={handleBatchDelete} disabled={batchDeleteMutation.isPending}>
               {batchDeleteMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               <Trash2 className="mr-2 h-4 w-4" />
               删除选中 ({selectedIds.size})
             </Button>
           )}
-          <Button onClick={handleAdd}>
-            <Plus className="mr-2 h-4 w-4" />
-            添加仪表
-          </Button>
+          {canEdit && (
+            <Button onClick={handleAdd}>
+              <Plus className="mr-2 h-4 w-4" />
+              添加仪表
+            </Button>
+          )}
         </div>
       </div>
 
@@ -663,17 +668,21 @@ export default function Devices() {
                             </TableCell>
                             <TableCell className="text-sm text-muted-foreground max-w-xs truncate">{instrument.remark || "-"}</TableCell>
                             <TableCell className="text-right space-x-1">
-                              <Button variant="ghost" size="sm" onClick={() => handleEdit(instrument)}>
-                                <Edit className="h-4 w-4" />
-                              </Button>
-                              <Button variant="ghost" size="sm" onClick={() => {
-                                if (confirm("确定要删除此仪表吗？相关通道将一并删除。")) {
-                                  setPendingDeleteId(instrument.id);
-                                  deleteMutation.mutate({ id: instrument.id });
-                                }
-                              }}>
-                                <Trash2 className="h-4 w-4 text-destructive" />
-                              </Button>
+                              {canEdit && (
+                                <>
+                                  <Button variant="ghost" size="sm" onClick={() => handleEdit(instrument)}>
+                                    <Edit className="h-4 w-4" />
+                                  </Button>
+                                  <Button variant="ghost" size="sm" onClick={() => {
+                                    if (confirm("确定要删除此仪表吗？相关通道将一并删除。")) {
+                                      setPendingDeleteId(instrument.id);
+                                      deleteMutation.mutate({ id: instrument.id });
+                                    }
+                                  }}>
+                                    <Trash2 className="h-4 w-4 text-destructive" />
+                                  </Button>
+                                </>
+                              )}
                             </TableCell>
                           </TableRow>
                           {isExpanded && <ChannelSubRows instrumentId={instrument.id} />}

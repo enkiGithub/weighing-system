@@ -260,6 +260,21 @@ export default function Users() {
     });
   };
 
+  // 权限对话框打开时自动初始化权限状态
+  useEffect(() => {
+    if (permDialogOpen && modules && userPermissions !== undefined && !permLoading) {
+      const state: Record<string, { canView: boolean; canOperate: boolean }> = {};
+      for (const mod of modules) {
+        const existing = userPermissions?.find((p: any) => p.module === mod.id);
+        state[mod.id] = {
+          canView: existing ? existing.canView === 1 : false,
+          canOperate: existing ? existing.canOperate === 1 : false,
+        };
+      }
+      setPermState(state);
+    }
+  }, [permDialogOpen, modules, userPermissions, permLoading]);
+
   const selectedUser = users?.find(u => u.id === selectedUserId);
   const adminUsers = users?.filter(u => u.role === "admin") || [];
   const operatorUsers = users?.filter(u => u.role === "operator") || [];
