@@ -1,14 +1,18 @@
 import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, float, json } from "drizzle-orm/mysql-core";
 
 /**
- * Core user table backing auth flow.
+ * Core user table backing local auth flow.
+ * 本地账户体系：用户名+密码登录
  */
 export const users = mysqlTable("users", {
   id: int("id").autoincrement().primaryKey(),
-  openId: varchar("openId", { length: 64 }).notNull().unique(),
+  /** 用户名（唯一，用于登录） */
+  username: varchar("username", { length: 64 }).notNull().unique(),
+  /** 密码哈希（bcrypt） */
+  passwordHash: varchar("passwordHash", { length: 255 }).notNull(),
+  /** 显示名称 */
   name: text("name"),
-  email: varchar("email", { length: 320 }),
-  loginMethod: varchar("loginMethod", { length: 64 }),
+  /** 角色：admin管理员 / operator操作员 */
   role: mysqlEnum("role", ["admin", "operator"]).default("operator").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),

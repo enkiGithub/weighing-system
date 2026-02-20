@@ -15,8 +15,9 @@ import Analytics from "./pages/Analytics";
 import Users from "./pages/Users";
 import LayoutEditor from "./pages/LayoutEditor";
 import AuditLogs from "./pages/AuditLogs";
+import Login from "./pages/Login";
 
-function Router() {
+function DashboardRouter() {
   return (
     <DashboardLayout>
       <Switch>
@@ -31,28 +32,26 @@ function Router() {
         <Route path={"/audit-logs"} component={AuditLogs} />
         <Route path={"/layout-editor"} component={LayoutEditor} />
         <Route path={"/404"} component={NotFound} />
-        {/* Final fallback route */}
         <Route component={NotFound} />
       </Switch>
     </DashboardLayout>
   );
 }
 
-// NOTE: About Theme
-// - First choose a default theme according to your design style (dark or light bg), than change color palette in index.css
-//   to keep consistent foreground/background color across components
-// - If you want to make theme switchable, pass `switchable` ThemeProvider and use `useTheme` hook
-
 function App() {
   return (
     <ErrorBoundary>
       <ThemeProvider
         defaultTheme="dark"
-        // switchable
       >
         <TooltipProvider>
           <Toaster />
-          <Router />
+          <Switch>
+            {/* 登录页面不使用DashboardLayout */}
+            <Route path="/login" component={Login} />
+            {/* 其他所有路由使用DashboardLayout */}
+            <Route component={DashboardRouter} />
+          </Switch>
         </TooltipProvider>
       </ThemeProvider>
     </ErrorBoundary>

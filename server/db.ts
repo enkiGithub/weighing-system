@@ -1,4 +1,4 @@
-import { eq, desc, and, gte, lte, inArray } from "drizzle-orm";
+import { eq, desc, and, gte, lte, inArray, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { 
   InsertUser, 
@@ -27,6 +27,7 @@ import {
   InsertUserPermission,
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
+import bcrypt from 'bcryptjs';
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -43,81 +44,106 @@ export async function getDb() {
   return _db;
 }
 
-// ==================== 用户管理 ====================
+// ==================== 用户管理（本地账户体系） ====================
 
-export async function upsertUser(user: InsertUser): Promise<void> {
-  if (!user.openId) {
-    throw new Error("User openId is required for upsert");
-  }
+const BCRYPT_SALT_ROUNDS = 10;
 
+/** 根据用户名查找用户 */
+export async function getUserByUsername(username: string) {
   const db = await getDb();
-  if (!db) {
-    console.warn("[Database] Cannot upsert user: database not available");
-    return;
-  }
+  if (!db) return undefined;
+  const result = await db.select().from(users).where(eq(users.username, username)).limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
 
-  try {
-    const values: InsertUser = {
-      openId: user.openId,
-    };
-    const updateSet: Record<string, unknown> = {};
+/** 验证用户密码 */
+export async function verifyPassword(plainPassword: string, passwordHash: string): Promise<boolean> {
+  return bcrypt.compare(plainPassword, passwordHash);
+}
 
-    const textFields = ["name", "email", "loginMethod"] as const;
-    type TextField = (typeof textFields)[number];
+/** 哈希密码 */
+export async function hashPassword(plainPassword: string): Promise<string> {
+  return bcrypt.hash(plainPassword, BCRYPT_SALT_ROUNDS);
+}
 
-    const assignNullable = (field: TextField) => {
-      const value = user[field];
-      if (value === undefined) return;
-      const normalized = value ?? null;
-      values[field] = normalized;
-      updateSet[field] = normalized;
-    };
+/** 创建用户（本地账户） */
+export async function createUser(data: { username: string; password: string; name?: string; role?: 'admin' | 'operator' }): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const passwordHash = await hashPassword(data.password);
+  const result = await db.insert(users).values({
+    username: data.username,
+    passwordHash,
+    name: data.name || data.username,
+    role: data.role || 'operator',
+  });
+  return result[0].insertId;
+}
 
-    textFields.forEach(assignNullable);
+/** 更新用户密码 */
+export async function updateUserPassword(id: number, newPassword: string): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const passwordHash = await hashPassword(newPassword);
+  await db.update(users).set({ passwordHash }).where(eq(users.id, id));
+}
 
-    if (user.lastSignedIn !== undefined) {
-      values.lastSignedIn = user.lastSignedIn;
-      updateSet.lastSignedIn = user.lastSignedIn;
-    }
-    if (user.role !== undefined) {
-      values.role = user.role;
-      updateSet.role = user.role;
-    } else if (user.openId === ENV.ownerOpenId) {
-      values.role = 'admin';
-      updateSet.role = 'admin';
-    }
-
-    if (!values.lastSignedIn) {
-      values.lastSignedIn = new Date();
-    }
-
-    if (Object.keys(updateSet).length === 0) {
-      updateSet.lastSignedIn = new Date();
-    }
-
-    await db.insert(users).values(values).onDuplicateKeyUpdate({
-      set: updateSet,
-    });
-  } catch (error) {
-    console.error("[Database] Failed to upsert user:", error);
-    throw error;
+/** 更新用户信息 */
+export async function updateUser(id: number, data: { username?: string; name?: string; role?: 'admin' | 'operator' }): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const updateSet: Record<string, unknown> = {};
+  if (data.username !== undefined) updateSet.username = data.username;
+  if (data.name !== undefined) updateSet.name = data.name;
+  if (data.role !== undefined) updateSet.role = data.role;
+  if (Object.keys(updateSet).length > 0) {
+    await db.update(users).set(updateSet).where(eq(users.id, id));
   }
 }
 
-export async function getUserByOpenId(openId: string) {
+/** 更新最后登录时间 */
+export async function updateLastSignedIn(id: number): Promise<void> {
   const db = await getDb();
-  if (!db) {
-    console.warn("[Database] Cannot get user: database not available");
-    return undefined;
+  if (!db) return;
+  await db.update(users).set({ lastSignedIn: new Date() }).where(eq(users.id, id));
+}
+
+/** 检查用户名是否已存在 */
+export async function checkUsernameConflict(username: string, excludeId?: number): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+  const conditions = [eq(users.username, username)];
+  if (excludeId) {
+    conditions.push(sql`${users.id} != ${excludeId}`);
   }
-  const result = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
-  return result.length > 0 ? result[0] : undefined;
+  const result = await db.select({ id: users.id }).from(users).where(and(...conditions)).limit(1);
+  return result.length > 0;
+}
+
+/** 初始化默认管理员账户（如果不存在） */
+export async function ensureDefaultAdmin(): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  const existing = await getUserByUsername('admin');
+  if (!existing) {
+    console.log('[Auth] Creating default admin account (username: admin, password: admin123)');
+    await createUser({ username: 'admin', password: 'admin123', name: '管理员', role: 'admin' });
+  }
 }
 
 export async function getAllUsers() {
   const db = await getDb();
   if (!db) return [];
-  return await db.select().from(users).orderBy(desc(users.createdAt));
+  // 不返回passwordHash字段
+  return await db.select({
+    id: users.id,
+    username: users.username,
+    name: users.name,
+    role: users.role,
+    createdAt: users.createdAt,
+    updatedAt: users.updatedAt,
+    lastSignedIn: users.lastSignedIn,
+  }).from(users).orderBy(desc(users.createdAt));
 }
 
 export async function getUserById(id: number) {

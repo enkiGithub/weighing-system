@@ -1,4 +1,4 @@
-import { COOKIE_NAME } from "@shared/const";
+import { COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
@@ -6,6 +6,7 @@ import { z } from "zod";
 import * as db from "./db";
 import { TRPCError } from "@trpc/server";
 import { layoutEditorRouter } from "./routers/layoutEditor";
+import { sdk } from "./_core/sdk";
 
 // Admin权限检查
 const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
@@ -36,12 +37,34 @@ export const appRouter = router({
   system: systemRouter,
   
   auth: router({
-    me: publicProcedure.query(opts => opts.ctx.user),
+    me: publicProcedure.query(opts => {
+      if (!opts.ctx.user) return null;
+      // 不返回passwordHash
+      const { passwordHash, ...safeUser } = opts.ctx.user;
+      return safeUser;
+    }),
     logout: publicProcedure.mutation(({ ctx }) => {
       const cookieOptions = getSessionCookieOptions(ctx.req);
       ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
       return { success: true } as const;
     }),
+    /** 修改当前用户密码 */
+    changePassword: protectedProcedure
+      .input(z.object({
+        currentPassword: z.string().min(1),
+        newPassword: z.string().min(6, '新密码至少6位'),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const user = await db.getUserById(ctx.user.id);
+        if (!user) throw new TRPCError({ code: 'NOT_FOUND', message: '用户不存在' });
+        const isValid = await db.verifyPassword(input.currentPassword, user.passwordHash);
+        if (!isValid) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: '当前密码错误' });
+        }
+        await db.updateUserPassword(ctx.user.id, input.newPassword);
+        await audit(ctx.user.id, ctx.user.name, 'change_password', 'user', ctx.user.id, `用户 ${ctx.user.username} 修改了密码`);
+        return { success: true };
+      }),
   }),
 
   // 用户管理
@@ -51,16 +74,81 @@ export const appRouter = router({
     }),
     
     getById: adminProcedure.input(z.object({ id: z.number() })).query(async ({ input }) => {
-      return await db.getUserById(input.id);
+      const user = await db.getUserById(input.id);
+      if (!user) return undefined;
+      const { passwordHash, ...safeUser } = user;
+      return safeUser;
     }),
+
+    /** 创建操作员账户 */
+    create: adminProcedure
+      .input(z.object({
+        username: z.string().min(2, '用户名至少2位').max(64),
+        password: z.string().min(6, '密码至少6位'),
+        name: z.string().optional(),
+        role: z.enum(['admin', 'operator']).default('operator'),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        // 检查用户名是否已存在
+        const conflict = await db.checkUsernameConflict(input.username);
+        if (conflict) {
+          throw new TRPCError({ code: 'CONFLICT', message: '用户名已存在' });
+        }
+        const id = await db.createUser({
+          username: input.username,
+          password: input.password,
+          name: input.name || input.username,
+          role: input.role,
+        });
+        await audit(ctx.user.id, ctx.user.name, 'create_user', 'user', id, `创建用户 ${input.username} (角色: ${input.role})`);
+        return { success: true, id };
+      }),
+
+    /** 更新用户信息 */
+    update: adminProcedure
+      .input(z.object({
+        id: z.number(),
+        username: z.string().min(2).max(64).optional(),
+        name: z.string().optional(),
+        role: z.enum(['admin', 'operator']).optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        // 检查用户名冲突
+        if (input.username) {
+          const conflict = await db.checkUsernameConflict(input.username, input.id);
+          if (conflict) {
+            throw new TRPCError({ code: 'CONFLICT', message: '用户名已存在' });
+          }
+        }
+        await db.updateUser(input.id, {
+          username: input.username,
+          name: input.name,
+          role: input.role,
+        });
+        await audit(ctx.user.id, ctx.user.name, 'update_user', 'user', input.id, `更新用户 #${input.id} 信息`);
+        return { success: true };
+      }),
+
+    /** 重置用户密码（管理员专用） */
+    resetPassword: adminProcedure
+      .input(z.object({
+        id: z.number(),
+        newPassword: z.string().min(6, '密码至少6位'),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        await db.updateUserPassword(input.id, input.newPassword);
+        await audit(ctx.user.id, ctx.user.name, 'reset_password', 'user', input.id, `管理员重置用户 #${input.id} 的密码`);
+        return { success: true };
+      }),
     
     updateRole: adminProcedure
       .input(z.object({ 
         id: z.number(), 
         role: z.enum(['admin', 'operator']) 
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
         await db.updateUserRole(input.id, input.role);
+        await audit(ctx.user.id, ctx.user.name, 'update_role', 'user', input.id, `更新用户 #${input.id} 角色为 ${input.role}`);
         return { success: true };
       }),
     
@@ -70,8 +158,10 @@ export const appRouter = router({
         if (input.id === ctx.user.id) {
           throw new TRPCError({ code: 'BAD_REQUEST', message: '不能删除自己的账号' });
         }
+        const targetUser = await db.getUserById(input.id);
         await db.deleteUser(input.id);
         await db.deleteUserPermissions(input.id);
+        await audit(ctx.user.id, ctx.user.name, 'delete_user', 'user', input.id, `删除用户 ${targetUser?.username || '#' + input.id}`);
         return { success: true };
       }),
 
@@ -91,7 +181,6 @@ export const appRouter = router({
         })),
       }))
       .mutation(async ({ input, ctx }) => {
-        // 不允许修改管理员的权限（管理员拥有所有权限）
         const targetUser = await db.getUserById(input.userId);
         if (targetUser?.role === 'admin') {
           throw new TRPCError({ code: 'BAD_REQUEST', message: '管理员拥有所有权限，无需配置' });
@@ -105,10 +194,8 @@ export const appRouter = router({
       return db.SYSTEM_MODULES;
     }),
 
-    /** 获取当前用户的权限（操作员用） */
     myPermissions: protectedProcedure.query(async ({ ctx }) => {
       if (ctx.user.role === 'admin') {
-        // 管理员拥有所有权限
         return db.SYSTEM_MODULES.map(m => ({
           module: m.id,
           canView: 1,

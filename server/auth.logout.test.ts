@@ -15,11 +15,10 @@ function createAuthContext(): { ctx: TrpcContext; clearedCookies: CookieCall[] }
 
   const user: AuthenticatedUser = {
     id: 1,
-    openId: "sample-user",
-    email: "sample@example.com",
-    name: "Sample User",
-    loginMethod: "manus",
-    role: "user",
+    username: "admin",
+    passwordHash: "$2b$10$fakehash",
+    name: "管理员",
+    role: "admin",
     createdAt: new Date(),
     updatedAt: new Date(),
     lastSignedIn: new Date(),
@@ -27,6 +26,25 @@ function createAuthContext(): { ctx: TrpcContext; clearedCookies: CookieCall[] }
 
   const ctx: TrpcContext = {
     user,
+    req: {
+      protocol: "https",
+      headers: {},
+    } as TrpcContext["req"],
+    res: {
+      clearCookie: (name: string, options: Record<string, unknown>) => {
+        clearedCookies.push({ name, options });
+      },
+    } as TrpcContext["res"],
+  };
+
+  return { ctx, clearedCookies };
+}
+
+function createUnauthContext(): { ctx: TrpcContext; clearedCookies: CookieCall[] } {
+  const clearedCookies: CookieCall[] = [];
+
+  const ctx: TrpcContext = {
+    user: null,
     req: {
       protocol: "https",
       headers: {},
@@ -58,5 +76,30 @@ describe("auth.logout", () => {
       httpOnly: true,
       path: "/",
     });
+  });
+});
+
+describe("auth.me", () => {
+  it("returns user info (without passwordHash) when authenticated", async () => {
+    const { ctx } = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+
+    const result = await caller.auth.me();
+
+    expect(result).toBeDefined();
+    expect(result).toHaveProperty("id", 1);
+    expect(result).toHaveProperty("username", "admin");
+    expect(result).toHaveProperty("role", "admin");
+    // passwordHash should NOT be in the response
+    expect(result).not.toHaveProperty("passwordHash");
+  });
+
+  it("returns null when not authenticated", async () => {
+    const { ctx } = createUnauthContext();
+    const caller = appRouter.createCaller(ctx);
+
+    const result = await caller.auth.me();
+
+    expect(result).toBeNull();
   });
 });
