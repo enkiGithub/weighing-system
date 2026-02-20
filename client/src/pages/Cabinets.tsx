@@ -76,7 +76,7 @@ function InstrumentSubRow({ groupId }: { groupId: number }) {
     return (
       <TableRow>
         <TableCell colSpan={10} className="bg-muted/20">
-          <div className="flex items-center gap-2 pl-12 py-2">
+          <div className="flex items-center gap-2 pl-16 py-2">
             <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
             <span className="text-sm text-muted-foreground">加载仪表信息...</span>
           </div>
@@ -89,7 +89,7 @@ function InstrumentSubRow({ groupId }: { groupId: number }) {
     return (
       <TableRow>
         <TableCell colSpan={10} className="bg-muted/20">
-          <div className="flex items-center gap-2 pl-12 py-3">
+          <div className="flex items-center gap-2 pl-16 py-3">
             <Gauge className="h-4 w-4 text-muted-foreground" />
             <span className="text-sm text-muted-foreground italic">暂无绑定仪表，请通过"配置绑定"添加通道</span>
           </div>
@@ -103,10 +103,10 @@ function InstrumentSubRow({ groupId }: { groupId: number }) {
       {boundInstruments.map((inst: any) => {
         const isExpanded = expandedInstrumentIds.has(inst.id);
         return (
-          <TableRow key={`inst-${inst.id}`} className="bg-muted/20 hover:bg-muted/30">
+          <TableRow key={`inst-${inst.id}`} className="bg-muted/20 hover:bg-muted/30 border-l-2 border-l-primary/20">
             <TableCell colSpan={10}>
-              {/* 仪表行 */}
-              <div className="flex items-center gap-2 pl-10">
+              {/* 仪表行 - 第一级缩进 */}
+              <div className="flex items-center gap-2 ml-12 pl-4 border-l-2 border-l-primary/30 py-1">
                 <button
                   onClick={() => toggleInstrument(inst.id)}
                   className="p-0.5 rounded hover:bg-muted transition-colors"
@@ -130,13 +130,13 @@ function InstrumentSubRow({ groupId }: { groupId: number }) {
                 </span>
               </div>
 
-              {/* 通道子行 */}
+              {/* 通道子行 - 第二级缩进 */}
               {isExpanded && inst.channels && inst.channels.length > 0 && (
-                <div className="pl-20 mt-2 mb-1 space-y-1">
+                <div className="ml-12 pl-4 mt-2 mb-1 space-y-1 border-l-2 border-l-amber-500/30">
                   {inst.channels.map((ch: any) => (
                     <div
                       key={`ch-${ch.id}`}
-                      className="flex items-center gap-3 bg-background/60 rounded px-3 py-1.5 text-sm"
+                      className="flex items-center gap-3 bg-background/60 rounded px-3 py-1.5 text-sm ml-8"
                     >
                       <Radio className="h-3.5 w-3.5 text-amber-500" />
                       <span className="font-medium min-w-[60px]">{ch.label}</span>
