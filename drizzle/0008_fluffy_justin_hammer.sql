@@ -1,0 +1,1 @@
+ALTER TABLE `vaultLayouts` MODIFY COLUMN `layoutData` mediumtext NOT NULL;

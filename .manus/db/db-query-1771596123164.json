@@ -1,0 +1,402 @@
+{
+  "query": "SELECT id, name, LENGTH(layoutData) as dataSize, isActive, createdAt FROM vaultLayouts ORDER BY id;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user KBF53B6TGXz9Z1D.root --database SQ6yxhwuwXauyoM9DVdVk2 --execute SELECT id, name, LENGTH(layoutData) as dataSize, isActive, createdAt FROM vaultLayouts ORDER BY id;",
+  "rows": [
+    {
+      "id": "1",
+      "name": "Test Layout",
+      "dataSize": "2",
+      "isActive": "0",
+      "createdAt": "2026-02-19 16:36:20"
+    },
+    {
+      "id": "2",
+      "name": "Test Layout for Groups",
+      "dataSize": "2",
+      "isActive": "0",
+      "createdAt": "2026-02-19 16:36:20"
+    },
+    {
+      "id": "3",
+      "name": "Test Layout",
+      "dataSize": "2",
+      "isActive": "0",
+      "createdAt": "2026-02-19 16:38:11"
+    },
+    {
+      "id": "4",
+      "name": "Test Layout for Groups",
+      "dataSize": "2",
+      "isActive": "0",
+      "createdAt": "2026-02-19 16:38:11"
+    },
+    {
+      "id": "5",
+      "name": "Test Layout",
+      "dataSize": "2",
+      "isActive": "0",
+      "createdAt": "2026-02-19 16:52:08"
+    },
+    {
+      "id": "6",
+      "name": "Test Layout for Groups",
+      "dataSize": "2",
+      "isActive": "0",
+      "createdAt": "2026-02-19 16:52:08"
+    },
+    {
+      "id": "7",
+      "name": "Test Layout",
+      "dataSize": "2",
+      "isActive": "0",
+      "createdAt": "2026-02-19 16:56:17"
+    },
+    {
+      "id": "8",
+      "name": "Test Layout for Groups",
+      "dataSize": "2",
+      "isActive": "0",
+      "createdAt": "2026-02-19 16:56:18"
+    },
+    {
+      "id": "9",
+      "name": "Test Layout",
+      "dataSize": "2",
+      "isActive": "0",
+      "createdAt": "2026-02-19 18:03:03"
+    },
+    {
+      "id": "10",
+      "name": "Test Layout for Groups",
+      "dataSize": "2",
+      "isActive": "0",
+      "createdAt": "2026-02-19 18:03:03"
+    },
+    {
+      "id": "11",
+      "name": "Test Layout",
+      "dataSize": "2",
+      "isActive": "0",
+      "createdAt": "2026-02-19 18:04:14"
+    },
+    {
+      "id": "12",
+      "name": "Test Layout for Groups",
+      "dataSize": "2",
+      "isActive": "0",
+      "createdAt": "2026-02-19 18:04:14"
+    },
+    {
+      "id": "13",
+      "name": "Test Layout",
+      "dataSize": "2",
+      "isActive": "0",
+      "createdAt": "2026-02-19 18:04:31"
+    },
+    {
+      "id": "14",
+      "name": "Test Layout for Groups",
+      "dataSize": "2",
+      "isActive": "0",
+      "createdAt": "2026-02-19 18:04:31"
+    },
+    {
+      "id": "15",
+      "name": "Test Layout",
+      "dataSize": "2",
+      "isActive": "0",
+      "createdAt": "2026-02-19 18:04:48"
+    },
+    {
+      "id": "16",
+      "name": "Test Layout for Groups",
+      "dataSize": "2",
+      "isActive": "0",
+      "createdAt": "2026-02-19 18:04:48"
+    },
+    {
+      "id": "17",
+      "name": "Test Layout",
+      "dataSize": "2",
+      "isActive": "0",
+      "createdAt": "2026-02-19 18:05:40"
+    },
+    {
+      "id": "18",
+      "name": "Test Layout for Groups",
+      "dataSize": "2",
+      "isActive": "0",
+      "createdAt": "2026-02-19 18:05:41"
+    },
+    {
+      "id": "19",
+      "name": "Test Layout",
+      "dataSize": "460",
+      "isActive": "0",
+      "createdAt": "2026-02-19 18:29:29"
+    },
+    {
+      "id": "20",
+      "name": "Activate Test Layout",
+      "dataSize": "129",
+      "isActive": "0",
+      "createdAt": "2026-02-19 18:29:30"
+    },
+    {
+      "id": "21",
+      "name": "Test Layout for Groups",
+      "dataSize": "129",
+      "isActive": "0",
+      "createdAt": "2026-02-19 18:29:31"
+    },
+    {
+      "id": "22",
+      "name": "Binding Validation Layout",
+      "dataSize": "459",
+      "isActive": "0",
+      "createdAt": "2026-02-19 18:29:31"
+    },
+    {
+      "id": "23",
+      "name": "新布局",
+      "dataSize": "483",
+      "isActive": "0",
+      "createdAt": "2026-02-19 18:30:59"
+    },
+    {
+      "id": "24",
+      "name": "Test Layout",
+      "dataSize": "460",
+      "isActive": "0",
+      "createdAt": "2026-02-19 19:06:14"
+    },
+    {
+      "id": "25",
+      "name": "Activate Test Layout",
+      "dataSize": "129",
+      "isActive": "0",
+      "createdAt": "2026-02-19 19:06:14"
+    },
+    {
+      "id": "26",
+      "name": "Test Layout for Groups",
+      "dataSize": "129",
+      "isActive": "0",
+      "createdAt": "2026-02-19 19:06:15"
+    },
+    {
+      "id": "27",
+      "name": "Binding Validation Layout",
+      "dataSize": "459",
+      "isActive": "0",
+      "createdAt": "2026-02-19 19:06:16"
+    },
+    {
+      "id": "28",
+      "name": "Test Layout",
+      "dataSize": "460",
+      "isActive": "0",
+      "createdAt": "2026-02-19 19:20:56"
+    },
+    {
+      "id": "29",
+      "name": "Activate Test Layout",
+      "dataSize": "129",
+      "isActive": "0",
+      "createdAt": "2026-02-19 19:20:56"
+    },
+    {
+      "id": "30",
+      "name": "Test Layout for Groups",
+      "dataSize": "129",
+      "isActive": "0",
+      "createdAt": "2026-02-19 19:20:57"
+    },
+    {
+      "id": "31",
+      "name": "Binding Validation Layout",
+      "dataSize": "459",
+      "isActive": "0",
+      "createdAt": "2026-02-19 19:20:58"
+    },
+    {
+      "id": "32",
+      "name": "Test Layout",
+      "dataSize": "460",
+      "isActive": "0",
+      "createdAt": "2026-02-19 20:37:34"
+    },
+    {
+      "id": "33",
+      "name": "Activate Test Layout",
+      "dataSize": "129",
+      "isActive": "1",
+      "createdAt": "2026-02-19 20:37:35"
+    },
+    {
+      "id": "34",
+      "name": "Test Layout for Groups",
+      "dataSize": "129",
+      "isActive": "0",
+      "createdAt": "2026-02-19 20:37:36"
+    },
+    {
+      "id": "35",
+      "name": "Binding Validation Layout",
+      "dataSize": "459",
+      "isActive": "0",
+      "createdAt": "2026-02-19 20:37:36"
+    },
+    {
+      "id": "30001",
+      "name": "Test Layout",
+      "dataSize": "460",
+      "isActive": "0",
+      "createdAt": "2026-02-19 22:58:40"
+    },
+    {
+      "id": "30002",
+      "name": "Test Layout",
+      "dataSize": "460",
+      "isActive": "0",
+      "createdAt": "2026-02-19 22:59:28"
+    },
+    {
+      "id": "30003",
+      "name": "Test Layout",
+      "dataSize": "460",
+      "isActive": "0",
+      "createdAt": "2026-02-19 23:01:18"
+    },
+    {
+      "id": "30004",
+      "name": "Test Layout",
+      "dataSize": "460",
+      "isActive": "0",
+      "createdAt": "2026-02-19 23:02:58"
+    },
+    {
+      "id": "60001",
+      "name": "Test Layout",
+      "dataSize": "460",
+      "isActive": "0",
+      "createdAt": "2026-02-20 01:25:27"
+    },
+    {
+      "id": "60002",
+      "name": "Test Layout",
+      "dataSize": "460",
+      "isActive": "0",
+      "createdAt": "2026-02-20 01:45:22"
+    },
+    {
+      "id": "60003",
+      "name": "Test Layout",
+      "dataSize": "460",
+      "isActive": "0",
+      "createdAt": "2026-02-20 02:33:13"
+    },
+    {
+      "id": "60004",
+      "name": "Test Layout",
+      "dataSize": "460",
+      "isActive": "0",
+      "createdAt": "2026-02-20 03:08:27"
+    },
+    {
+      "id": "60005",
+      "name": "Test Layout",
+      "dataSize": "460",
+      "isActive": "0",
+      "createdAt": "2026-02-20 03:38:55"
+    },
+    {
+      "id": "60006",
+      "name": "Test Layout",
+      "dataSize": "460",
+      "isActive": "0",
+      "createdAt": "2026-02-20 03:59:24"
+    },
+    {
+      "id": "60007",
+      "name": "Test Layout",
+      "dataSize": "460",
+      "isActive": "0",
+      "createdAt": "2026-02-20 04:25:00"
+    },
+    {
+      "id": "60008",
+      "name": "Test Layout",
+      "dataSize": "460",
+      "isActive": "0",
+      "createdAt": "2026-02-20 04:48:02"
+    },
+    {
+      "id": "60009",
+      "name": "Test Layout",
+      "dataSize": "460",
+      "isActive": "0",
+      "createdAt": "2026-02-20 04:50:48"
+    },
+    {
+      "id": "60010",
+      "name": "Test Layout",
+      "dataSize": "460",
+      "isActive": "0",
+      "createdAt": "2026-02-20 04:51:44"
+    },
+    {
+      "id": "60011",
+      "name": "Test Layout",
+      "dataSize": "460",
+      "isActive": "0",
+      "createdAt": "2026-02-20 04:52:59"
+    },
+    {
+      "id": "60012",
+      "name": "Test Layout",
+      "dataSize": "460",
+      "isActive": "0",
+      "createdAt": "2026-02-20 05:09:42"
+    },
+    {
+      "id": "90001",
+      "name": "Test Layout",
+      "dataSize": "460",
+      "isActive": "0",
+      "createdAt": "2026-02-20 08:08:06"
+    },
+    {
+      "id": "90002",
+      "name": "Test Layout",
+      "dataSize": "460",
+      "isActive": "0",
+      "createdAt": "2026-02-20 08:30:48"
+    },
+    {
+      "id": "90003",
+      "name": "Test Layout",
+      "dataSize": "460",
+      "isActive": "0",
+      "createdAt": "2026-02-20 08:56:18"
+    },
+    {
+      "id": "90004",
+      "name": "Test Layout",
+      "dataSize": "460",
+      "isActive": "0",
+      "createdAt": "2026-02-20 09:54:37"
+    },
+    {
+      "id": "120001",
+      "name": "Test Layout",
+      "dataSize": "460",
+      "isActive": "0",
+      "createdAt": "2026-02-20 11:49:08"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\tdataSize\tisActive\tcreatedAt\n1\tTest Layout\t2\t0\t2026-02-19 16:36:20\n2\tTest Layout for Groups\t2\t0\t2026-02-19 16:36:20\n3\tTest Layout\t2\t0\t2026-02-19 16:38:11\n4\tTest Layout for Groups\t2\t0\t2026-02-19 16:38:11\n5\tTest Layout\t2\t0\t2026-02-19 16:52:08\n6\tTest Layout for Groups\t2\t0\t2026-02-19 16:52:08\n7\tTest Layout\t2\t0\t2026-02-19 16:56:17\n8\tTest Layout for Groups\t2\t0\t2026-02-19 16:56:18\n9\tTest Layout\t2\t0\t2026-02-19 18:03:03\n10\tTest Layout for Groups\t2\t0\t2026-02-19 18:03:03\n11\tTest Layout\t2\t0\t2026-02-19 18:04:14\n12\tTest Layout for Groups\t2\t0\t2026-02-19 18:04:14\n13\tTest Layout\t2\t0\t2026-02-19 18:04:31\n14\tTest Layout for Groups\t2\t0\t2026-02-19 18:04:31\n15\tTest Layout\t2\t0\t2026-02-19 18:04:48\n16\tTest Layout for Groups\t2\t0\t2026-02-19 18:04:48\n17\tTest Layout\t2\t0\t2026-02-19 18:05:40\n18\tTest Layout for Groups\t2\t0\t2026-02-19 18:05:41\n19\tTest Layout\t460\t0\t2026-02-19 18:29:29\n20\tActivate Test Layout\t129\t0\t2026-02-19 18:29:30\n21\tTest Layout for Groups\t129\t0\t2026-02-19 18:29:31\n22\tBinding Validation Layout\t459\t0\t2026-02-19 18:29:31\n23\t新布局\t483\t0\t2026-02-19 18:30:59\n24\tTest Layout\t460\t0\t2026-02-19 19:06:14\n25\tActivate Test Layout\t129\t0\t2026-02-19 19:06:14\n26\tTest Layout for Groups\t129\t0\t2026-02-19 19:06:15\n27\tBinding Validation Layout\t459\t0\t2026-02-19 19:06:16\n28\tTest Layout\t460\t0\t2026-02-19 19:20:56\n29\tActivate Test Layout\t129\t0\t2026-02-19 19:20:56\n30\tTest Layout for Groups\t129\t0\t2026-02-19 19:20:57\n31\tBinding Validation Layout\t459\t0\t2026-02-19 19:20:58\n32\tTest Layout\t460\t0\t2026-02-19 20:37:34\n33\tActivate Test Layout\t129\t1\t2026-02-19 20:37:35\n34\tTest Layout for Groups\t129\t0\t2026-02-19 20:37:36\n35\tBinding Validation Layout\t459\t0\t2026-02-19 20:37:36\n30001\tTest Layout\t460\t0\t2026-02-19 22:58:40\n30002\tTest Layout\t460\t0\t2026-02-19 22:59:28\n30003\tTest Layout\t460\t0\t2026-02-19 23:01:18\n30004\tTest Layout\t460\t0\t2026-02-19 23:02:58\n60001\tTest Layout\t460\t0\t2026-02-20 01:25:27\n60002\tTest Layout\t460\t0\t2026-02-20 01:45:22\n60003\tTest Layout\t460\t0\t2026-02-20 02:33:13\n60004\tTest Layout\t460\t0\t2026-02-20 03:08:27\n60005\tTest Layout\t460\t0\t2026-02-20 03:38:55\n60006\tTest Layout\t460\t0\t2026-02-20 03:59:24\n60007\tTest Layout\t460\t0\t2026-02-20 04:25:00\n60008\tTest Layout\t460\t0\t2026-02-20 04:48:02\n60009\tTest Layout\t460\t0\t2026-02-20 04:50:48\n60010\tTest Layout\t460\t0\t2026-02-20 04:51:44\n60011\tTest Layout\t460\t0\t2026-02-20 04:52:59\n60012\tTest Layout\t460\t0\t2026-02-20 05:09:42\n90001\tTest Layout\t460\t0\t2026-02-20 08:08:06\n90002\tTest Layout\t460\t0\t2026-02-20 08:30:48\n90003\tTest Layout\t460\t0\t2026-02-20 08:56:18\n90004\tTest Layout\t460\t0\t2026-02-20 09:54:37\n120001\tTest Layout\t460\t0\t2026-02-20 11:49:08\n",
+  "stderr": "",
+  "execution_time_ms": 1547
+}

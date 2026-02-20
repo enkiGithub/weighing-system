@@ -1,4 +1,4 @@
-import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, float, json } from "drizzle-orm/mysql-core";
+import { int, mysqlEnum, mysqlTable, text, mediumtext, timestamp, varchar, float, json } from "drizzle-orm/mysql-core";
 
 /**
  * Core user table backing local auth flow.
@@ -223,7 +223,7 @@ export const vaultLayouts = mysqlTable("vaultLayouts", {
   id: int("id").autoincrement().primaryKey(),
   name: varchar("name", { length: 100 }).notNull(),
   description: text("description"),
-  layoutData: text("layoutData").notNull(),
+  layoutData: mediumtext("layoutData").notNull(),
   isActive: int("isActive").notNull().default(0),
   createdBy: int("createdBy").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),

@@ -1,0 +1,245 @@
+{
+  "query": "SELECT id, name, isActive FROM vaultLayouts WHERE name = 'Test Layout' OR name LIKE 'Test%' ORDER BY id;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user KBF53B6TGXz9Z1D.root --database SQ6yxhwuwXauyoM9DVdVk2 --execute SELECT id, name, isActive FROM vaultLayouts WHERE name = 'Test Layout' OR name LIKE 'Test%' ORDER BY id;",
+  "rows": [
+    {
+      "id": "1",
+      "name": "Test Layout",
+      "isActive": "0"
+    },
+    {
+      "id": "2",
+      "name": "Test Layout for Groups",
+      "isActive": "0"
+    },
+    {
+      "id": "3",
+      "name": "Test Layout",
+      "isActive": "0"
+    },
+    {
+      "id": "4",
+      "name": "Test Layout for Groups",
+      "isActive": "0"
+    },
+    {
+      "id": "5",
+      "name": "Test Layout",
+      "isActive": "0"
+    },
+    {
+      "id": "6",
+      "name": "Test Layout for Groups",
+      "isActive": "0"
+    },
+    {
+      "id": "7",
+      "name": "Test Layout",
+      "isActive": "0"
+    },
+    {
+      "id": "8",
+      "name": "Test Layout for Groups",
+      "isActive": "0"
+    },
+    {
+      "id": "9",
+      "name": "Test Layout",
+      "isActive": "0"
+    },
+    {
+      "id": "10",
+      "name": "Test Layout for Groups",
+      "isActive": "0"
+    },
+    {
+      "id": "11",
+      "name": "Test Layout",
+      "isActive": "0"
+    },
+    {
+      "id": "12",
+      "name": "Test Layout for Groups",
+      "isActive": "0"
+    },
+    {
+      "id": "13",
+      "name": "Test Layout",
+      "isActive": "0"
+    },
+    {
+      "id": "14",
+      "name": "Test Layout for Groups",
+      "isActive": "0"
+    },
+    {
+      "id": "15",
+      "name": "Test Layout",
+      "isActive": "0"
+    },
+    {
+      "id": "16",
+      "name": "Test Layout for Groups",
+      "isActive": "0"
+    },
+    {
+      "id": "17",
+      "name": "Test Layout",
+      "isActive": "0"
+    },
+    {
+      "id": "18",
+      "name": "Test Layout for Groups",
+      "isActive": "0"
+    },
+    {
+      "id": "19",
+      "name": "Test Layout",
+      "isActive": "0"
+    },
+    {
+      "id": "21",
+      "name": "Test Layout for Groups",
+      "isActive": "0"
+    },
+    {
+      "id": "24",
+      "name": "Test Layout",
+      "isActive": "0"
+    },
+    {
+      "id": "26",
+      "name": "Test Layout for Groups",
+      "isActive": "0"
+    },
+    {
+      "id": "28",
+      "name": "Test Layout",
+      "isActive": "0"
+    },
+    {
+      "id": "30",
+      "name": "Test Layout for Groups",
+      "isActive": "0"
+    },
+    {
+      "id": "32",
+      "name": "Test Layout",
+      "isActive": "0"
+    },
+    {
+      "id": "34",
+      "name": "Test Layout for Groups",
+      "isActive": "0"
+    },
+    {
+      "id": "30001",
+      "name": "Test Layout",
+      "isActive": "0"
+    },
+    {
+      "id": "30002",
+      "name": "Test Layout",
+      "isActive": "0"
+    },
+    {
+      "id": "30003",
+      "name": "Test Layout",
+      "isActive": "0"
+    },
+    {
+      "id": "30004",
+      "name": "Test Layout",
+      "isActive": "0"
+    },
+    {
+      "id": "60001",
+      "name": "Test Layout",
+      "isActive": "0"
+    },
+    {
+      "id": "60002",
+      "name": "Test Layout",
+      "isActive": "0"
+    },
+    {
+      "id": "60003",
+      "name": "Test Layout",
+      "isActive": "0"
+    },
+    {
+      "id": "60004",
+      "name": "Test Layout",
+      "isActive": "0"
+    },
+    {
+      "id": "60005",
+      "name": "Test Layout",
+      "isActive": "0"
+    },
+    {
+      "id": "60006",
+      "name": "Test Layout",
+      "isActive": "0"
+    },
+    {
+      "id": "60007",
+      "name": "Test Layout",
+      "isActive": "0"
+    },
+    {
+      "id": "60008",
+      "name": "Test Layout",
+      "isActive": "0"
+    },
+    {
+      "id": "60009",
+      "name": "Test Layout",
+      "isActive": "0"
+    },
+    {
+      "id": "60010",
+      "name": "Test Layout",
+      "isActive": "0"
+    },
+    {
+      "id": "60011",
+      "name": "Test Layout",
+      "isActive": "0"
+    },
+    {
+      "id": "60012",
+      "name": "Test Layout",
+      "isActive": "0"
+    },
+    {
+      "id": "90001",
+      "name": "Test Layout",
+      "isActive": "0"
+    },
+    {
+      "id": "90002",
+      "name": "Test Layout",
+      "isActive": "0"
+    },
+    {
+      "id": "90003",
+      "name": "Test Layout",
+      "isActive": "0"
+    },
+    {
+      "id": "90004",
+      "name": "Test Layout",
+      "isActive": "0"
+    },
+    {
+      "id": "120001",
+      "name": "Test Layout",
+      "isActive": "0"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\tisActive\n1\tTest Layout\t0\n2\tTest Layout for Groups\t0\n3\tTest Layout\t0\n4\tTest Layout for Groups\t0\n5\tTest Layout\t0\n6\tTest Layout for Groups\t0\n7\tTest Layout\t0\n8\tTest Layout for Groups\t0\n9\tTest Layout\t0\n10\tTest Layout for Groups\t0\n11\tTest Layout\t0\n12\tTest Layout for Groups\t0\n13\tTest Layout\t0\n14\tTest Layout for Groups\t0\n15\tTest Layout\t0\n16\tTest Layout for Groups\t0\n17\tTest Layout\t0\n18\tTest Layout for Groups\t0\n19\tTest Layout\t0\n21\tTest Layout for Groups\t0\n24\tTest Layout\t0\n26\tTest Layout for Groups\t0\n28\tTest Layout\t0\n30\tTest Layout for Groups\t0\n32\tTest Layout\t0\n34\tTest Layout for Groups\t0\n30001\tTest Layout\t0\n30002\tTest Layout\t0\n30003\tTest Layout\t0\n30004\tTest Layout\t0\n60001\tTest Layout\t0\n60002\tTest Layout\t0\n60003\tTest Layout\t0\n60004\tTest Layout\t0\n60005\tTest Layout\t0\n60006\tTest Layout\t0\n60007\tTest Layout\t0\n60008\tTest Layout\t0\n60009\tTest Layout\t0\n60010\tTest Layout\t0\n60011\tTest Layout\t0\n60012\tTest Layout\t0\n90001\tTest Layout\t0\n90002\tTest Layout\t0\n90003\tTest Layout\t0\n90004\tTest Layout\t0\n120001\tTest Layout\t0\n",
+  "stderr": "",
+  "execution_time_ms": 1514
+}

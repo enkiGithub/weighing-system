@@ -8,11 +8,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
-  Save, Upload, Link2, Unlink, CheckCircle2,
+  Save, Upload, Link2, Unlink,
   Search, FolderOpen, FilePlus, Loader2, Eye,
-  ZoomIn, ZoomOut, Maximize2, MousePointer2, Square
+  ZoomIn, ZoomOut, Maximize2, MousePointer2, Square, Trash2
 } from "lucide-react";
 import { usePermissions } from "@/hooks/usePermissions";
 
@@ -66,6 +65,7 @@ function LayoutSVG({
   onSelectionRect,
   viewBox,
   groupColorMap,
+  cabinetGroupsMap,
 }: {
   layoutData: DxfLayoutData;
   selectedCabinetIds: Set<number>;
@@ -73,6 +73,7 @@ function LayoutSVG({
   onSelectionRect: (rect: { x1: number; y1: number; x2: number; y2: number }) => void;
   viewBox: { x: number; y: number; w: number; h: number };
   groupColorMap: Map<number, string>;
+  cabinetGroupsMap: Map<number, any>;
 }) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [isPanning, setIsPanning] = useState(false);
@@ -84,7 +85,6 @@ function LayoutSVG({
 
   useEffect(() => { setLocalViewBox(viewBox); }, [viewBox]);
 
-  // Convert screen coords to SVG coords
   const screenToSvg = useCallback((clientX: number, clientY: number) => {
     if (!svgRef.current) return { x: 0, y: 0 };
     const rect = svgRef.current.getBoundingClientRect();
@@ -97,25 +97,19 @@ function LayoutSVG({
     e.preventDefault();
     const factor = e.deltaY > 0 ? 1.1 : 0.9;
     const svgPt = screenToSvg(e.clientX, e.clientY);
-    setLocalViewBox(prev => {
-      const nw = prev.w * factor;
-      const nh = prev.h * factor;
-      return {
-        x: svgPt.x - (svgPt.x - prev.x) * factor,
-        y: svgPt.y - (svgPt.y - prev.y) * factor,
-        w: nw,
-        h: nh,
-      };
-    });
+    setLocalViewBox(prev => ({
+      x: svgPt.x - (svgPt.x - prev.x) * factor,
+      y: svgPt.y - (svgPt.y - prev.y) * factor,
+      w: prev.w * factor,
+      h: prev.h * factor,
+    }));
   }, [screenToSvg]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     if (e.button === 1 || (e.button === 0 && tool === "pan")) {
-      // Pan
       setIsPanning(true);
       setPanStart({ x: e.clientX, y: e.clientY, vx: localViewBox.x, vy: localViewBox.y });
     } else if (e.button === 0 && tool === "select") {
-      // Selection rect
       const pt = screenToSvg(e.clientX, e.clientY);
       setIsSelecting(true);
       setSelRect({ x1: pt.x, y1: pt.y, x2: pt.x, y2: pt.y });
@@ -136,16 +130,13 @@ function LayoutSVG({
   }, [isPanning, isSelecting, panStart, localViewBox, selRect, screenToSvg]);
 
   const handleMouseUp = useCallback(() => {
-    if (isPanning) {
-      setIsPanning(false);
-    }
+    if (isPanning) setIsPanning(false);
     if (isSelecting && selRect) {
       setIsSelecting(false);
       const x1 = Math.min(selRect.x1, selRect.x2);
       const y1 = Math.min(selRect.y1, selRect.y2);
       const x2 = Math.max(selRect.x1, selRect.x2);
       const y2 = Math.max(selRect.y1, selRect.y2);
-      // Only trigger if rect is large enough (not just a click)
       if (Math.abs(x2 - x1) > 1 && Math.abs(y2 - y1) > 1) {
         onSelectionRect({ x1, y1, x2, y2 });
       }
@@ -155,29 +146,23 @@ function LayoutSVG({
 
   const zoomIn = useCallback(() => {
     setLocalViewBox(prev => {
-      const cx = prev.x + prev.w / 2;
-      const cy = prev.y + prev.h / 2;
-      const nw = prev.w * 0.75;
-      const nh = prev.h * 0.75;
+      const cx = prev.x + prev.w / 2, cy = prev.y + prev.h / 2;
+      const nw = prev.w * 0.75, nh = prev.h * 0.75;
       return { x: cx - nw / 2, y: cy - nh / 2, w: nw, h: nh };
     });
   }, []);
 
   const zoomOut = useCallback(() => {
     setLocalViewBox(prev => {
-      const cx = prev.x + prev.w / 2;
-      const cy = prev.y + prev.h / 2;
-      const nw = prev.w * 1.33;
-      const nh = prev.h * 1.33;
+      const cx = prev.x + prev.w / 2, cy = prev.y + prev.h / 2;
+      const nw = prev.w * 1.33, nh = prev.h * 1.33;
       return { x: cx - nw / 2, y: cy - nh / 2, w: nw, h: nh };
     });
   }, []);
 
-  const fitAll = useCallback(() => {
-    setLocalViewBox(viewBox);
-  }, [viewBox]);
+  const fitAll = useCallback(() => { setLocalViewBox(viewBox); }, [viewBox]);
 
-  // Render cabinets as polygons
+  // Render cabinets
   const cabinetElements = useMemo(() => {
     return layoutData.cabinets.map(cab => {
       const isSelected = selectedCabinetIds.has(cab.id);
@@ -187,82 +172,103 @@ function LayoutSVG({
       const fillOpacity = isSelected ? 0.6 : (groupId !== null ? 0.4 : 0.15);
       const strokeColor = isSelected ? "#22d3ee" : (groupId !== null ? color : "#64748b");
       const strokeWidth = isSelected ? 1.5 : 0.8;
-
-      // Build polygon path from corners
       const pts = cab.corners.map(c => `${c[0]},${c[1]}`).join(" ");
 
       return (
         <g key={cab.id} onClick={(e) => { e.stopPropagation(); onCabinetClick(cab.id, e.shiftKey || e.ctrlKey); }} style={{ cursor: "pointer" }}>
-          <polygon
-            points={pts}
-            fill={fillColor}
-            fillOpacity={fillOpacity}
-            stroke={strokeColor}
-            strokeWidth={strokeWidth}
-          />
-          {/* Cross lines */}
+          <polygon points={pts} fill={fillColor} fillOpacity={fillOpacity} stroke={strokeColor} strokeWidth={strokeWidth} />
           {cab.crossLines.map((cl, i) => (
-            <line
-              key={i}
-              x1={cl[0][0]} y1={cl[0][1]}
-              x2={cl[1][0]} y2={cl[1][1]}
-              stroke={strokeColor}
-              strokeWidth={0.4}
-              strokeOpacity={0.5}
-            />
+            <line key={i} x1={cl[0][0]} y1={cl[0][1]} x2={cl[1][0]} y2={cl[1][1]} stroke={strokeColor} strokeWidth={0.4} strokeOpacity={0.5} />
           ))}
         </g>
       );
     });
   }, [layoutData.cabinets, selectedCabinetIds, groupColorMap, onCabinetClick]);
 
-  // Render background polylines
-  const bgElements = useMemo(() => {
-    return (
-      <>
-        {layoutData.polylines.map((pl, i) => {
-          const pts = pl.points.map(p => `${p[0]},${p[1]}`).join(" ");
-          return pl.closed ? (
-            <polygon key={`pl-${i}`} points={pts} fill="none" stroke="#94a3b8" strokeWidth={0.5} strokeOpacity={0.4} />
-          ) : (
-            <polyline key={`pl-${i}`} points={pts} fill="none" stroke="#94a3b8" strokeWidth={0.5} strokeOpacity={0.4} />
-          );
-        })}
-        {layoutData.lines.map((l, i) => (
-          <line key={`ln-${i}`} x1={l.x1} y1={l.y1} x2={l.x2} y2={l.y2} stroke="#94a3b8" strokeWidth={0.5} strokeOpacity={0.4} />
-        ))}
-      </>
-    );
-  }, [layoutData.polylines, layoutData.lines]);
+  // Group label overlays - show group name at centroid of bound cabinets
+  const groupLabels = useMemo(() => {
+    const groupCabs = new Map<number, DxfCabinet[]>();
+    for (const cab of layoutData.cabinets) {
+      if (cab.cabinetGroupId !== null) {
+        if (!groupCabs.has(cab.cabinetGroupId)) groupCabs.set(cab.cabinetGroupId, []);
+        groupCabs.get(cab.cabinetGroupId)!.push(cab);
+      }
+    }
+
+    const labels: React.ReactElement[] = [];
+    groupCabs.forEach((cabs, groupId) => {
+      const group = cabinetGroupsMap.get(groupId);
+      if (!group) return;
+      // Calculate centroid
+      const cx = cabs.reduce((s, c) => s + c.centerX, 0) / cabs.length;
+      const cy = cabs.reduce((s, c) => s + c.centerY, 0) / cabs.length;
+      const color = groupColorMap.get(groupId) || getGroupColor(groupId);
+      // Calculate font size based on viewBox (responsive to zoom)
+      const fontSize = Math.max(localViewBox.w, localViewBox.h) * 0.012;
+      const bgPadX = fontSize * 0.4;
+      const bgPadY = fontSize * 0.25;
+      const textWidth = group.name.length * fontSize * 0.6;
+
+      labels.push(
+        <g key={`label-${groupId}`} style={{ pointerEvents: "none" }}>
+          <rect
+            x={cx - textWidth / 2 - bgPadX}
+            y={cy - fontSize / 2 - bgPadY}
+            width={textWidth + bgPadX * 2}
+            height={fontSize + bgPadY * 2}
+            rx={fontSize * 0.2}
+            fill={color}
+            fillOpacity={0.85}
+          />
+          <text
+            x={cx}
+            y={cy}
+            textAnchor="middle"
+            dominantBaseline="central"
+            fill="white"
+            fontSize={fontSize}
+            fontWeight="bold"
+            style={{ textShadow: "0 1px 2px rgba(0,0,0,0.5)" }}
+          >
+            {group.name}
+          </text>
+        </g>
+      );
+    });
+    return labels;
+  }, [layoutData.cabinets, cabinetGroupsMap, groupColorMap, localViewBox]);
+
+  // Background geometry
+  const bgElements = useMemo(() => (
+    <>
+      {layoutData.polylines.map((pl, i) => {
+        const pts = pl.points.map(p => `${p[0]},${p[1]}`).join(" ");
+        return pl.closed ? (
+          <polygon key={`pl-${i}`} points={pts} fill="none" stroke="#94a3b8" strokeWidth={0.5} strokeOpacity={0.4} />
+        ) : (
+          <polyline key={`pl-${i}`} points={pts} fill="none" stroke="#94a3b8" strokeWidth={0.5} strokeOpacity={0.4} />
+        );
+      })}
+      {layoutData.lines.map((l, i) => (
+        <line key={`ln-${i}`} x1={l.x1} y1={l.y1} x2={l.x2} y2={l.y2} stroke="#94a3b8" strokeWidth={0.5} strokeOpacity={0.4} />
+      ))}
+    </>
+  ), [layoutData.polylines, layoutData.lines]);
 
   return (
     <div className="relative w-full h-full">
       {/* Toolbar overlay */}
       <div className="absolute top-3 left-3 z-10 flex items-center gap-1 bg-slate-900/90 border border-slate-700/50 rounded-lg p-1 backdrop-blur-sm">
-        <Button
-          size="sm" variant={tool === "select" ? "default" : "ghost"}
-          className={`h-7 w-7 p-0 ${tool === "select" ? "bg-cyan-600" : ""}`}
-          onClick={() => setTool("select")} title="框选工具"
-        >
+        <Button size="sm" variant={tool === "select" ? "default" : "ghost"} className={`h-7 w-7 p-0 ${tool === "select" ? "bg-cyan-600" : ""}`} onClick={() => setTool("select")} title="框选工具">
           <MousePointer2 className="h-3.5 w-3.5" />
         </Button>
-        <Button
-          size="sm" variant={tool === "pan" ? "default" : "ghost"}
-          className={`h-7 w-7 p-0 ${tool === "pan" ? "bg-cyan-600" : ""}`}
-          onClick={() => setTool("pan")} title="平移工具"
-        >
+        <Button size="sm" variant={tool === "pan" ? "default" : "ghost"} className={`h-7 w-7 p-0 ${tool === "pan" ? "bg-cyan-600" : ""}`} onClick={() => setTool("pan")} title="平移工具">
           <Square className="h-3.5 w-3.5" />
         </Button>
         <Separator orientation="vertical" className="h-5 bg-slate-700 mx-0.5" />
-        <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={zoomIn} title="放大">
-          <ZoomIn className="h-3.5 w-3.5" />
-        </Button>
-        <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={zoomOut} title="缩小">
-          <ZoomOut className="h-3.5 w-3.5" />
-        </Button>
-        <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={fitAll} title="适应全部">
-          <Maximize2 className="h-3.5 w-3.5" />
-        </Button>
+        <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={zoomIn} title="放大"><ZoomIn className="h-3.5 w-3.5" /></Button>
+        <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={zoomOut} title="缩小"><ZoomOut className="h-3.5 w-3.5" /></Button>
+        <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={fitAll} title="适应全部"><Maximize2 className="h-3.5 w-3.5" /></Button>
       </div>
 
       {/* Stats overlay */}
@@ -283,27 +289,17 @@ function LayoutSVG({
         onMouseLeave={handleMouseUp}
         style={{ cursor: tool === "pan" || isPanning ? "grab" : "crosshair" }}
       >
-        {/* Background */}
         <rect x={localViewBox.x} y={localViewBox.y} width={localViewBox.w} height={localViewBox.h} fill="#0f172a" />
-
-        {/* DXF background geometry */}
         {bgElements}
-
-        {/* Cabinets */}
         {cabinetElements}
-
-        {/* Selection rectangle */}
+        {groupLabels}
         {selRect && (
           <rect
             x={Math.min(selRect.x1, selRect.x2)}
             y={Math.min(selRect.y1, selRect.y2)}
             width={Math.abs(selRect.x2 - selRect.x1)}
             height={Math.abs(selRect.y2 - selRect.y1)}
-            fill="#0ea5e9"
-            fillOpacity={0.1}
-            stroke="#22d3ee"
-            strokeWidth={1}
-            strokeDasharray="4 2"
+            fill="#0ea5e9" fillOpacity={0.1} stroke="#22d3ee" strokeWidth={1} strokeDasharray="4 2"
           />
         )}
       </svg>
@@ -345,7 +341,9 @@ export default function LayoutEditor() {
   const setActiveLayout = trpc.layoutEditor.vaultLayouts.setActive.useMutation({
     onSuccess: () => utils.layoutEditor.vaultLayouts.list.invalidate(),
   });
-  const bindCabinetsMut = trpc.layoutEditor.vaultLayouts.bindCabinets.useMutation();
+  const deleteLayoutMut = trpc.layoutEditor.vaultLayouts.delete.useMutation({
+    onSuccess: () => utils.layoutEditor.vaultLayouts.list.invalidate(),
+  });
 
   // Compute viewBox from layout bounds
   const viewBox = useMemo(() => {
@@ -360,7 +358,7 @@ export default function LayoutEditor() {
     };
   }, [layoutData]);
 
-  // Group color map
+  // Group color map - stable color per group
   const groupColorMap = useMemo(() => {
     const map = new Map<number, string>();
     (cabinetGroupsQuery.data || []).forEach((g: any, i: number) => {
@@ -385,7 +383,7 @@ export default function LayoutEditor() {
     });
   }, [cabinetGroupsQuery.data, searchQuery]);
 
-  // Binding summary: how many cabinets bound to each group
+  // Binding summary
   const bindingSummary = useMemo(() => {
     if (!layoutData) return new Map<number, number>();
     const map = new Map<number, number>();
@@ -402,12 +400,10 @@ export default function LayoutEditor() {
     if (!layoutData || selectedCabinetIds.size === 0) return undefined;
     const groups = new Set<number | null>();
     for (const cab of layoutData.cabinets) {
-      if (selectedCabinetIds.has(cab.id)) {
-        groups.add(cab.cabinetGroupId);
-      }
+      if (selectedCabinetIds.has(cab.id)) groups.add(cab.cabinetGroupId);
     }
     if (groups.size === 1) return Array.from(groups)[0];
-    return undefined; // mixed
+    return undefined;
   }, [layoutData, selectedCabinetIds]);
 
   // ===== Handlers =====
@@ -442,11 +438,8 @@ export default function LayoutEditor() {
   const handleCabinetClick = useCallback((id: number, multi: boolean) => {
     setSelectedCabinetIds(prev => {
       const next = new Set(multi ? prev : []);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   }, []);
@@ -465,8 +458,6 @@ export default function LayoutEditor() {
 
   const handleBind = useCallback(async (groupId: number) => {
     if (!layoutData || selectedCabinetIds.size === 0) return;
-
-    // Update local state immediately
     setLayoutData(prev => {
       if (!prev) return prev;
       return {
@@ -476,7 +467,6 @@ export default function LayoutEditor() {
         ),
       };
     });
-
     const group = cabinetGroupsMap.get(groupId);
     toast.success(`已绑定 ${selectedCabinetIds.size} 个柜列到: ${group?.name || groupId}`);
     setShowBindDialog(false);
@@ -485,7 +475,6 @@ export default function LayoutEditor() {
 
   const handleUnbind = useCallback(() => {
     if (!layoutData || selectedCabinetIds.size === 0) return;
-
     setLayoutData(prev => {
       if (!prev) return prev;
       return {
@@ -495,7 +484,6 @@ export default function LayoutEditor() {
         ),
       };
     });
-
     toast.success(`已解绑 ${selectedCabinetIds.size} 个柜列`);
     setSelectedCabinetIds(new Set());
   }, [layoutData, selectedCabinetIds]);
@@ -523,7 +511,6 @@ export default function LayoutEditor() {
   const handleLoad = useCallback((layout: any) => {
     try {
       const data = JSON.parse(layout.layoutData);
-      // Check if it's new DXF format (has bounds and cabinets)
       if (data.bounds && data.cabinets) {
         setLayoutData(data as DxfLayoutData);
       } else {
@@ -540,6 +527,22 @@ export default function LayoutEditor() {
       toast.error("布局数据解析失败");
     }
   }, []);
+
+  const handleDeleteLayout = useCallback(async (layoutId: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await deleteLayoutMut.mutateAsync({ id: layoutId });
+      if (currentLayoutId === layoutId) {
+        setLayoutData(null);
+        setCurrentLayoutId(null);
+        setLayoutName("新布局");
+        setLayoutDesc("");
+      }
+      toast.success("布局已删除");
+    } catch (err: any) {
+      toast.error(err.message || "删除失败");
+    }
+  }, [deleteLayoutMut, currentLayoutId]);
 
   const handleActivate = useCallback(async () => {
     if (!currentLayoutId) { toast.error("请先保存布局"); return; }
@@ -574,6 +577,22 @@ export default function LayoutEditor() {
     setSelectedCabinetIds(new Set(layoutData.cabinets.filter(c => c.cabinetGroupId === groupId).map(c => c.id)));
   }, [layoutData]);
 
+  // Helper: parse layout data to get stats for load dialog
+  const getLayoutStats = useCallback((layoutDataStr: string) => {
+    try {
+      const data = JSON.parse(layoutDataStr);
+      if (data.bounds && data.cabinets) {
+        const totalCabs = data.cabinets.length;
+        const boundGroups = new Set(data.cabinets.filter((c: any) => c.cabinetGroupId !== null).map((c: any) => c.cabinetGroupId));
+        const boundCabs = data.cabinets.filter((c: any) => c.cabinetGroupId !== null).length;
+        return { totalCabs, boundGroups: boundGroups.size, boundCabs, isDxf: true };
+      }
+      return { totalCabs: 0, boundGroups: 0, boundCabs: 0, isDxf: false };
+    } catch {
+      return { totalCabs: 0, boundGroups: 0, boundCabs: 0, isDxf: false };
+    }
+  }, []);
+
   return (
     <div className="h-[calc(100vh-2rem)] flex gap-3">
       {/* Left Panel */}
@@ -598,20 +617,59 @@ export default function LayoutEditor() {
                     <FolderOpen className="h-3 w-3 mr-1" />加载
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="bg-slate-900 border-slate-700">
-                  <DialogHeader><DialogTitle>加载布局</DialogTitle></DialogHeader>
-                  <ScrollArea className="max-h-80">
+                <DialogContent className="bg-slate-900 border-slate-700 max-w-lg">
+                  <DialogHeader><DialogTitle>加载已保存的布局</DialogTitle></DialogHeader>
+                  <ScrollArea className="max-h-96">
                     <div className="space-y-2">
-                      {(layoutsQuery.data || []).map((layout: any) => (
-                        <div key={layout.id} className="p-3 rounded-lg border border-slate-700 hover:border-cyan-500/50 cursor-pointer transition-colors" onClick={() => handleLoad(layout)}>
-                          <div className="flex items-center justify-between">
-                            <span className="text-sm font-medium">{layout.name}</span>
-                            {layout.isActive === 1 && <Badge variant="outline" className="text-cyan-400 border-cyan-500/50 text-[10px]">激活</Badge>}
+                      {(layoutsQuery.data || []).map((layout: any) => {
+                        const stats = getLayoutStats(layout.layoutData);
+                        return (
+                          <div
+                            key={layout.id}
+                            className="p-3 rounded-lg border border-slate-700 hover:border-cyan-500/50 cursor-pointer transition-colors group"
+                            onClick={() => handleLoad(layout)}
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-medium">{layout.name}</span>
+                                {layout.isActive === 1 && (
+                                  <Badge variant="outline" className="text-cyan-400 border-cyan-500/50 text-[10px]">激活中</Badge>
+                                )}
+                              </div>
+                              {canEdit && (
+                                <Button
+                                  size="sm" variant="ghost"
+                                  className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                                  onClick={(e) => handleDeleteLayout(layout.id, e)}
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
+                              )}
+                            </div>
+                            {layout.description && (
+                              <div className="text-[11px] text-slate-400 mt-1">{layout.description}</div>
+                            )}
+                            <div className="flex items-center gap-3 mt-1.5 text-[10px] text-slate-500">
+                              {stats.isDxf ? (
+                                <>
+                                  <span>{stats.totalCabs} 个柜列</span>
+                                  <span>{stats.boundCabs} 已绑定</span>
+                                  <span>{stats.boundGroups} 个柜组</span>
+                                </>
+                              ) : (
+                                <span className="text-amber-500">非DXF格式</span>
+                              )}
+                              <span className="ml-auto">{new Date(layout.updatedAt).toLocaleString()}</span>
+                            </div>
                           </div>
-                          <div className="text-xs text-slate-400 mt-1">更新于: {new Date(layout.updatedAt).toLocaleString()}</div>
+                        );
+                      })}
+                      {(!layoutsQuery.data || layoutsQuery.data.length === 0) && (
+                        <div className="text-center text-slate-400 py-8 text-sm">
+                          <FolderOpen className="h-8 w-8 mx-auto mb-2 text-slate-600" />
+                          暂无已保存的布局
                         </div>
-                      ))}
-                      {(!layoutsQuery.data || layoutsQuery.data.length === 0) && <div className="text-center text-slate-400 py-4 text-sm">暂无布局</div>}
+                      )}
                     </div>
                   </ScrollArea>
                 </DialogContent>
@@ -657,15 +715,9 @@ export default function LayoutEditor() {
                 {/* Quick select */}
                 <p className="text-[10px] text-slate-500 uppercase tracking-wider">快速选择</p>
                 <div className="flex gap-1.5 flex-wrap">
-                  <Button size="sm" variant="outline" className="h-6 text-[10px] px-2" onClick={selectAll} disabled={!layoutData}>
-                    全选
-                  </Button>
-                  <Button size="sm" variant="outline" className="h-6 text-[10px] px-2" onClick={selectUnbound} disabled={!layoutData}>
-                    选未绑定
-                  </Button>
-                  <Button size="sm" variant="outline" className="h-6 text-[10px] px-2" onClick={() => setSelectedCabinetIds(new Set())} disabled={selectedCabinetIds.size === 0}>
-                    清除选择
-                  </Button>
+                  <Button size="sm" variant="outline" className="h-6 text-[10px] px-2" onClick={selectAll} disabled={!layoutData}>全选</Button>
+                  <Button size="sm" variant="outline" className="h-6 text-[10px] px-2" onClick={selectUnbound} disabled={!layoutData}>选未绑定</Button>
+                  <Button size="sm" variant="outline" className="h-6 text-[10px] px-2" onClick={() => setSelectedCabinetIds(new Set())} disabled={selectedCabinetIds.size === 0}>清除选择</Button>
                 </div>
 
                 {/* Selected info */}
@@ -705,7 +757,7 @@ export default function LayoutEditor() {
                                       </Badge>
                                     </div>
                                     <div className="text-[10px] text-slate-400 mt-0.5">
-                                      ID: {g.id} | 已绑定: {bindingSummary.get(g.id) || 0} 个柜列
+                                      区域: {g.area} | 已绑定: {bindingSummary.get(g.id) || 0} 个柜列
                                     </div>
                                   </button>
                                 ))}
@@ -780,6 +832,7 @@ export default function LayoutEditor() {
               onSelectionRect={handleSelectionRect}
               viewBox={viewBox}
               groupColorMap={groupColorMap}
+              cabinetGroupsMap={cabinetGroupsMap}
             />
           ) : (
             <div className="w-full h-full flex flex-col items-center justify-center text-center">
@@ -788,18 +841,7 @@ export default function LayoutEditor() {
               </div>
               <p className="text-sm text-slate-400">导入DXF文件以开始编辑布局</p>
               <p className="text-xs text-slate-500 mt-1">支持AutoCAD DXF格式，自动识别柜列位置</p>
-              {canEdit && (
-                <Button
-                  size="sm" variant="outline"
-                  className="mt-4 border-amber-500/30 text-amber-400 hover:bg-amber-500/10"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={isUploading}
-                >
-                  {isUploading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Upload className="h-4 w-4 mr-2" />}
-                  选择DXF文件
-                </Button>
-              )}
-              <p className="text-xs text-slate-500 mt-4">或从左侧"加载"已保存的布局</p>
+              <p className="text-xs text-slate-500 mt-4">请使用左侧面板的"导入DXF文件"按钮，或"加载"已保存的布局</p>
             </div>
           )}
         </div>

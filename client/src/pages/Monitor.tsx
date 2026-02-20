@@ -166,6 +166,52 @@ function MonitorSVG({
     </>
   ), [layoutData.polylines, layoutData.lines]);
 
+  // Group label overlays - show group name at centroid of bound cabinets
+  const groupLabels = useMemo(() => {
+    const groupCabs = new Map<number, DxfCabinet[]>();
+    for (const cab of layoutData.cabinets) {
+      if (cab.cabinetGroupId !== null) {
+        if (!groupCabs.has(cab.cabinetGroupId)) groupCabs.set(cab.cabinetGroupId, []);
+        groupCabs.get(cab.cabinetGroupId)!.push(cab);
+      }
+    }
+    const labels: React.ReactElement[] = [];
+    groupCabs.forEach((cabs, groupId) => {
+      const group = cabinetGroupsMap.get(groupId);
+      if (!group) return;
+      const cx = cabs.reduce((s, c) => s + c.centerX, 0) / cabs.length;
+      const cy = cabs.reduce((s, c) => s + c.centerY, 0) / cabs.length;
+      const status = group.status || "normal";
+      const color = status === "alarm" ? "#ef4444" : status === "warning" ? "#f59e0b" : "#06b6d4";
+      const fontSize = Math.max(viewBox.w, viewBox.h) * 0.012;
+      const bgPadX = fontSize * 0.4;
+      const bgPadY = fontSize * 0.25;
+      const textWidth = group.name.length * fontSize * 0.6;
+      labels.push(
+        <g key={`label-${groupId}`} style={{ pointerEvents: "none" }}>
+          <rect
+            x={cx - textWidth / 2 - bgPadX}
+            y={cy - fontSize / 2 - bgPadY}
+            width={textWidth + bgPadX * 2}
+            height={fontSize + bgPadY * 2}
+            rx={fontSize * 0.2}
+            fill={color}
+            fillOpacity={0.85}
+          />
+          <text
+            x={cx} y={cy}
+            textAnchor="middle" dominantBaseline="central"
+            fill="white" fontSize={fontSize} fontWeight="bold"
+            style={{ textShadow: "0 1px 2px rgba(0,0,0,0.5)" }}
+          >
+            {group.name}
+          </text>
+        </g>
+      );
+    });
+    return labels;
+  }, [layoutData.cabinets, cabinetGroupsMap, viewBox]);
+
   // Cabinet elements with status coloring
   const cabinetElements = useMemo(() => {
     return layoutData.cabinets.map(cab => {
@@ -270,6 +316,7 @@ function MonitorSVG({
         <rect x={viewBox.x} y={viewBox.y} width={viewBox.w} height={viewBox.h} fill="#0f172a" />
         {bgElements}
         {cabinetElements}
+        {groupLabels}
       </svg>
     </div>
   );

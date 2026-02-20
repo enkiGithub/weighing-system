@@ -1,0 +1,120 @@
+{
+  "query": "SELECT id, name, isActive FROM vaultLayouts ORDER BY id;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user KBF53B6TGXz9Z1D.root --database SQ6yxhwuwXauyoM9DVdVk2 --execute SELECT id, name, isActive FROM vaultLayouts ORDER BY id;",
+  "rows": [
+    {
+      "id": "2",
+      "name": "Test Layout for Groups",
+      "isActive": "0"
+    },
+    {
+      "id": "4",
+      "name": "Test Layout for Groups",
+      "isActive": "0"
+    },
+    {
+      "id": "6",
+      "name": "Test Layout for Groups",
+      "isActive": "0"
+    },
+    {
+      "id": "8",
+      "name": "Test Layout for Groups",
+      "isActive": "0"
+    },
+    {
+      "id": "10",
+      "name": "Test Layout for Groups",
+      "isActive": "0"
+    },
+    {
+      "id": "12",
+      "name": "Test Layout for Groups",
+      "isActive": "0"
+    },
+    {
+      "id": "14",
+      "name": "Test Layout for Groups",
+      "isActive": "0"
+    },
+    {
+      "id": "16",
+      "name": "Test Layout for Groups",
+      "isActive": "0"
+    },
+    {
+      "id": "18",
+      "name": "Test Layout for Groups",
+      "isActive": "0"
+    },
+    {
+      "id": "20",
+      "name": "Activate Test Layout",
+      "isActive": "0"
+    },
+    {
+      "id": "21",
+      "name": "Test Layout for Groups",
+      "isActive": "0"
+    },
+    {
+      "id": "22",
+      "name": "Binding Validation Layout",
+      "isActive": "0"
+    },
+    {
+      "id": "23",
+      "name": "新布局",
+      "isActive": "0"
+    },
+    {
+      "id": "25",
+      "name": "Activate Test Layout",
+      "isActive": "0"
+    },
+    {
+      "id": "26",
+      "name": "Test Layout for Groups",
+      "isActive": "0"
+    },
+    {
+      "id": "27",
+      "name": "Binding Validation Layout",
+      "isActive": "0"
+    },
+    {
+      "id": "29",
+      "name": "Activate Test Layout",
+      "isActive": "0"
+    },
+    {
+      "id": "30",
+      "name": "Test Layout for Groups",
+      "isActive": "0"
+    },
+    {
+      "id": "31",
+      "name": "Binding Validation Layout",
+      "isActive": "0"
+    },
+    {
+      "id": "33",
+      "name": "Activate Test Layout",
+      "isActive": "1"
+    },
+    {
+      "id": "34",
+      "name": "Test Layout for Groups",
+      "isActive": "0"
+    },
+    {
+      "id": "35",
+      "name": "Binding Validation Layout",
+      "isActive": "0"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\tisActive\n2\tTest Layout for Groups\t0\n4\tTest Layout for Groups\t0\n6\tTest Layout for Groups\t0\n8\tTest Layout for Groups\t0\n10\tTest Layout for Groups\t0\n12\tTest Layout for Groups\t0\n14\tTest Layout for Groups\t0\n16\tTest Layout for Groups\t0\n18\tTest Layout for Groups\t0\n20\tActivate Test Layout\t0\n21\tTest Layout for Groups\t0\n22\tBinding Validation Layout\t0\n23\t新布局\t0\n25\tActivate Test Layout\t0\n26\tTest Layout for Groups\t0\n27\tBinding Validation Layout\t0\n29\tActivate Test Layout\t0\n30\tTest Layout for Groups\t0\n31\tBinding Validation Layout\t0\n33\tActivate Test Layout\t1\n34\tTest Layout for Groups\t0\n35\tBinding Validation Layout\t0\n",
+  "stderr": "",
+  "execution_time_ms": 1513
+}
