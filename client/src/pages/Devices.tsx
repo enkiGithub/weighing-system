@@ -57,6 +57,9 @@ export default function Devices() {
   // 选中的COM端口ID（树形选择面板）
   const [selectedComPortId, setSelectedComPortId] = useState<number | null>(null);
 
+  // 待删除的仪表ID（用于二次确认force删除）
+  const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
+
   // 分页和多选状态
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -129,7 +132,15 @@ export default function Devices() {
   });
 
   const deleteMutation = trpc.instruments.delete.useMutation({
-    onSuccess: () => {
+    onSuccess: (data) => {
+      if (data.needConfirm && data.boundChannels) {
+        // 通道已被柜组绑定，提示用户确认强制删除
+        const msg = `该仪表的通道 ${data.boundChannels.join(", ")} 已被柜组绑定。\n确认删除将自动解除这些绑定，是否继续？`;
+        if (confirm(msg)) {
+          deleteMutation.mutate({ id: pendingDeleteId!, force: true });
+        }
+        return;
+      }
       utils.instruments.list.invalidate();
       toast.success("仪表删除成功");
     },
@@ -138,6 +149,14 @@ export default function Devices() {
 
   const batchDeleteMutation = trpc.instruments.batchDelete.useMutation({
     onSuccess: (data) => {
+      if (data.needConfirm && data.boundInstruments) {
+        const details = data.boundInstruments.map((b: any) => `仪表#${b.id}的通道 ${b.channels.join(",")}`).join("\n");
+        const msg = `以下仪表的通道已被柜组绑定：\n${details}\n\n确认删除将自动解除这些绑定，是否继续？`;
+        if (confirm(msg)) {
+          batchDeleteMutation.mutate({ ids: Array.from(selectedIds), force: true });
+        }
+        return;
+      }
       utils.instruments.list.invalidate();
       setSelectedIds(new Set());
       toast.success(`成功删除 ${data.count} 个仪表`);
@@ -326,7 +345,10 @@ export default function Devices() {
                             <Edit className="h-4 w-4" />
                           </Button>
                           <Button variant="ghost" size="sm" onClick={() => {
-                            if (confirm("确定要删除此仪表吗？")) deleteMutation.mutate({ id: instrument.id });
+                            if (confirm("确定要删除此仪表吗？")) {
+                              setPendingDeleteId(instrument.id);
+                              deleteMutation.mutate({ id: instrument.id });
+                            }
                           }}>
                             <Trash2 className="h-4 w-4 text-destructive" />
                           </Button>

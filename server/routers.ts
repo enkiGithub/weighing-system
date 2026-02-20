@@ -303,45 +303,61 @@ export const appRouter = router({
       }),
     
     delete: adminProcedure
-      .input(z.object({ id: z.number() }))
+      .input(z.object({ id: z.number(), force: z.boolean().optional() }))
       .mutation(async ({ input, ctx }) => {
         // 检查通道是否有柜组绑定
         const channels = await db.getChannelsByInstrument(input.id);
+        const boundChannels: string[] = [];
         for (const ch of channels) {
           const bindings = await db.getBindingsByChannel(ch.id);
           if (bindings.length > 0) {
-            throw new TRPCError({ 
-              code: 'BAD_REQUEST', 
-              message: `仪表通道 ${ch.label} 已被柜组绑定，请先解除绑定` 
-            });
+            boundChannels.push(ch.label);
           }
+        }
+        if (boundChannels.length > 0 && !input.force) {
+          // 返回需要确认的信息，而非直接报错
+          return { success: false, needConfirm: true, boundChannels };
+        }
+        // 级联删除：先解除所有通道绑定
+        for (const ch of channels) {
+          await db.deleteBindingsByChannel(ch.id);
         }
         // 删除通道
         await db.deleteChannelsByInstrument(input.id);
         // 删除仪表
         await db.deleteInstrument(input.id);
-        await audit(ctx.user.id, ctx.user.name, "delete", "instrument", input.id, `删除仪表 #${input.id}`);
+        const detail = boundChannels.length > 0 ? `（已自动解除 ${boundChannels.join(',')} 的柜组绑定）` : '';
+        await audit(ctx.user.id, ctx.user.name, "delete", "instrument", input.id, `删除仪表 #${input.id}${detail}`);
         return { success: true };
       }),
 
     batchDelete: adminProcedure
-      .input(z.object({ ids: z.array(z.number()).min(1) }))
+      .input(z.object({ ids: z.array(z.number()).min(1), force: z.boolean().optional() }))
       .mutation(async ({ input, ctx }) => {
+        // 先检查所有仪表的绑定情况
+        const allBound: { id: number; channels: string[] }[] = [];
+        for (const id of input.ids) {
+          const channels = await db.getChannelsByInstrument(id);
+          const bound: string[] = [];
+          for (const ch of channels) {
+            const bindings = await db.getBindingsByChannel(ch.id);
+            if (bindings.length > 0) bound.push(ch.label);
+          }
+          if (bound.length > 0) allBound.push({ id, channels: bound });
+        }
+        if (allBound.length > 0 && !input.force) {
+          return { success: false, needConfirm: true, boundInstruments: allBound, count: 0 };
+        }
+        // 级联删除
         for (const id of input.ids) {
           const channels = await db.getChannelsByInstrument(id);
           for (const ch of channels) {
-            const bindings = await db.getBindingsByChannel(ch.id);
-            if (bindings.length > 0) {
-              throw new TRPCError({ 
-                code: 'BAD_REQUEST', 
-                message: `仪表 #${id} 的通道 ${ch.label} 已被柜组绑定，请先解除绑定` 
-              });
-            }
+            await db.deleteBindingsByChannel(ch.id);
           }
           await db.deleteChannelsByInstrument(id);
           await db.deleteInstrument(id);
         }
-        await audit(ctx.user.id, ctx.user.name, "batchDelete", "instrument", null, `批量删除仪表: ${input.ids.join(",")}`, { ids: input.ids });
+        await audit(ctx.user.id, ctx.user.name, "batchDelete", "instrument", null, `批量删除仪表: ${input.ids.join(",")}（含级联解绑）`, { ids: input.ids });
         return { success: true, count: input.ids.length };
       }),
     
