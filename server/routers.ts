@@ -562,6 +562,52 @@ export const appRouter = router({
         return { id, ...input };
       }),
 
+    batchAddBinding: adminProcedure
+      .input(z.object({
+        groupId: z.number(),
+        channels: z.array(z.object({
+          channelId: z.number(),
+          coefficient: z.number().default(1.0),
+          offset: z.number().default(0.0),
+        })),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const results: { channelId: number; success: boolean; error?: string; id?: number }[] = [];
+        const existingBindings = await db.getBindingsByGroup(input.groupId);
+        const existingChannelIds = new Set(existingBindings.map(b => b.channelId));
+        
+        for (const ch of input.channels) {
+          // 跳过已绑定的
+          if (existingChannelIds.has(ch.channelId)) {
+            results.push({ channelId: ch.channelId, success: false, error: '已绑定' });
+            continue;
+          }
+          // 检查通道是否存在且启用
+          const channel = await db.getChannelById(ch.channelId);
+          if (!channel) {
+            results.push({ channelId: ch.channelId, success: false, error: '通道不存在' });
+            continue;
+          }
+          if (!channel.enabled) {
+            results.push({ channelId: ch.channelId, success: false, error: '通道未启用' });
+            continue;
+          }
+          // 检查是否被其他柜组绑定
+          const conflict = await db.checkChannelBindingConflict(ch.channelId, input.groupId);
+          if (conflict) {
+            results.push({ channelId: ch.channelId, success: false, error: '已被其他柜组绑定' });
+            continue;
+          }
+          const id = await db.createBinding({ groupId: input.groupId, channelId: ch.channelId, coefficient: ch.coefficient, offset: ch.offset });
+          results.push({ channelId: ch.channelId, success: true, id });
+        }
+        const successCount = results.filter(r => r.success).length;
+        if (successCount > 0) {
+          await audit(ctx.user.id, ctx.user.name, "batchAddBinding", "groupChannelBinding", input.groupId, `柜组#${input.groupId}批量绑定${successCount}个通道`, { results });
+        }
+        return { results, successCount, failCount: results.length - successCount };
+      }),
+
     updateBinding: adminProcedure
       .input(z.object({
         id: z.number(),

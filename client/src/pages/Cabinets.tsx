@@ -31,6 +31,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Plus, Edit, Trash2, Loader2, AlertTriangle, CheckCircle2,
   Link2, Unlink, Settings2, ChevronLeft, ChevronRight,
@@ -42,7 +43,7 @@ import { z } from "zod";
 import { toast } from "sonner";
 import type { CabinetGroup } from "../../../drizzle/schema";
 
-// 柜组基本信息schema - area替代assetCode
+// 柜组基本信息schema
 const cabinetSchema = z.object({
   area: z.string().max(100, "区域名称过长").optional(),
   name: z.string().min(1, "名称不能为空").max(100, "名称过长"),
@@ -105,7 +106,6 @@ function InstrumentSubRow({ groupId }: { groupId: number }) {
         return (
           <TableRow key={`inst-${inst.id}`} className="bg-muted/20 hover:bg-muted/30 border-l-2 border-l-primary/20">
             <TableCell colSpan={10}>
-              {/* 仪表行 - 第一级缩进 */}
               <div className="flex items-center gap-2 ml-12 pl-4 border-l-2 border-l-primary/30 py-1">
                 <button
                   onClick={() => toggleInstrument(inst.id)}
@@ -130,7 +130,6 @@ function InstrumentSubRow({ groupId }: { groupId: number }) {
                 </span>
               </div>
 
-              {/* 通道子行 - 第二级缩进 */}
               {isExpanded && inst.channels && inst.channels.length > 0 && (
                 <div className="ml-12 pl-4 mt-2 mb-1 space-y-1 border-l-2 border-l-amber-500/30">
                   {inst.channels.map((ch: any) => (
@@ -150,7 +149,7 @@ function InstrumentSubRow({ groupId }: { groupId: number }) {
                         校准: {ch.scale}x + {ch.offset}
                       </span>
                       <span className="text-xs font-medium text-primary ml-auto">
-                        绑定系数: {ch.coefficient} · 偏移: {ch.offset}
+                        绑定系数: {ch.coefficient} · 偏移: {ch.bindingOffset}
                       </span>
                     </div>
                   ))}
@@ -161,6 +160,150 @@ function InstrumentSubRow({ groupId }: { groupId: number }) {
         );
       })}
     </>
+  );
+}
+
+// ========== 树形多选面板组件 ==========
+function ChannelTreeSelector({
+  instruments,
+  allChannels,
+  selectedChannelIds,
+  onToggleChannel,
+  onToggleInstrument,
+  boundChannelIds,
+}: {
+  instruments: any[];
+  allChannels: any[];
+  selectedChannelIds: Set<number>;
+  onToggleChannel: (channelId: number) => void;
+  onToggleInstrument: (instrumentId: number, channelIds: number[]) => void;
+  boundChannelIds: Set<number>;
+}) {
+  const [expandedInstrumentIds, setExpandedInstrumentIds] = useState<Set<number>>(new Set());
+
+  // 按仪表分组通道
+  const instrumentChannelMap = useMemo(() => {
+    const map = new Map<number, any[]>();
+    for (const ch of allChannels) {
+      if (!ch.enabled) continue; // 只显示启用的通道
+      const list = map.get(ch.instrumentId) || [];
+      list.push(ch);
+      map.set(ch.instrumentId, list);
+    }
+    return map;
+  }, [allChannels]);
+
+  // 只显示有启用通道的仪表
+  const instrumentsWithChannels = useMemo(() => {
+    return instruments.filter(inst => {
+      const channels = instrumentChannelMap.get(inst.id);
+      return channels && channels.length > 0;
+    });
+  }, [instruments, instrumentChannelMap]);
+
+  const toggleExpand = (id: number) => {
+    setExpandedInstrumentIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  if (instrumentsWithChannels.length === 0) {
+    return (
+      <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
+        暂无可用仪表通道
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-1">
+      {instrumentsWithChannels.map(inst => {
+        const channels = instrumentChannelMap.get(inst.id) || [];
+        const isExpanded = expandedInstrumentIds.has(inst.id);
+        const selectableChannels = channels.filter(ch => !boundChannelIds.has(ch.id));
+        const selectedCount = selectableChannels.filter(ch => selectedChannelIds.has(ch.id)).length;
+        const allSelected = selectableChannels.length > 0 && selectedCount === selectableChannels.length;
+        const someSelected = selectedCount > 0 && !allSelected;
+
+        return (
+          <div key={inst.id} className="border rounded-lg overflow-hidden">
+            {/* 仪表父节点 */}
+            <div
+              className="flex items-center gap-2 px-3 py-2 bg-muted/30 hover:bg-muted/50 cursor-pointer transition-colors"
+              onClick={() => toggleExpand(inst.id)}
+            >
+              <button className="p-0.5 rounded hover:bg-muted transition-colors">
+                {isExpanded ? (
+                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                ) : (
+                  <ChevronRightIcon className="h-4 w-4 text-muted-foreground" />
+                )}
+              </button>
+              <Checkbox
+                checked={allSelected}
+                onCheckedChange={(e) => {
+                  e; // prevent unused
+                  onToggleInstrument(inst.id, selectableChannels.map(ch => ch.id));
+                }}
+                onClick={(e) => e.stopPropagation()}
+                {...(someSelected ? { "data-state": "indeterminate" } : {})}
+                aria-label={`全选 ${inst.name || inst.deviceCode}`}
+              />
+              <Gauge className="h-4 w-4 text-blue-500 shrink-0" />
+              <span className="text-sm font-medium truncate">{inst.name || inst.deviceCode}</span>
+              <Badge variant="outline" className="text-xs shrink-0">{inst.modelType}</Badge>
+              {selectedCount > 0 && (
+                <Badge className="text-xs ml-auto shrink-0 bg-primary/80">
+                  已选 {selectedCount}
+                </Badge>
+              )}
+            </div>
+
+            {/* 通道子节点 */}
+            {isExpanded && (
+              <div className="border-t">
+                {channels.map(ch => {
+                  const isBound = boundChannelIds.has(ch.id);
+                  const isSelected = selectedChannelIds.has(ch.id);
+                  return (
+                    <div
+                      key={ch.id}
+                      className={`flex items-center gap-2 px-3 py-1.5 pl-12 text-sm transition-colors ${
+                        isBound
+                          ? "bg-muted/20 opacity-50 cursor-not-allowed"
+                          : isSelected
+                          ? "bg-primary/10 hover:bg-primary/15"
+                          : "hover:bg-muted/30 cursor-pointer"
+                      }`}
+                      onClick={() => !isBound && onToggleChannel(ch.id)}
+                    >
+                      <Checkbox
+                        checked={isSelected || isBound}
+                        disabled={isBound}
+                        onCheckedChange={() => !isBound && onToggleChannel(ch.id)}
+                        onClick={(e) => e.stopPropagation()}
+                        aria-label={ch.label}
+                      />
+                      <Radio className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                      <span className="font-medium min-w-[50px]">{ch.label}</span>
+                      {isBound ? (
+                        <Badge variant="secondary" className="text-xs">已绑定</Badge>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">
+                          {ch.unit} · 精度{ch.precision}位
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
@@ -178,22 +321,32 @@ export default function Cabinets() {
   const [pageSize, setPageSize] = useState(10);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
 
-  // 绑定配置状态
-  const [selectedChannelId, setSelectedChannelId] = useState<number | null>(null);
-  const [bindingCoefficient, setBindingCoefficient] = useState(1.0);
-  const [bindingOffset, setBindingOffset] = useState(0.0);
+  // 树形多选状态
+  const [selectedChannelIds, setSelectedChannelIds] = useState<Set<number>>(new Set());
+  const [batchCoefficient, setBatchCoefficient] = useState(1.0);
+  const [batchOffset, setBatchOffset] = useState(0.0);
 
   const utils = trpc.useUtils();
 
   // 查询数据
   const { data: cabinets, isLoading } = trpc.cabinetGroups.list.useQuery();
   const { data: allChannels } = trpc.channels.listAll.useQuery();
+  const { data: allInstruments } = trpc.instruments.list.useQuery();
 
   // 查询当前柜组的通道绑定
   const { data: bindings, refetch: refetchBindings } = trpc.cabinetGroups.getBindings.useQuery(
     { groupId: bindingCabinetId || 0 },
     { enabled: !!bindingCabinetId }
   );
+
+  // 已绑定的通道ID集合（当前柜组 + 其他柜组）
+  const boundChannelIds = useMemo(() => {
+    const ids = new Set<number>();
+    if (bindings) {
+      bindings.forEach((b: any) => ids.add(b.channelId));
+    }
+    return ids;
+  }, [bindings]);
 
   // 分页计算
   const totalItems = cabinets?.length || 0;
@@ -207,12 +360,6 @@ export default function Cabinets() {
   const currentPageIds = useMemo(() => new Set(paginatedCabinets.map(c => c.id)), [paginatedCabinets]);
   const isAllSelected = paginatedCabinets.length > 0 && paginatedCabinets.every(c => selectedIds.has(c.id));
   const isSomeSelected = paginatedCabinets.some(c => selectedIds.has(c.id));
-
-  // 可用通道列表（排除已绑定到其他柜组的通道）
-  const availableChannels = useMemo(() => {
-    if (!allChannels) return [];
-    return allChannels.filter(ch => ch.enabled);
-  }, [allChannels]);
 
   // 展开/收起柜组
   const toggleGroupExpand = (id: number) => {
@@ -263,15 +410,17 @@ export default function Cabinets() {
   });
 
   // 绑定mutations
-  const addBindingMutation = trpc.cabinetGroups.addBinding.useMutation({
-    onSuccess: () => {
+  const batchAddBindingMutation = trpc.cabinetGroups.batchAddBinding.useMutation({
+    onSuccess: (data: any) => {
       utils.cabinetGroups.getBindings.invalidate();
       utils.cabinetGroups.getBoundInstruments.invalidate();
       refetchBindings();
-      toast.success("通道绑定成功");
-      setSelectedChannelId(null);
-      setBindingCoefficient(1.0);
-      setBindingOffset(0.0);
+      setSelectedChannelIds(new Set());
+      if (data.failCount > 0) {
+        toast.success(`成功绑定 ${data.successCount} 个通道，${data.failCount} 个失败`);
+      } else {
+        toast.success(`成功绑定 ${data.successCount} 个通道`);
+      }
     },
     onError: (error: any) => toast.error(`绑定失败: ${error.message}`),
   });
@@ -363,23 +512,48 @@ export default function Cabinets() {
   // 打开绑定配置对话框
   const handleOpenBinding = (cabinetId: number) => {
     setBindingCabinetId(cabinetId);
-    setSelectedChannelId(null);
-    setBindingCoefficient(1.0);
-    setBindingOffset(0.0);
+    setSelectedChannelIds(new Set());
+    setBatchCoefficient(1.0);
+    setBatchOffset(0.0);
     setIsBindingDialogOpen(true);
   };
 
-  // 添加通道绑定
-  const handleAddBinding = () => {
-    if (!bindingCabinetId || !selectedChannelId) {
-      toast.error("请选择通道");
+  // 树形选择：切换单个通道
+  const handleToggleChannel = (channelId: number) => {
+    setSelectedChannelIds(prev => {
+      const next = new Set(prev);
+      if (next.has(channelId)) next.delete(channelId); else next.add(channelId);
+      return next;
+    });
+  };
+
+  // 树形选择：切换整个仪表的所有通道
+  const handleToggleInstrument = (instrumentId: number, channelIds: number[]) => {
+    setSelectedChannelIds(prev => {
+      const next = new Set(prev);
+      const allSelected = channelIds.every(id => next.has(id));
+      if (allSelected) {
+        channelIds.forEach(id => next.delete(id));
+      } else {
+        channelIds.forEach(id => next.add(id));
+      }
+      return next;
+    });
+  };
+
+  // 批量绑定
+  const handleBatchBind = () => {
+    if (!bindingCabinetId || selectedChannelIds.size === 0) {
+      toast.error("请选择至少一个通道");
       return;
     }
-    addBindingMutation.mutate({
+    batchAddBindingMutation.mutate({
       groupId: bindingCabinetId,
-      channelId: selectedChannelId,
-      coefficient: bindingCoefficient,
-      offset: bindingOffset,
+      channels: Array.from(selectedChannelIds).map(channelId => ({
+        channelId,
+        coefficient: batchCoefficient,
+        offset: batchOffset,
+      })),
     });
   };
 
@@ -387,7 +561,9 @@ export default function Cabinets() {
   const getChannelLabel = (channelId: number) => {
     const ch = allChannels?.find(c => c.id === channelId);
     if (!ch) return `通道#${channelId}`;
-    return ch.label;
+    // 找到对应仪表名
+    const inst = allInstruments?.find(i => i.id === ch.instrumentId);
+    return `${inst?.name || inst?.deviceCode || `仪表#${ch.instrumentId}`} / ${ch.label}`;
   };
 
   const getStatusBadge = (status: string) => {
@@ -655,9 +831,9 @@ export default function Cabinets() {
         </DialogContent>
       </Dialog>
 
-      {/* 通道绑定配置对话框 */}
+      {/* 通道绑定配置对话框 - 树形多选 */}
       <Dialog open={isBindingDialogOpen} onOpenChange={setIsBindingDialogOpen}>
-        <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-[900px] max-h-[90vh] overflow-hidden flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Link2 className="h-5 w-5" />
@@ -668,110 +844,122 @@ export default function Cabinets() {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-6 py-4">
-            {/* 已绑定的通道列表 */}
-            <div className="space-y-4">
-              <div className="flex items-center gap-2">
-                <div className="h-6 w-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold">1</div>
-                <h3 className="text-base font-semibold">已绑定通道</h3>
+          <div className="flex gap-4 flex-1 min-h-0 py-2">
+            {/* 左侧：已绑定通道列表 */}
+            <div className="w-[340px] shrink-0 flex flex-col border rounded-lg overflow-hidden">
+              <div className="flex items-center gap-2 px-3 py-2.5 bg-muted/50 border-b">
+                <div className="h-5 w-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold">1</div>
+                <h3 className="text-sm font-semibold">已绑定通道</h3>
+                {bindings && bindings.length > 0 && (
+                  <Badge variant="secondary" className="text-xs ml-auto">{bindings.length} 个</Badge>
+                )}
               </div>
 
-              {bindings && bindings.length > 0 ? (
-                <div className="space-y-2">
-                  {bindings.map((binding: any) => (
-                    <div key={binding.id} className="flex items-center justify-between bg-muted/50 rounded-lg px-3 py-2">
-                      <div className="flex items-center gap-3">
-                        <Link2 className="h-4 w-4 text-primary" />
-                        <span className="text-sm font-medium">{getChannelLabel(binding.channelId)}</span>
-                        <Badge variant="outline" className="text-xs">
-                          系数: {binding.coefficient}
-                        </Badge>
-                        <Badge variant="outline" className="text-xs">
-                          偏移: {binding.offset}
-                        </Badge>
+              <ScrollArea className="flex-1 max-h-[400px]">
+                <div className="p-2 space-y-1.5">
+                  {bindings && bindings.length > 0 ? (
+                    bindings.map((binding: any) => (
+                      <div key={binding.id} className="flex items-center justify-between bg-muted/30 rounded-lg px-3 py-2 group">
+                        <div className="flex flex-col gap-0.5 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <Link2 className="h-3.5 w-3.5 text-primary shrink-0" />
+                            <span className="text-sm font-medium truncate">{getChannelLabel(binding.channelId)}</span>
+                          </div>
+                          <div className="flex items-center gap-2 pl-5.5">
+                            <Badge variant="outline" className="text-xs">
+                              系数: {binding.coefficient}
+                            </Badge>
+                            <Badge variant="outline" className="text-xs">
+                              偏移: {binding.offset}
+                            </Badge>
+                          </div>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                          onClick={() => removeBindingMutation.mutate({ id: binding.id })}
+                          disabled={removeBindingMutation.isPending}
+                          title="解除绑定"
+                        >
+                          <Unlink className="h-4 w-4 text-destructive" />
+                        </Button>
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => removeBindingMutation.mutate({ id: binding.id })}
-                        disabled={removeBindingMutation.isPending}
-                      >
-                        <Unlink className="h-4 w-4 text-destructive" />
-                      </Button>
+                    ))
+                  ) : (
+                    <div className="text-sm text-muted-foreground text-center py-6">
+                      暂无绑定通道
                     </div>
-                  ))}
+                  )}
                 </div>
-              ) : (
-                <div className="text-sm text-muted-foreground bg-muted/30 rounded-lg p-3">
-                  暂无绑定通道
+              </ScrollArea>
+
+              <div className="px-3 py-2 border-t bg-muted/20">
+                <div className="text-xs text-muted-foreground">
+                  <strong>公式：</strong>总重量 = Σ (通道值 × 系数 + 偏移)
                 </div>
-              )}
+              </div>
             </div>
 
-            <Separator />
-
-            {/* 添加新的通道绑定 */}
-            <div className="space-y-4">
-              <div className="flex items-center gap-2">
-                <div className="h-6 w-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold">2</div>
-                <h3 className="text-base font-semibold">添加通道绑定</h3>
+            {/* 右侧：树形多选面板 */}
+            <div className="flex-1 flex flex-col border rounded-lg overflow-hidden min-w-0">
+              <div className="flex items-center gap-2 px-3 py-2.5 bg-muted/50 border-b">
+                <div className="h-5 w-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold">2</div>
+                <h3 className="text-sm font-semibold">选择通道</h3>
+                {selectedChannelIds.size > 0 && (
+                  <Badge className="text-xs ml-auto bg-primary/80">
+                    已选 {selectedChannelIds.size} 个
+                  </Badge>
+                )}
               </div>
 
-              <div className="border rounded-lg p-4 space-y-4">
-                <div className="space-y-2">
-                  <Label className="text-sm">选择通道</Label>
-                  <Select
-                    value={selectedChannelId?.toString() || ""}
-                    onValueChange={(val) => setSelectedChannelId(parseInt(val))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="选择仪表通道" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {availableChannels.map(ch => (
-                        <SelectItem key={ch.id} value={ch.id.toString()}>
-                          {ch.label} (仪表ID: {ch.instrumentId})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+              <ScrollArea className="flex-1 max-h-[320px]">
+                <div className="p-2">
+                  <ChannelTreeSelector
+                    instruments={allInstruments || []}
+                    allChannels={allChannels || []}
+                    selectedChannelIds={selectedChannelIds}
+                    onToggleChannel={handleToggleChannel}
+                    onToggleInstrument={handleToggleInstrument}
+                    boundChannelIds={boundChannelIds}
+                  />
                 </div>
+              </ScrollArea>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label className="text-sm">权重系数</Label>
+              {/* 底部：系数/偏移配置 + 绑定按钮 */}
+              <div className="border-t px-3 py-3 bg-muted/20 space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs">权重系数</Label>
                     <Input
                       type="number"
                       step="0.01"
-                      value={bindingCoefficient}
-                      onChange={(e) => setBindingCoefficient(parseFloat(e.target.value) || 1.0)}
+                      value={batchCoefficient}
+                      onChange={(e) => setBatchCoefficient(parseFloat(e.target.value) || 1.0)}
+                      className="h-8 text-sm"
                     />
-                    <p className="text-xs text-muted-foreground">通道值 × 系数 + 偏移 = 最终重量贡献</p>
                   </div>
-                  <div className="space-y-2">
-                    <Label className="text-sm">偏移量</Label>
+                  <div className="space-y-1">
+                    <Label className="text-xs">偏移量</Label>
                     <Input
                       type="number"
                       step="0.01"
-                      value={bindingOffset}
-                      onChange={(e) => setBindingOffset(parseFloat(e.target.value) || 0.0)}
+                      value={batchOffset}
+                      onChange={(e) => setBatchOffset(parseFloat(e.target.value) || 0.0)}
+                      className="h-8 text-sm"
                     />
                   </div>
                 </div>
-
                 <Button
+                  className="w-full"
                   size="sm"
-                  onClick={handleAddBinding}
-                  disabled={!selectedChannelId || addBindingMutation.isPending}
+                  onClick={handleBatchBind}
+                  disabled={selectedChannelIds.size === 0 || batchAddBindingMutation.isPending}
                 >
-                  {addBindingMutation.isPending && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}
+                  {batchAddBindingMutation.isPending && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}
                   <Plus className="mr-1 h-3 w-3" />
-                  添加绑定
+                  绑定选中的 {selectedChannelIds.size} 个通道
                 </Button>
-              </div>
-
-              <div className="text-xs text-muted-foreground bg-muted/30 rounded p-2">
-                <strong>计算公式：</strong>柜组总重量 = Σ (通道值 × 系数 + 偏移)，每个绑定的通道值经过系数和偏移校正后累加得到最终重量。
               </div>
             </div>
           </div>
