@@ -331,13 +331,14 @@ export default function Gateways() {
                     <TableHead>最后心跳</TableHead>
                     <TableHead>型号</TableHead>
                     <TableHead>备注</TableHead>
+                    <TableHead className="text-center">绑定配置</TableHead>
                     <TableHead className="text-right">操作</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {paginatedGateways.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
+                      <TableCell colSpan={11} className="text-center text-muted-foreground py-8">
                         暂无网关设备
                       </TableCell>
                     </TableRow>
@@ -381,10 +382,15 @@ export default function Gateways() {
                         <TableCell className="max-w-xs truncate text-sm text-muted-foreground">
                           {gateway.remark || "-"}
                         </TableCell>
+                        <TableCell className="text-center">
+                          <Button variant="ghost" size="sm" onClick={() => handleEdit(gateway)} title="绑定配置">
+                            <Settings2 className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-1">
-                            <Button variant="ghost" size="sm" onClick={() => handleEdit(gateway)} title="编辑网关及COM端口">
-                              <Settings2 className="h-4 w-4" />
+                            <Button variant="ghost" size="sm" onClick={() => handleEdit(gateway)} title="编辑网关">
+                              <Edit className="h-4 w-4" />
                             </Button>
                             <Button variant="ghost" size="sm" onClick={() => handleDelete(gateway.id)} title="删除网关">
                               <Trash2 className="h-4 w-4 text-destructive" />

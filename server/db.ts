@@ -23,6 +23,8 @@ import {
   InsertAlarmRecord,
   InsertVaultLayout,
   InsertAuditLog,
+  userPermissions,
+  InsertUserPermission,
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
@@ -125,7 +127,7 @@ export async function getUserById(id: number) {
   return result.length > 0 ? result[0] : undefined;
 }
 
-export async function updateUserRole(id: number, role: 'admin' | 'user') {
+export async function updateUserRole(id: number, role: 'admin' | 'operator') {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   await db.update(users).set({ role }).where(eq(users.id, id));
@@ -680,4 +682,66 @@ export async function getAuditLogsByTarget(targetType: string, targetId: number,
     ))
     .orderBy(desc(auditLogs.createdAt))
     .limit(limit);
+}
+
+// ==================== 用户权限管理 ====================
+
+/** 系统模块列表 */
+export const SYSTEM_MODULES = [
+  { id: 'dashboard', name: '实时监视' },
+  { id: 'gateway_config', name: '网关配置' },
+  { id: 'instrument_config', name: '仪表配置' },
+  { id: 'cabinet_group', name: '保险柜组' },
+  { id: 'data_records', name: '数据记录' },
+  { id: 'alarm_management', name: '报警管理' },
+  { id: 'data_analysis', name: '数据分析' },
+  { id: 'audit_logs', name: '审计日志' },
+  { id: 'user_management', name: '用户管理' },
+  { id: 'layout_editor', name: '布局编辑器' },
+] as const;
+
+export async function getUserPermissions(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return await db.select()
+    .from(userPermissions)
+    .where(eq(userPermissions.userId, userId));
+}
+
+export async function setUserPermissions(userId: number, permissions: { module: string; canView: number; canOperate: number }[]) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  // 删除旧权限
+  await db.delete(userPermissions).where(eq(userPermissions.userId, userId));
+  // 插入新权限
+  if (permissions.length > 0) {
+    await db.insert(userPermissions).values(
+      permissions.map(p => ({
+        userId,
+        module: p.module,
+        canView: p.canView,
+        canOperate: p.canOperate,
+      }))
+    );
+  }
+}
+
+export async function checkUserPermission(userId: number, module: string, action: 'view' | 'operate'): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+  const result = await db.select()
+    .from(userPermissions)
+    .where(and(
+      eq(userPermissions.userId, userId),
+      eq(userPermissions.module, module)
+    ))
+    .limit(1);
+  if (result.length === 0) return false;
+  return action === 'view' ? result[0].canView === 1 : result[0].canOperate === 1;
+}
+
+export async function deleteUserPermissions(userId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(userPermissions).where(eq(userPermissions.userId, userId));
 }

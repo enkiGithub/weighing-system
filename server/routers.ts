@@ -57,7 +57,7 @@ export const appRouter = router({
     updateRole: adminProcedure
       .input(z.object({ 
         id: z.number(), 
-        role: z.enum(['admin', 'user']) 
+        role: z.enum(['admin', 'operator']) 
       }))
       .mutation(async ({ input }) => {
         await db.updateUserRole(input.id, input.role);
@@ -71,8 +71,52 @@ export const appRouter = router({
           throw new TRPCError({ code: 'BAD_REQUEST', message: '不能删除自己的账号' });
         }
         await db.deleteUser(input.id);
+        await db.deleteUserPermissions(input.id);
         return { success: true };
       }),
+
+    getPermissions: adminProcedure
+      .input(z.object({ userId: z.number() }))
+      .query(async ({ input }) => {
+        return await db.getUserPermissions(input.userId);
+      }),
+
+    setPermissions: adminProcedure
+      .input(z.object({
+        userId: z.number(),
+        permissions: z.array(z.object({
+          module: z.string(),
+          canView: z.number().min(0).max(1),
+          canOperate: z.number().min(0).max(1),
+        })),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        // 不允许修改管理员的权限（管理员拥有所有权限）
+        const targetUser = await db.getUserById(input.userId);
+        if (targetUser?.role === 'admin') {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: '管理员拥有所有权限，无需配置' });
+        }
+        await db.setUserPermissions(input.userId, input.permissions);
+        await audit(ctx.user.id, ctx.user.name, 'update_permissions', 'user', input.userId, `更新用户 #${input.userId} 的权限配置`, input.permissions);
+        return { success: true };
+      }),
+
+    getModules: protectedProcedure.query(() => {
+      return db.SYSTEM_MODULES;
+    }),
+
+    /** 获取当前用户的权限（操作员用） */
+    myPermissions: protectedProcedure.query(async ({ ctx }) => {
+      if (ctx.user.role === 'admin') {
+        // 管理员拥有所有权限
+        return db.SYSTEM_MODULES.map(m => ({
+          module: m.id,
+          canView: 1,
+          canOperate: 1,
+        }));
+      }
+      return await db.getUserPermissions(ctx.user.id);
+    }),
   }),
 
   // 网关管理

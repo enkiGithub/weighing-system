@@ -22,22 +22,23 @@ import {
 import { getLoginUrl } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
 import { LayoutDashboard, LogOut, PanelLeft, Users, Gauge, Server, Archive, Database, Bell, BarChart3, Grid3x3, ClipboardList } from "lucide-react";
+import { usePermissions } from "@/hooks/usePermissions";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
 import { Button } from "./ui/button";
 
 const menuItems = [
-  { icon: LayoutDashboard, label: "实时监视", path: "/" },
-  { icon: Gauge, label: "网关配置", path: "/gateways" },
-  { icon: Server, label: "仪表配置", path: "/devices" },
-  { icon: Archive, label: "保险柜组", path: "/cabinets" },
-  { icon: Database, label: "数据记录", path: "/records" },
-  { icon: Bell, label: "报警管理", path: "/alarms" },
-  { icon: BarChart3, label: "数据分析", path: "/analytics" },
-  { icon: ClipboardList, label: "审计日志", path: "/audit-logs", adminOnly: true },
-  { icon: Users, label: "用户管理", path: "/users", adminOnly: true },
-  { icon: Grid3x3, label: "布局编辑器", path: "/layout-editor", adminOnly: true },
+  { icon: LayoutDashboard, label: "实时监视", path: "/", moduleId: "dashboard" as const },
+  { icon: Gauge, label: "网关配置", path: "/gateways", moduleId: "gateway_config" as const },
+  { icon: Server, label: "仪表配置", path: "/devices", moduleId: "instrument_config" as const },
+  { icon: Archive, label: "保险柜组", path: "/cabinets", moduleId: "cabinet_group" as const },
+  { icon: Database, label: "数据记录", path: "/records", moduleId: "data_records" as const },
+  { icon: Bell, label: "报警管理", path: "/alarms", moduleId: "alarm_management" as const },
+  { icon: BarChart3, label: "数据分析", path: "/analytics", moduleId: "data_analysis" as const },
+  { icon: ClipboardList, label: "审计日志", path: "/audit-logs", moduleId: "audit_logs" as const },
+  { icon: Users, label: "用户管理", path: "/users", moduleId: "user_management" as const },
+  { icon: Grid3x3, label: "布局编辑器", path: "/layout-editor", moduleId: "layout_editor" as const },
 ];
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";
@@ -120,9 +121,13 @@ function DashboardLayoutContent({
   const isCollapsed = state === "collapsed";
   const [isResizing, setIsResizing] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
-  const filteredMenuItems = menuItems.filter(
-    item => !item.adminOnly || user?.role === 'admin'
-  );
+  const { canView, isAdmin } = usePermissions();
+  const filteredMenuItems = menuItems.filter(item => {
+    // 管理员可以看到所有菜单
+    if (isAdmin) return true;
+    // 操作员根据权限过滤
+    return canView(item.moduleId);
+  });
   const activeMenuItem = filteredMenuItems.find(item => item.path === location);
   const isMobile = useIsMobile();
 

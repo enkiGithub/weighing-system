@@ -9,7 +9,7 @@ export const users = mysqlTable("users", {
   name: text("name"),
   email: varchar("email", { length: 320 }),
   loginMethod: varchar("loginMethod", { length: 64 }),
-  role: mysqlEnum("role", ["user", "admin"]).default("user").notNull(),
+  role: mysqlEnum("role", ["admin", "operator"]).default("operator").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
@@ -252,3 +252,24 @@ export const auditLogs = mysqlTable("auditLogs", {
 
 export type AuditLog = typeof auditLogs.$inferSelect;
 export type InsertAuditLog = typeof auditLogs.$inferInsert;
+
+/**
+ * 用户权限表
+ * 每个操作员可配置各模块的查看/操作权限
+ * 管理员拥有所有权限，无需在此表配置
+ */
+export const userPermissions = mysqlTable("userPermissions", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  /** 模块标识：dashboard, gateway_config, instrument_config, cabinet_group, data_records, alarm_management, data_analysis, audit_logs, user_management, layout_editor */
+  module: varchar("module", { length: 50 }).notNull(),
+  /** 是否可查看 */
+  canView: int("canView").notNull().default(0),
+  /** 是否可操作（增删改） */
+  canOperate: int("canOperate").notNull().default(0),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type UserPermission = typeof userPermissions.$inferSelect;
+export type InsertUserPermission = typeof userPermissions.$inferInsert;

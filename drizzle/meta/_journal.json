@@ -43,6 +43,13 @@
       "when": 1771554396943,
       "tag": "0005_damp_falcon",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1771559497948,
+      "tag": "0006_happy_guardian",
+      "breakpoints": true
     }
   ]
 }

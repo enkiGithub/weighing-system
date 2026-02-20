@@ -76,8 +76,8 @@ function InstrumentSubRow({ groupId }: { groupId: number }) {
   if (isLoading) {
     return (
       <TableRow>
-        <TableCell colSpan={10} className="bg-muted/20">
-          <div className="flex items-center gap-2 pl-16 py-2">
+<TableCell colSpan={12} className="bg-muted/20">
+           <div className="flex items-center gap-2 pl-16 py-2">
             <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
             <span className="text-sm text-muted-foreground">加载仪表信息...</span>
           </div>
@@ -89,8 +89,8 @@ function InstrumentSubRow({ groupId }: { groupId: number }) {
   if (!boundInstruments || boundInstruments.length === 0) {
     return (
       <TableRow>
-        <TableCell colSpan={10} className="bg-muted/20">
-          <div className="flex items-center gap-2 pl-16 py-3">
+<TableCell colSpan={12} className="bg-muted/20">
+           <div className="flex items-center gap-2 pl-16 py-3">
             <Gauge className="h-4 w-4 text-muted-foreground" />
             <span className="text-sm text-muted-foreground italic">暂无绑定仪表，请通过"配置绑定"添加通道</span>
           </div>
@@ -105,7 +105,7 @@ function InstrumentSubRow({ groupId }: { groupId: number }) {
         const isExpanded = expandedInstrumentIds.has(inst.id);
         return (
           <TableRow key={`inst-${inst.id}`} className="bg-muted/20 hover:bg-muted/30 border-l-2 border-l-primary/20">
-            <TableCell colSpan={10}>
+            <TableCell colSpan={12}>
               <div className="flex items-center gap-2 ml-12 pl-4 border-l-2 border-l-primary/30 py-1">
                 <button
                   onClick={() => toggleInstrument(inst.id)}
@@ -648,13 +648,14 @@ export default function Cabinets() {
                     <TableHead>报警阈值</TableHead>
                     <TableHead>状态</TableHead>
                     <TableHead>备注</TableHead>
+                    <TableHead className="text-center">绑定配置</TableHead>
                     <TableHead className="text-right">操作</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {paginatedCabinets.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={11} className="text-center text-muted-foreground py-8">
+                      <TableCell colSpan={12} className="text-center text-muted-foreground py-8">
                         暂无保险柜组
                       </TableCell>
                     </TableRow>
@@ -706,16 +707,18 @@ export default function Cabinets() {
                             <TableCell className="max-w-xs truncate text-sm text-muted-foreground">
                               {cabinet.remark || "-"}
                             </TableCell>
+                            <TableCell className="text-center">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleOpenBinding(cabinet.id)}
+                                title="绑定配置"
+                              >
+                                <Settings2 className="h-4 w-4 text-primary" />
+                              </Button>
+                            </TableCell>
                             <TableCell className="text-right">
                               <div className="flex justify-end gap-1">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleOpenBinding(cabinet.id)}
-                                  title="配置通道绑定"
-                                >
-                                  <Settings2 className="h-4 w-4 text-primary" />
-                                </Button>
                                 <Button
                                   variant="ghost"
                                   size="sm"
