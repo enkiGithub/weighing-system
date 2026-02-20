@@ -1,0 +1,9 @@
+{
+  "query": "UPDATE instrumentChannels SET label = 'CH1' WHERE id = 90017;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user KBF53B6TGXz9Z1D.root --database SQ6yxhwuwXauyoM9DVdVk2 --execute UPDATE instrumentChannels SET label = 'CH1' WHERE id = 90017;",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1507
+}

@@ -1,0 +1,8 @@
+{
+  "query": "SELECT c.id, c.channel_no, c.label, c.instrument_id, i.device_code, i.model_type FROM channels c JOIN instruments i ON c.instrument_id = i.id WHERE i.device_code = 'c002' ORDER BY c.channel_no;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user KBF53B6TGXz9Z1D.root --database SQ6yxhwuwXauyoM9DVdVk2 --execute SELECT c.id, c.channel_no, c.label, c.instrument_id, i.device_code, i.model_type FROM channels c JOIN instruments i ON c.instrument_id = i.id WHERE i.device_code = 'c002' ORDER BY c.channel_no;",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1146 (42S02) at line 1: Table 'sq6yxhwuwxauyom9dvdvk2.channels' doesn't exist"
+  ]
+}

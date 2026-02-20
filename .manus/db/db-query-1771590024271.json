@@ -1,0 +1,28 @@
+{
+  "query": "SELECT i.id, i.deviceCode, i.modelType, (SELECT COUNT(*) FROM instrumentChannels c WHERE c.instrumentId = i.id) as channelCount FROM weighingInstruments i ORDER BY i.deviceCode LIMIT 20;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user KBF53B6TGXz9Z1D.root --database SQ6yxhwuwXauyoM9DVdVk2 --execute SELECT i.id, i.deviceCode, i.modelType, (SELECT COUNT(*) FROM instrumentChannels c WHERE c.instrumentId = i.id) as channelCount FROM weighingInstruments i ORDER BY i.deviceCode LIMIT 20;",
+  "rows": [
+    {
+      "id": "120009",
+      "deviceCode": "C001",
+      "modelType": "DY7004",
+      "channelCount": "4"
+    },
+    {
+      "id": "120008",
+      "deviceCode": "C002",
+      "modelType": "DY7004",
+      "channelCount": "4"
+    },
+    {
+      "id": "120007",
+      "deviceCode": "C003",
+      "modelType": "DY7001",
+      "channelCount": "1"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tdeviceCode\tmodelType\tchannelCount\n120009\tC001\tDY7004\t4\n120008\tC002\tDY7004\t4\n120007\tC003\tDY7001\t1\n",
+  "stderr": "",
+  "execution_time_ms": 1521
+}

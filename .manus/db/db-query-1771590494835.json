@@ -1,0 +1,38 @@
+{
+  "query": "SELECT ic.id, ic.label, ic.channelNo, wi.deviceCode, wi.modelType \nFROM instrumentChannels ic \nJOIN weighingInstruments wi ON ic.instrumentId = wi.id \nWHERE wi.deviceCode = 'C002' \nORDER BY ic.channelNo;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user KBF53B6TGXz9Z1D.root --database SQ6yxhwuwXauyoM9DVdVk2 --execute SELECT ic.id, ic.label, ic.channelNo, wi.deviceCode, wi.modelType \nFROM instrumentChannels ic \nJOIN weighingInstruments wi ON ic.instrumentId = wi.id \nWHERE wi.deviceCode = 'C002' \nORDER BY ic.channelNo;",
+  "rows": [
+    {
+      "id": "90017",
+      "label": "CH1",
+      "channelNo": "1",
+      "deviceCode": "C002",
+      "modelType": "DY7004"
+    },
+    {
+      "id": "120004",
+      "label": "CH2",
+      "channelNo": "2",
+      "deviceCode": "C002",
+      "modelType": "DY7004"
+    },
+    {
+      "id": "120005",
+      "label": "CH3",
+      "channelNo": "3",
+      "deviceCode": "C002",
+      "modelType": "DY7004"
+    },
+    {
+      "id": "120006",
+      "label": "CH4",
+      "channelNo": "4",
+      "deviceCode": "C002",
+      "modelType": "DY7004"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tlabel\tchannelNo\tdeviceCode\tmodelType\n90017\tCH1\t1\tC002\tDY7004\n120004\tCH2\t2\tC002\tDY7004\n120005\tCH3\t3\tC002\tDY7004\n120006\tCH4\t4\tC002\tDY7004\n",
+  "stderr": "",
+  "execution_time_ms": 1580
+}

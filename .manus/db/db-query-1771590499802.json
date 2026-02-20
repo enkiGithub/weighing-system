@@ -1,0 +1,30 @@
+{
+  "query": "SELECT ic.id, ic.label, ic.channelNo FROM instrumentChannels ic JOIN weighingInstruments wi ON ic.instrumentId = wi.id WHERE wi.deviceCode = 'C002' ORDER BY ic.channelNo LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user KBF53B6TGXz9Z1D.root --database SQ6yxhwuwXauyoM9DVdVk2 --execute SELECT ic.id, ic.label, ic.channelNo FROM instrumentChannels ic JOIN weighingInstruments wi ON ic.instrumentId = wi.id WHERE wi.deviceCode = 'C002' ORDER BY ic.channelNo LIMIT 10;",
+  "rows": [
+    {
+      "id": "90017",
+      "label": "CH1",
+      "channelNo": "1"
+    },
+    {
+      "id": "120004",
+      "label": "CH2",
+      "channelNo": "2"
+    },
+    {
+      "id": "120005",
+      "label": "CH3",
+      "channelNo": "3"
+    },
+    {
+      "id": "120006",
+      "label": "CH4",
+      "channelNo": "4"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tlabel\tchannelNo\n90017\tCH1\t1\n120004\tCH2\t2\n120005\tCH3\t3\n120006\tCH4\t4\n",
+  "stderr": "",
+  "execution_time_ms": 1594
+}

@@ -235,3 +235,13 @@
 
 ## Bug修复：编辑仪表选择DY7004无法保存
 - [x] 诊断并修复编辑仪表选择DY7004型号无法保存的问题（根因：后端update的input schema缺少modelType字段，导致型号变更被忽略）
+
+## Bug修复：DY7004仪表CH1通道名称生成为"Updated Label"
+- [x] 诊断并修复C002仪表CH1通道label被测试数据污染为"Updated Label"的问题（已恢复为"CH1"）
+
+## 测试文件修复：防止测试数据污染生产数据库
+- [x] 修正createAdminContext/createOperatorContext用户上下文字段（从旧OAuth字段改为本地认证字段username/passwordHash）
+- [x] 将createUserContext重命名为createOperatorContext，角色从"user"改为"operator"以匹配实际schema
+- [x] 添加afterAll清理逻辑，测试结束后自动删除所有测试创建的网关、仪表、柜组、布局数据
+- [x] 所有测试数据使用随机后缀避免名称冲突
+- [x] 全部42项测试通过，测试数据不再污染生产数据库

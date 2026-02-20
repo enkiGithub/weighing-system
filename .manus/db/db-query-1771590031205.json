@@ -1,0 +1,82 @@
+{
+  "query": "SELECT i.id as instId, i.deviceCode, i.modelType, c.id as chId, c.channelNo, c.label FROM weighingInstruments i LEFT JOIN instrumentChannels c ON c.instrumentId = i.id ORDER BY i.deviceCode, c.channelNo;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user KBF53B6TGXz9Z1D.root --database SQ6yxhwuwXauyoM9DVdVk2 --execute SELECT i.id as instId, i.deviceCode, i.modelType, c.id as chId, c.channelNo, c.label FROM weighingInstruments i LEFT JOIN instrumentChannels c ON c.instrumentId = i.id ORDER BY i.deviceCode, c.channelNo;",
+  "rows": [
+    {
+      "instId": "120009",
+      "deviceCode": "C001",
+      "modelType": "DY7004",
+      "chId": "90018",
+      "channelNo": "1",
+      "label": "CH1"
+    },
+    {
+      "instId": "120009",
+      "deviceCode": "C001",
+      "modelType": "DY7004",
+      "chId": "120001",
+      "channelNo": "2",
+      "label": "CH2"
+    },
+    {
+      "instId": "120009",
+      "deviceCode": "C001",
+      "modelType": "DY7004",
+      "chId": "120002",
+      "channelNo": "3",
+      "label": "CH3"
+    },
+    {
+      "instId": "120009",
+      "deviceCode": "C001",
+      "modelType": "DY7004",
+      "chId": "120003",
+      "channelNo": "4",
+      "label": "CH4"
+    },
+    {
+      "instId": "120008",
+      "deviceCode": "C002",
+      "modelType": "DY7004",
+      "chId": "90017",
+      "channelNo": "1",
+      "label": "Updated Label"
+    },
+    {
+      "instId": "120008",
+      "deviceCode": "C002",
+      "modelType": "DY7004",
+      "chId": "120004",
+      "channelNo": "2",
+      "label": "CH2"
+    },
+    {
+      "instId": "120008",
+      "deviceCode": "C002",
+      "modelType": "DY7004",
+      "chId": "120005",
+      "channelNo": "3",
+      "label": "CH3"
+    },
+    {
+      "instId": "120008",
+      "deviceCode": "C002",
+      "modelType": "DY7004",
+      "chId": "120006",
+      "channelNo": "4",
+      "label": "CH4"
+    },
+    {
+      "instId": "120007",
+      "deviceCode": "C003",
+      "modelType": "DY7001",
+      "chId": "90013",
+      "channelNo": "1",
+      "label": "CH1"
+    }
+  ],
+  "messages": [],
+  "stdout": "instId\tdeviceCode\tmodelType\tchId\tchannelNo\tlabel\n120009\tC001\tDY7004\t90018\t1\tCH1\n120009\tC001\tDY7004\t120001\t2\tCH2\n120009\tC001\tDY7004\t120002\t3\tCH3\n120009\tC001\tDY7004\t120003\t4\tCH4\n120008\tC002\tDY7004\t90017\t1\tUpdated Label\n120008\tC002\tDY7004\t120004\t2\tCH2\n120008\tC002\tDY7004\t120005\t3\tCH3\n120008\tC002\tDY7004\t120006\t4\tCH4\n120007\tC003\tDY7001\t90013\t1\tCH1\n",
+  "stderr": "",
+  "execution_time_ms": 1505
+}
