@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, Fragment } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -31,7 +31,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Plus, Edit, Trash2, Loader2, WifiOff, Wifi, ChevronLeft, ChevronRight, ChevronDown, ChevronRight as ChevronRightIcon, Server, Cable } from "lucide-react";
+import {
+  Plus, Edit, Trash2, Loader2, WifiOff, Wifi,
+  ChevronLeft, ChevronRight, ChevronDown, ChevronRight as ChevronRightIcon,
+  Server, Cable, Radio,
+} from "lucide-react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -51,13 +55,84 @@ type InstrumentForm = z.infer<typeof instrumentSchema>;
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
 
+// 通道子行组件
+function ChannelSubRows({ instrumentId }: { instrumentId: number }) {
+  const { data: channels, isLoading } = trpc.channels.listByInstrument.useQuery(
+    { instrumentId },
+    { enabled: true }
+  );
+
+  if (isLoading) {
+    return (
+      <TableRow>
+        <TableCell colSpan={11} className="bg-muted/20 border-l-2 border-l-primary/20">
+          <div className="flex items-center gap-2 ml-16 pl-4 py-2">
+            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            <span className="text-sm text-muted-foreground">加载通道信息...</span>
+          </div>
+        </TableCell>
+      </TableRow>
+    );
+  }
+
+  if (!channels || channels.length === 0) {
+    return (
+      <TableRow>
+        <TableCell colSpan={11} className="bg-muted/20 border-l-2 border-l-primary/20">
+          <div className="flex items-center gap-2 ml-16 pl-4 py-3">
+            <Radio className="h-4 w-4 text-muted-foreground" />
+            <span className="text-sm text-muted-foreground italic">暂无通道数据</span>
+          </div>
+        </TableCell>
+      </TableRow>
+    );
+  }
+
+  return (
+    <>
+      {channels.map((ch: any) => (
+        <TableRow key={`ch-${ch.id}`} className="bg-muted/20 hover:bg-muted/30 border-l-2 border-l-primary/20">
+          <TableCell colSpan={11}>
+            <div className="flex items-center gap-3 ml-12 pl-4 border-l-2 border-l-amber-500/30 py-1.5">
+              <Radio className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+              <span className="font-medium text-sm min-w-[60px]">{ch.label}</span>
+              <Badge
+                variant={ch.enabled ? "default" : "secondary"}
+                className={`text-xs ${ch.enabled ? "bg-emerald-600/80 text-white" : ""}`}
+              >
+                {ch.enabled ? "启用" : "禁用"}
+              </Badge>
+              <span className="text-xs text-muted-foreground">
+                单位: {ch.unit}
+              </span>
+              <span className="text-xs text-muted-foreground">
+                精度: {ch.precision}位
+              </span>
+              <span className="text-xs text-muted-foreground">
+                校准: {ch.scale}x + {ch.offset}
+              </span>
+              {ch.currentValue !== null && ch.currentValue !== undefined && (
+                <span className="text-xs font-medium text-primary">
+                  当前值: {Number(ch.currentValue).toFixed(ch.precision)} {ch.unit}
+                </span>
+              )}
+              {ch.lastReadAt && (
+                <span className="text-xs text-muted-foreground ml-auto">
+                  最后读取: {new Date(ch.lastReadAt).toLocaleString()}
+                </span>
+              )}
+            </div>
+          </TableCell>
+        </TableRow>
+      ))}
+    </>
+  );
+}
+
 export default function Devices() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingInstrument, setEditingInstrument] = useState<any>(null);
-  // 选中的COM端口ID（树形选择面板）
   const [selectedComPortId, setSelectedComPortId] = useState<number | null>(null);
-
-  // 待删除的仪表ID（用于二次确认force删除）
   const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
 
   // 分页和多选状态
@@ -65,7 +140,10 @@ export default function Devices() {
   const [pageSize, setPageSize] = useState(10);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
 
-  // 树形面板展开状态
+  // 仪表展开状态（查看通道）
+  const [expandedInstrumentIds, setExpandedInstrumentIds] = useState<Set<number>>(new Set());
+
+  // 树形面板展开状态（对话框中网关→COM端口）
   const [expandedGateways, setExpandedGateways] = useState<Set<number>>(new Set());
 
   const utils = trpc.useUtils();
@@ -107,6 +185,15 @@ export default function Devices() {
   const isAllSelected = paginatedInstruments.length > 0 && paginatedInstruments.every(i => selectedIds.has(i.id));
   const isSomeSelected = paginatedInstruments.some(i => selectedIds.has(i.id));
 
+  // 展开/收起仪表
+  const toggleInstrumentExpand = (id: number) => {
+    setExpandedInstrumentIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
   // 仪表mutations
   const createMutation = trpc.instruments.create.useMutation({
     onSuccess: () => {
@@ -134,7 +221,6 @@ export default function Devices() {
   const deleteMutation = trpc.instruments.delete.useMutation({
     onSuccess: (data) => {
       if (data.needConfirm && data.boundChannels) {
-        // 通道已被柜组绑定，提示用户确认强制删除
         const msg = `该仪表的通道 ${data.boundChannels.join(", ")} 已被柜组绑定。\n确认删除将自动解除这些绑定，是否继续？`;
         if (confirm(msg)) {
           deleteMutation.mutate({ id: pendingDeleteId!, force: true });
@@ -198,7 +284,6 @@ export default function Devices() {
       location: instrument.location || "",
       remark: instrument.remark || "",
     });
-    // 自动展开包含该COM端口的网关
     if (instrument.comPortId && allComPorts) {
       const port = allComPorts.find(p => p.id === instrument.comPortId);
       if (port) {
@@ -255,7 +340,7 @@ export default function Devices() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-foreground">仪表管理</h1>
-          <p className="text-muted-foreground mt-2">管理所有RS485称重仪表设备</p>
+          <p className="text-muted-foreground mt-2">管理所有RS485称重仪表设备，点击箭头展开查看通道配置</p>
         </div>
         <div className="flex gap-2">
           {selectedIds.size > 0 && (
@@ -275,7 +360,7 @@ export default function Devices() {
       <Card>
         <CardHeader>
           <CardTitle>仪表列表</CardTitle>
-          <CardDescription>查看和管理所有称重仪表设备的配置信息</CardDescription>
+          <CardDescription>点击行首箭头展开查看该仪表下的通道配置详情</CardDescription>
         </CardHeader>
         <CardContent>
           {instrumentsLoading ? (
@@ -296,6 +381,7 @@ export default function Devices() {
                           {...(isSomeSelected && !isAllSelected ? { "data-state": "indeterminate" } : {})}
                         />
                       </TableHead>
+                      <TableHead className="w-10"></TableHead>
                       <TableHead className="w-16">序号</TableHead>
                       <TableHead>设备编码</TableHead>
                       <TableHead>名称</TableHead>
@@ -303,58 +389,77 @@ export default function Devices() {
                       <TableHead>COM端口</TableHead>
                       <TableHead>从站地址</TableHead>
                       <TableHead>状态</TableHead>
-                      <TableHead>位置</TableHead>
                       <TableHead>备注</TableHead>
                       <TableHead className="text-right">操作</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {paginatedInstruments.map((instrument, index) => (
-                      <TableRow key={instrument.id} className={selectedIds.has(instrument.id) ? "bg-muted/50" : ""}>
-                        <TableCell>
-                          <Checkbox
-                            checked={selectedIds.has(instrument.id)}
-                            onCheckedChange={() => handleToggleSelect(instrument.id)}
-                            aria-label={`选择 ${instrument.name}`}
-                          />
-                        </TableCell>
-                        <TableCell className="text-muted-foreground">
-                          {(currentPage - 1) * pageSize + index + 1}
-                        </TableCell>
-                        <TableCell className="font-mono text-sm">{instrument.deviceCode}</TableCell>
-                        <TableCell className="font-medium">{instrument.name || "-"}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline">
-                            {instrument.modelType}
-                            {instrument.modelType === "DY7001" && " (1通道)"}
-                            {instrument.modelType === "DY7004" && " (4通道)"}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-sm">{getComPortInfo(instrument.comPortId)}</TableCell>
-                        <TableCell>{instrument.slaveId}</TableCell>
-                        <TableCell>
-                          <Badge variant={instrument.status === "online" ? "default" : "destructive"}>
-                            {instrument.status === "online" ? <Wifi className="h-3 w-3 mr-1" /> : <WifiOff className="h-3 w-3 mr-1" />}
-                            {instrument.status === "online" ? "在线" : "离线"}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">{instrument.location || "-"}</TableCell>
-                        <TableCell className="text-sm text-muted-foreground">{instrument.remark || "-"}</TableCell>
-                        <TableCell className="text-right space-x-1">
-                          <Button variant="ghost" size="sm" onClick={() => handleEdit(instrument)}>
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button variant="ghost" size="sm" onClick={() => {
-                            if (confirm("确定要删除此仪表吗？")) {
-                              setPendingDeleteId(instrument.id);
-                              deleteMutation.mutate({ id: instrument.id });
-                            }
-                          }}>
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                    {paginatedInstruments.map((instrument, index) => {
+                      const isExpanded = expandedInstrumentIds.has(instrument.id);
+                      return (
+                        <Fragment key={instrument.id}>
+                          <TableRow
+                            className={`${selectedIds.has(instrument.id) ? "bg-muted/50" : ""} ${isExpanded ? "border-b-0" : ""}`}
+                          >
+                            <TableCell>
+                              <Checkbox
+                                checked={selectedIds.has(instrument.id)}
+                                onCheckedChange={() => handleToggleSelect(instrument.id)}
+                                aria-label={`选择 ${instrument.name}`}
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <button
+                                onClick={() => toggleInstrumentExpand(instrument.id)}
+                                className="p-1 rounded hover:bg-muted transition-colors"
+                                title={isExpanded ? "收起通道" : "展开查看通道"}
+                              >
+                                {isExpanded ? (
+                                  <ChevronDown className="h-4 w-4 text-primary" />
+                                ) : (
+                                  <ChevronRightIcon className="h-4 w-4 text-muted-foreground" />
+                                )}
+                              </button>
+                            </TableCell>
+                            <TableCell className="text-muted-foreground">
+                              {(currentPage - 1) * pageSize + index + 1}
+                            </TableCell>
+                            <TableCell className="font-mono text-sm">{instrument.deviceCode}</TableCell>
+                            <TableCell className="font-medium">{instrument.name || "-"}</TableCell>
+                            <TableCell>
+                              <Badge variant="outline">
+                                {instrument.modelType}
+                                {instrument.modelType === "DY7001" && " (1通道)"}
+                                {instrument.modelType === "DY7004" && " (4通道)"}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-sm">{getComPortInfo(instrument.comPortId)}</TableCell>
+                            <TableCell>{instrument.slaveId}</TableCell>
+                            <TableCell>
+                              <Badge variant={instrument.status === "online" ? "default" : "destructive"}>
+                                {instrument.status === "online" ? <Wifi className="h-3 w-3 mr-1" /> : <WifiOff className="h-3 w-3 mr-1" />}
+                                {instrument.status === "online" ? "在线" : "离线"}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-sm text-muted-foreground max-w-xs truncate">{instrument.remark || "-"}</TableCell>
+                            <TableCell className="text-right space-x-1">
+                              <Button variant="ghost" size="sm" onClick={() => handleEdit(instrument)}>
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button variant="ghost" size="sm" onClick={() => {
+                                if (confirm("确定要删除此仪表吗？")) {
+                                  setPendingDeleteId(instrument.id);
+                                  deleteMutation.mutate({ id: instrument.id });
+                                }
+                              }}>
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                          {isExpanded && <ChannelSubRows instrumentId={instrument.id} />}
+                        </Fragment>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </div>
@@ -516,7 +621,6 @@ export default function Devices() {
 
                         return (
                           <div key={gateway.id}>
-                            {/* 网关节点 */}
                             <button
                               type="button"
                               className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm transition-colors hover:bg-accent/50 ${hasSelectedPort ? 'bg-primary/5' : ''}`}
@@ -529,12 +633,11 @@ export default function Devices() {
                               )}
                               <Server className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                               <span className="truncate font-medium">{gateway.name}</span>
-                              <Badge variant={gateway.status === "online" ? "default" : "secondary"} className="text-[10px] px-1 py-0 ml-auto shrink-0">
+                              <Badge variant="outline" className="text-[10px] ml-auto shrink-0">
                                 {gateway.status === "online" ? "在线" : "离线"}
                               </Badge>
                             </button>
 
-                            {/* COM端口子节点 */}
                             {isExpanded && (
                               <div className="ml-5 mt-0.5 space-y-0.5">
                                 {ports.length > 0 ? (
