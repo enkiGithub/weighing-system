@@ -1,0 +1,19 @@
+{
+  "query": "SELECT * FROM userPermissions WHERE userId = 93365 AND module = 'instrument_config';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user KBF53B6TGXz9Z1D.root --database SQ6yxhwuwXauyoM9DVdVk2 --execute SELECT * FROM userPermissions WHERE userId = 93365 AND module = 'instrument_config';",
+  "rows": [
+    {
+      "id": "15",
+      "userId": "93365",
+      "module": "instrument_config",
+      "canView": "1",
+      "canOperate": "0",
+      "createdAt": "2026-02-20 05:04:55",
+      "updatedAt": "2026-02-20 05:04:55"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tuserId\tmodule\tcanView\tcanOperate\tcreatedAt\tupdatedAt\n15\t93365\tinstrument_config\t1\t0\t2026-02-20 05:04:55\t2026-02-20 05:04:55\n",
+  "stderr": "",
+  "execution_time_ms": 1542
+}

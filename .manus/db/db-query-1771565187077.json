@@ -1,0 +1,90 @@
+{
+  "query": "SELECT u.id, u.username, u.role, up.module, up.canView, up.canOperate FROM users u LEFT JOIN userPermissions up ON u.id = up.userId WHERE u.username = 'lilian' ORDER BY up.module;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user KBF53B6TGXz9Z1D.root --database SQ6yxhwuwXauyoM9DVdVk2 --execute SELECT u.id, u.username, u.role, up.module, up.canView, up.canOperate FROM users u LEFT JOIN userPermissions up ON u.id = up.userId WHERE u.username = 'lilian' ORDER BY up.module;",
+  "rows": [
+    {
+      "id": "93365",
+      "username": "lilian",
+      "role": "operator",
+      "module": "alarm_management",
+      "canView": "0",
+      "canOperate": "0"
+    },
+    {
+      "id": "93365",
+      "username": "lilian",
+      "role": "operator",
+      "module": "audit_logs",
+      "canView": "0",
+      "canOperate": "0"
+    },
+    {
+      "id": "93365",
+      "username": "lilian",
+      "role": "operator",
+      "module": "cabinet_group",
+      "canView": "1",
+      "canOperate": "0"
+    },
+    {
+      "id": "93365",
+      "username": "lilian",
+      "role": "operator",
+      "module": "dashboard",
+      "canView": "1",
+      "canOperate": "0"
+    },
+    {
+      "id": "93365",
+      "username": "lilian",
+      "role": "operator",
+      "module": "data_analysis",
+      "canView": "0",
+      "canOperate": "0"
+    },
+    {
+      "id": "93365",
+      "username": "lilian",
+      "role": "operator",
+      "module": "data_records",
+      "canView": "1",
+      "canOperate": "0"
+    },
+    {
+      "id": "93365",
+      "username": "lilian",
+      "role": "operator",
+      "module": "gateway_config",
+      "canView": "1",
+      "canOperate": "0"
+    },
+    {
+      "id": "93365",
+      "username": "lilian",
+      "role": "operator",
+      "module": "instrument_config",
+      "canView": "1",
+      "canOperate": "0"
+    },
+    {
+      "id": "93365",
+      "username": "lilian",
+      "role": "operator",
+      "module": "layout_editor",
+      "canView": "0",
+      "canOperate": "0"
+    },
+    {
+      "id": "93365",
+      "username": "lilian",
+      "role": "operator",
+      "module": "user_management",
+      "canView": "0",
+      "canOperate": "0"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tusername\trole\tmodule\tcanView\tcanOperate\n93365\tlilian\toperator\talarm_management\t0\t0\n93365\tlilian\toperator\taudit_logs\t0\t0\n93365\tlilian\toperator\tcabinet_group\t1\t0\n93365\tlilian\toperator\tdashboard\t1\t0\n93365\tlilian\toperator\tdata_analysis\t0\t0\n93365\tlilian\toperator\tdata_records\t1\t0\n93365\tlilian\toperator\tgateway_config\t1\t0\n93365\tlilian\toperator\tinstrument_config\t1\t0\n93365\tlilian\toperator\tlayout_editor\t0\t0\n93365\tlilian\toperator\tuser_management\t0\t0\n",
+  "stderr": "",
+  "execution_time_ms": 1669
+}

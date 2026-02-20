@@ -1,0 +1,80 @@
+{
+  "query": "SELECT up.id, up.userId, up.module, up.canView, up.canOperate FROM userPermissions up WHERE up.userId = 93365;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user KBF53B6TGXz9Z1D.root --database SQ6yxhwuwXauyoM9DVdVk2 --execute SELECT up.id, up.userId, up.module, up.canView, up.canOperate FROM userPermissions up WHERE up.userId = 93365;",
+  "rows": [
+    {
+      "id": "13",
+      "userId": "93365",
+      "module": "dashboard",
+      "canView": "1",
+      "canOperate": "0"
+    },
+    {
+      "id": "14",
+      "userId": "93365",
+      "module": "gateway_config",
+      "canView": "1",
+      "canOperate": "0"
+    },
+    {
+      "id": "15",
+      "userId": "93365",
+      "module": "instrument_config",
+      "canView": "1",
+      "canOperate": "0"
+    },
+    {
+      "id": "16",
+      "userId": "93365",
+      "module": "cabinet_group",
+      "canView": "1",
+      "canOperate": "0"
+    },
+    {
+      "id": "17",
+      "userId": "93365",
+      "module": "data_records",
+      "canView": "1",
+      "canOperate": "0"
+    },
+    {
+      "id": "18",
+      "userId": "93365",
+      "module": "alarm_management",
+      "canView": "0",
+      "canOperate": "0"
+    },
+    {
+      "id": "19",
+      "userId": "93365",
+      "module": "data_analysis",
+      "canView": "0",
+      "canOperate": "0"
+    },
+    {
+      "id": "20",
+      "userId": "93365",
+      "module": "audit_logs",
+      "canView": "0",
+      "canOperate": "0"
+    },
+    {
+      "id": "21",
+      "userId": "93365",
+      "module": "user_management",
+      "canView": "0",
+      "canOperate": "0"
+    },
+    {
+      "id": "22",
+      "userId": "93365",
+      "module": "layout_editor",
+      "canView": "0",
+      "canOperate": "0"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tuserId\tmodule\tcanView\tcanOperate\n13\t93365\tdashboard\t1\t0\n14\t93365\tgateway_config\t1\t0\n15\t93365\tinstrument_config\t1\t0\n16\t93365\tcabinet_group\t1\t0\n17\t93365\tdata_records\t1\t0\n18\t93365\talarm_management\t0\t0\n19\t93365\tdata_analysis\t0\t0\n20\t93365\taudit_logs\t0\t0\n21\t93365\tuser_management\t0\t0\n22\t93365\tlayout_editor\t0\t0\n",
+  "stderr": "",
+  "execution_time_ms": 1523
+}

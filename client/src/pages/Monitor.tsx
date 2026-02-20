@@ -127,11 +127,11 @@ export default function Monitor() {
     groupData: any;
   } | null>(null);
 
-  // Queries with auto-refresh
-  const activeLayoutQuery = trpc.layoutEditor.vaultLayouts.getActive.useQuery(undefined, {
+  // Queries with auto-refresh (使用monitor专用API，避免跨模块权限冲突)
+  const activeLayoutQuery = trpc.monitor.getActiveLayout.useQuery(undefined, {
     refetchInterval: 10000,
   });
-  const cabinetGroupsQuery = trpc.cabinetGroups.list.useQuery(undefined, {
+  const cabinetGroupsQuery = trpc.monitor.getCabinetGroups.useQuery(undefined, {
     refetchInterval: 5000,
   });
 

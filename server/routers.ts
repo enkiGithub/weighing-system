@@ -888,6 +888,19 @@ export const appRouter = router({
   }),
 
   layoutEditor: layoutEditorRouter,
+
+  // 实时监视专用路由（使用dashboard权限，避免跨模块权限冲突）
+  monitor: router({
+    /** 获取激活布局（dashboard权限即可查看） */
+    getActiveLayout: dashboardView.query(async () => {
+      const layout = await db.getActiveVaultLayout();
+      return layout || null;
+    }),
+    /** 获取所有柜组状态（dashboard权限即可查看） */
+    getCabinetGroups: dashboardView.query(async () => {
+      return await db.getAllCabinetGroups();
+    }),
+  }),
 });
 
 export type AppRouter = typeof appRouter;
