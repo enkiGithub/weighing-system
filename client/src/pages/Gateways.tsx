@@ -282,7 +282,7 @@ export default function Gateways() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-foreground">网关管理</h1>
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">网关配置</h1>
           <p className="text-muted-foreground mt-2">管理所有RS485网关设备及其COM端口配置</p>
         </div>
         <div className="flex gap-2">

@@ -555,7 +555,7 @@ export default function Devices() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-foreground">仪表管理</h1>
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">仪表配置</h1>
           <p className="text-muted-foreground mt-2">
             管理所有RS485称重仪表及其通道。创建仪表时根据型号自动生成通道（DY7001: 1通道, DY7004: 4通道），通道数量固定不可增减。
           </p>

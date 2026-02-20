@@ -29,8 +29,8 @@ import { Button } from "./ui/button";
 
 const menuItems = [
   { icon: LayoutDashboard, label: "实时监视", path: "/" },
-  { icon: Server, label: "仪表管理", path: "/devices" },
-  { icon: Gauge, label: "网关管理", path: "/gateways" },
+  { icon: Gauge, label: "网关配置", path: "/gateways" },
+  { icon: Server, label: "仪表配置", path: "/devices" },
   { icon: Archive, label: "保险柜组", path: "/cabinets" },
   { icon: Database, label: "数据记录", path: "/records" },
   { icon: Bell, label: "报警管理", path: "/alarms" },
