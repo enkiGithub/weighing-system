@@ -29,8 +29,6 @@ export type InsertUser = typeof users.$inferInsert;
 export const gateways = mysqlTable("gateways", {
   id: int("id").autoincrement().primaryKey(),
   name: varchar("name", { length: 100 }).notNull(),
-  ipAddress: varchar("ipAddress", { length: 45 }).notNull(),
-  port: int("port").notNull(),
   /** 网关型号，如 ZLAN6808-16口、ZLAN6808-32口 */
   model: varchar("model", { length: 50 }),
   status: mysqlEnum("status", ["online", "offline"]).default("offline").notNull(),

@@ -42,8 +42,6 @@ import { usePermissions } from "@/hooks/usePermissions";
 
 const gatewaySchema = z.object({
   name: z.string().min(1, "名称不能为空").max(100, "名称过长"),
-  ipAddress: z.string().min(1, "IP地址不能为空").max(45, "IP地址过长"),
-  port: z.number().int().min(1, "端口必须大于0").max(65535, "端口号无效"),
   model: z.string().max(50).optional(),
   remark: z.string().optional(),
 });
@@ -53,6 +51,8 @@ type GatewayForm = z.infer<typeof gatewaySchema>;
 // COM端口表单schema
 const comPortSchema = z.object({
   portNumber: z.string().min(1, "端口号不能为空").max(10),
+  ipAddress: z.string().min(1, "IP地址不能为空").max(45, "IP地址过长"),
+  tcpPort: z.number().int().min(1, "TCP端口必须大于0").max(65535, "TCP端口号无效"),
   baudRate: z.number().int().optional(),
   dataBits: z.number().int().optional(),
   stopBits: z.number().int().optional(),
@@ -212,8 +212,6 @@ export default function Gateways() {
     setComPortGatewayId(gateway.id);
     reset({
       name: gateway.name,
-      ipAddress: gateway.ipAddress,
-      port: gateway.port,
       model: gateway.model || "",
       remark: gateway.remark || "",
     });
@@ -229,7 +227,7 @@ export default function Gateways() {
   const handleAdd = () => {
     setEditingGateway(null);
     setComPortGatewayId(null);
-    reset({ name: "", ipAddress: "", port: 502, model: "", remark: "" });
+    reset({ name: "", model: "", remark: "" });
     setIsDialogOpen(true);
   };
 
@@ -237,6 +235,8 @@ export default function Gateways() {
     setEditingComPort(port);
     resetComPortForm({
       portNumber: port.portNumber,
+      ipAddress: port.ipAddress,
+      tcpPort: port.tcpPort,
       baudRate: port.baudRate,
       dataBits: port.dataBits,
       stopBits: port.stopBits,
@@ -251,7 +251,7 @@ export default function Gateways() {
 
   const handleAddComPort = () => {
     setEditingComPort(null);
-    resetComPortForm({ baudRate: 9600, dataBits: 8, stopBits: 1, parity: "none", protocolType: "modbus_rtu", timeoutMs: 1000, retryCount: 3 });
+    resetComPortForm({ ipAddress: "", tcpPort: 502, baudRate: 9600, dataBits: 8, stopBits: 1, parity: "none", protocolType: "modbus_rtu", timeoutMs: 1000, retryCount: 3 });
     setIsComPortDialogOpen(true);
   };
 
@@ -330,8 +330,6 @@ export default function Gateways() {
                     </TableHead>
                     <TableHead className="w-16">序号</TableHead>
                     <TableHead>名称</TableHead>
-                    <TableHead>IP地址</TableHead>
-                    <TableHead>端口</TableHead>
                     <TableHead>状态</TableHead>
                     <TableHead>最后心跳</TableHead>
                     <TableHead>型号</TableHead>
@@ -343,7 +341,7 @@ export default function Gateways() {
                 <TableBody>
                   {paginatedGateways.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={11} className="text-center text-muted-foreground py-8">
+                      <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
                         暂无网关设备
                       </TableCell>
                     </TableRow>
@@ -361,8 +359,6 @@ export default function Gateways() {
                           {(currentPage - 1) * pageSize + index + 1}
                         </TableCell>
                         <TableCell className="font-medium">{gateway.name}</TableCell>
-                        <TableCell className="font-mono text-sm">{gateway.ipAddress}</TableCell>
-                        <TableCell>{gateway.port}</TableCell>
                         <TableCell>
                           <Badge
                             variant={gateway.status === "online" ? "default" : "secondary"}
@@ -474,18 +470,7 @@ export default function Gateways() {
                   <Input id="model" placeholder="例如：ZLAN6808" {...register("model")} />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="ipAddress">IP地址 *</Label>
-                  <Input id="ipAddress" placeholder="例如：192.168.1.100" {...register("ipAddress")} />
-                  {errors.ipAddress && <p className="text-sm text-destructive">{errors.ipAddress.message}</p>}
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="port">端口 *</Label>
-                  <Input id="port" type="number" placeholder="例如：502" {...register("port", { valueAsNumber: true })} />
-                  {errors.port && <p className="text-sm text-destructive">{errors.port.message}</p>}
-                </div>
-              </div>
+
               <div className="grid gap-2">
                 <Label htmlFor="remark">备注</Label>
                 <Textarea id="remark" placeholder="网关的备注信息" {...register("remark")} rows={2} />
@@ -590,6 +575,19 @@ export default function Gateways() {
               <Label htmlFor="portNumber">端口号 *</Label>
               <Input id="portNumber" placeholder="如 COM1, COM2" {...registerComPort("portNumber")} />
               {comPortErrors.portNumber && <p className="text-sm text-red-500">{comPortErrors.portNumber.message}</p>}
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="ipAddress">IP地址 *</Label>
+                <Input id="ipAddress" placeholder="例如：192.168.1.100" {...registerComPort("ipAddress")} />
+                {comPortErrors.ipAddress && <p className="text-sm text-red-500">{comPortErrors.ipAddress.message}</p>}
+              </div>
+              <div>
+                <Label htmlFor="tcpPort">TCP端口 *</Label>
+                <Input id="tcpPort" type="number" placeholder="例如：502" {...registerComPort("tcpPort", { valueAsNumber: true })} />
+                {comPortErrors.tcpPort && <p className="text-sm text-red-500">{comPortErrors.tcpPort.message}</p>}
+              </div>
             </div>
 
             <div className="grid grid-cols-3 gap-4">

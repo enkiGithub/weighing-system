@@ -237,23 +237,20 @@ export const appRouter = router({
     create: gatewayOperate
       .input(z.object({
         name: z.string().min(1).max(100),
-        ipAddress: z.string().min(1).max(45),
-        port: z.number().int().min(1).max(65535),
         model: z.string().max(50).optional(),
         remark: z.string().optional(),
       }))
       .mutation(async ({ input, ctx }) => {
         const id = await db.createGateway(input);
         await audit(ctx.user.id, ctx.user.name, "create", "gateway", id, `创建网关: ${input.name}`, input);
-        return { id, ...input };
+        const gateway = await db.getGatewayById(id);
+        return gateway || { id, ...input };
       }),
     
     update: gatewayOperate
       .input(z.object({
         id: z.number(),
         name: z.string().min(1).max(100).optional(),
-        ipAddress: z.string().min(1).max(45).optional(),
-        port: z.number().int().min(1).max(65535).optional(),
         model: z.string().max(50).optional(),
         remark: z.string().optional(),
       }))

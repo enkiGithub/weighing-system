@@ -306,12 +306,20 @@
 - [x] handover/templates/nginx.example.conf - Nginx配置模板
 - [x] handover/templates/systemd.service.example - systemd服务模板
 
+## COM端口独立IP/TCP配置（新需求）
+- [x] 从gateways表中删除ipAddress和port字段
+- [x] 在gatewayComPorts表中添加ipAddress和tcpPort字段（每个COM端口独立配置）
+- [x] 运行数据库迁移（pnpm db:push）
+- [x] 更新Gateways.tsx前端表单添加IP地址和TCP端口输入字段
+- [x] 更新网关表格移除IP地址和端口列
+- [x] 修复测试用例，所有42项测试通过
+
 ## 采集服务和实时监视增强（新需求）
 ### 数据库表扩展
-- [ ] 新增alarmRecords表（报警记录：柜组、类型、原始值、阈值、时间、状态等）
-- [ ] 新增alarmLogs表（报警处理日志：报警ID、操作类型、操作人、时间、备注等）
-- [ ] 新增collectionData表（采集数据历史：仪表、通道、值、时间戳等）
-- [ ] 新增deviceConnectionStatus表（设备连接状态：COM端口、仪表、在线/离线、最后更新时间等）
+- [x] 新增alarmRecords表（报警记录：柜组、类型、原始值、阈值、时间、状态等）
+- [x] 新增alarmLogs表（报警处理日志：报警ID、操作类型、操作人、时间、备注等）
+- [x] 新增collectionData表（采集数据历史：仪表、通道、值、时间戳等）
+- [x] 新增deviceConnectionStatus表（设备连接状态：COM端口、仪表、在线/离线、最后更新时间等）
 
 ### 后端API实现
 - [ ] 报警查询API（分页、筛选、排序）
