@@ -166,9 +166,8 @@ function DashboardLayoutContent({
               </button>
               {!isCollapsed ? (
                 <div className="flex items-center gap-2 min-w-0">
-                  <Gauge className="h-5 w-5 text-primary shrink-0" />
                   <span className="font-semibold tracking-tight truncate">
-                    称重系统
+                    保管库职能称重系统
                   </span>
                 </div>
               ) : null}

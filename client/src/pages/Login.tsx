@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Gauge, Loader2, Eye, EyeOff } from "lucide-react";
+import { Loader2, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 
 export default function Login() {
@@ -48,12 +48,9 @@ export default function Login() {
       <div className="w-full max-w-md space-y-8">
         {/* Logo和标题 */}
         <div className="flex flex-col items-center gap-4">
-          <div className="h-16 w-16 rounded-2xl bg-primary/10 flex items-center justify-center">
-            <Gauge className="h-8 w-8 text-primary" />
-          </div>
           <div className="text-center">
             <h1 className="text-2xl font-bold tracking-tight text-foreground">
-              称重系统管理平台
+              保管库职能称重系统
             </h1>
             <p className="text-sm text-muted-foreground mt-2">
               请输入用户名和密码登录系统
