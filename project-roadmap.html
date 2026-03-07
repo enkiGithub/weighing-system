@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>称重系统管理平台 · 项目演进路线图</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;600;700&display=swap');
+
+* { margin:0; padding:0; box-sizing:border-box; }
+
+body {
+    background: #0a0f1a;
+    color: #e2e8f0;
+    font-family: 'Noto Sans SC', 'Inter', sans-serif;
+    min-height: 100vh;
+}
+
+.page-header {
+    text-align: center;
+    padding: 60px 20px 40px;
+    background: linear-gradient(180deg, #0f172a 0%, #0a0f1a 100%);
+}
+
+.page-header h1 {
+    font-size: 32px;
+    font-weight: 700;
+    background: linear-gradient(135deg, #38bdf8, #06b6d4, #34d399);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 12px;
+}
+
+.page-header .subtitle {
+    font-size: 15px;
+    color: #64748b;
+    margin-bottom: 24px;
+}
+
+.stats-row {
+    display: flex;
+    justify-content: center;
+    gap: 32px;
+    flex-wrap: wrap;
+}
+
+.stat-item {
+    text-align: center;
+}
+
+.stat-value {
+    font-size: 28px;
+    font-weight: 700;
+    color: #38bdf8;
+}
+
+.stat-label {
+    font-size: 12px;
+    color: #64748b;
+    margin-top: 2px;
+}
+
+.legend {
+    display: flex;
+    justify-content: center;
+    gap: 24px;
+    padding: 20px;
+    flex-wrap: wrap;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: #94a3b8;
+}
+
+.legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+}
+
+/* Timeline */
+.timeline-container {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 20px 20px 80px;
+    position: relative;
+}
+
+.timeline-line {
+    position: absolute;
+    left: 50%;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: linear-gradient(180deg, #38bdf800, #38bdf840, #34d39940, #34d39900);
+    transform: translateX(-50%);
+}
+
+.timeline-item {
+    position: relative;
+    width: 50%;
+    padding: 12px 40px;
+    margin-bottom: 8px;
+}
+
+.timeline-item.left {
+    left: 0;
+    text-align: right;
+    padding-right: 50px;
+}
+
+.timeline-item.right {
+    left: 50%;
+    text-align: left;
+    padding-left: 50px;
+}
+
+.timeline-dot {
+    position: absolute;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    top: 24px;
+    z-index: 2;
+}
+
+.timeline-item.left .timeline-dot {
+    right: -7px;
+}
+
+.timeline-item.right .timeline-dot {
+    left: -7px;
+}
+
+.timeline-card {
+    background: #0e4a6e;
+    border: 1px solid #38bdf840;
+    border-radius: 12px;
+    padding: 16px 20px;
+    transition: transform 0.2s, box-shadow 0.2s;
+    text-align: left;
+}
+
+.timeline-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+}
+
+.card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 4px;
+}
+
+.card-id {
+    font-size: 13px;
+    font-weight: 700;
+    font-family: 'Inter', monospace;
+}
+
+.card-badge {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 20px;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.card-time {
+    font-size: 12px;
+    font-family: 'Inter', monospace;
+    margin-bottom: 6px;
+}
+
+.card-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: #f1f5f9;
+    margin-bottom: 6px;
+    line-height: 1.4;
+}
+
+.card-desc {
+    font-size: 13px;
+    color: #94a3b8;
+    line-height: 1.6;
+}
+
+/* Phase separators */
+.phase-separator {
+    text-align: center;
+    padding: 24px 0;
+    position: relative;
+    z-index: 3;
+}
+
+.phase-separator span {
+    background: #1e293b;
+    border: 1px solid #334155;
+    color: #94a3b8;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 6px 20px;
+    border-radius: 20px;
+    letter-spacing: 1px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .timeline-item {
+        width: 100%;
+        left: 0 !important;
+        text-align: left !important;
+        padding: 12px 20px 12px 50px !important;
+    }
+    .timeline-line {
+        left: 20px;
+    }
+    .timeline-dot {
+        left: 14px !important;
+        right: auto !important;
+    }
+}
+
+/* End marker */
+.timeline-end {
+    text-align: center;
+    padding: 40px 20px;
+    position: relative;
+    z-index: 3;
+}
+
+.timeline-end .end-dot {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #06b6d4, #34d399);
+    margin: 0 auto 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    box-shadow: 0 0 24px #06b6d480;
+}
+
+.timeline-end .end-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: #34d399;
+    margin-bottom: 4px;
+}
+
+.timeline-end .end-desc {
+    font-size: 13px;
+    color: #64748b;
+}
+
+.footer {
+    text-align: center;
+    padding: 40px 20px;
+    color: #334155;
+    font-size: 12px;
+    border-top: 1px solid #1e293b;
+    margin-top: 40px;
+}
+</style>
+</head>
+<body>
+
+<div class="page-header">
+    <h1>称重系统管理平台 · 项目演进路线图</h1>
+    <div class="subtitle">从零到交付的完整开发历程 — 2026年2月19日至2月20日</div>
+    <div class="stats-row">
+        <div class="stat-item">
+            <div class="stat-value">26</div>
+            <div class="stat-label">里程碑节点</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-value">28</div>
+            <div class="stat-label">代码提交</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-value">42</div>
+            <div class="stat-label">单元测试</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-value">~20h</div>
+            <div class="stat-label">总开发时长</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-value">17</div>
+            <div class="stat-label">移交文档</div>
+        </div>
+    </div>
+</div>
+
+<div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:#38bdf8;"></div>里程碑</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#fbbf24;"></div>功能增强</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#fb7185;"></div>Bug修复</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#34d399;"></div>交付物</div>
+</div>
+
+<div class="timeline-container">
+    <div class="timeline-line"></div>
+
+    <div class="phase-separator"><span>▎第一阶段 · 核心功能开发 · 02-19 夜间</span></div>
+
+
+        <div class="timeline-item left">
+            <div class="timeline-dot" style="background:#38bdf8;box-shadow:0 0 12px #38bdf880;"></div>
+            <div class="timeline-card" style="background:#0e4a6e;border-color:#38bdf840;">
+                <div class="card-header">
+                    <span class="card-id" style="color:#38bdf8;">M01</span>
+                    <span class="card-badge" style="background:#38bdf820;color:#38bdf8;border:1px solid #38bdf850;">🏗️ 里程碑</span>
+                </div>
+                <div class="card-time" style="color:#38bdf899;">02-19 23:29</div>
+                <div class="card-title">项目启动 · 基础框架搭建</div>
+                <div class="card-desc">React 19 + Express + tRPC + Drizzle ORM<br/>深色主题 · 仪表盘布局 · 路由体系</div>
+            </div>
+        </div>
+
+        <div class="timeline-item right">
+            <div class="timeline-dot" style="background:#38bdf8;box-shadow:0 0 12px #38bdf880;"></div>
+            <div class="timeline-card" style="background:#0e4a6e;border-color:#38bdf840;">
+                <div class="card-header">
+                    <span class="card-id" style="color:#38bdf8;">M02</span>
+                    <span class="card-badge" style="background:#38bdf820;color:#38bdf8;border:1px solid #38bdf850;">🏗️ 里程碑</span>
+                </div>
+                <div class="card-time" style="color:#38bdf899;">02-19 23:44</div>
+                <div class="card-title">核心功能一期交付</div>
+                <div class="card-desc">用户认证(admin/user) · 实时监视(伪3D)<br/>设备管理 · 柜组管理 · 数据记录<br/>报警管理 · 数据分析 · 用户管理</div>
+            </div>
+        </div>
+
+        <div class="timeline-item left">
+            <div class="timeline-dot" style="background:#38bdf8;box-shadow:0 0 12px #38bdf880;"></div>
+            <div class="timeline-card" style="background:#0e4a6e;border-color:#38bdf840;">
+                <div class="card-header">
+                    <span class="card-id" style="color:#38bdf8;">M03</span>
+                    <span class="card-badge" style="background:#38bdf820;color:#38bdf8;border:1px solid #38bdf850;">🏗️ 里程碑</span>
+                </div>
+                <div class="card-time" style="color:#38bdf899;">02-20 00:38</div>
+                <div class="card-title">保管库布局编辑器 v1</div>
+                <div class="card-desc">3D编辑器 · 柜列创建 · 柜组组装<br/>旋转/平移/缩放 · 保存/加载/激活<br/>集成到实时监视 · 17项测试通过</div>
+            </div>
+        </div>
+
+        <div class="timeline-item right">
+            <div class="timeline-dot" style="background:#fb7185;box-shadow:0 0 12px #fb718580;"></div>
+            <div class="timeline-card" style="background:#5c1a2a;border-color:#fb718540;">
+                <div class="card-header">
+                    <span class="card-id" style="color:#fb7185;">B01</span>
+                    <span class="card-badge" style="background:#fb718520;color:#fb7185;border:1px solid #fb718550;">🔧 修复</span>
+                </div>
+                <div class="card-time" style="color:#fb718599;">02-20 00:52</div>
+                <div class="card-title">Bug修复：布局查询空值</div>
+                <div class="card-desc">getActive返回undefined违反tRPC规则<br/>groupLayouts查询逻辑优化</div>
+            </div>
+        </div>
+
+        <div class="timeline-item left">
+            <div class="timeline-dot" style="background:#38bdf8;box-shadow:0 0 12px #38bdf880;"></div>
+            <div class="timeline-card" style="background:#0e4a6e;border-color:#38bdf840;">
+                <div class="card-header">
+                    <span class="card-id" style="color:#38bdf8;">M04</span>
+                    <span class="card-badge" style="background:#38bdf820;color:#38bdf8;border:1px solid #38bdf850;">🏗️ 里程碑</span>
+                </div>
+                <div class="card-time" style="color:#38bdf899;">02-20 02:06</div>
+                <div class="card-title">硬件配置体系重构</div>
+                <div class="card-desc">网关COM端口 · 仪表型号(DY7001/DY7004)<br/>端子配置 · 级联选择 · 冲突检测<br/>24项测试通过</div>
+            </div>
+        </div>
+
+        <div class="timeline-item right">
+            <div class="timeline-dot" style="background:#38bdf8;box-shadow:0 0 12px #38bdf880;"></div>
+            <div class="timeline-card" style="background:#0e4a6e;border-color:#38bdf840;">
+                <div class="card-header">
+                    <span class="card-id" style="color:#38bdf8;">M05</span>
+                    <span class="card-badge" style="background:#38bdf820;color:#38bdf8;border:1px solid #38bdf850;">🏗️ 里程碑</span>
+                </div>
+                <div class="card-time" style="color:#38bdf899;">02-20 04:06</div>
+                <div class="card-title">3D布局编辑器全面重构</div>
+                <div class="card-desc">Three.js画布 · TransformControls<br/>柜组资产绑定 · WebSocket映射<br/>鼠标悬停详情 · 状态颜色 · 34项测试</div>
+            </div>
+        </div>
+
+        <div class="timeline-item left">
+            <div class="timeline-dot" style="background:#38bdf8;box-shadow:0 0 12px #38bdf880;"></div>
+            <div class="timeline-card" style="background:#0e4a6e;border-color:#38bdf840;">
+                <div class="card-header">
+                    <span class="card-id" style="color:#38bdf8;">M06</span>
+                    <span class="card-badge" style="background:#38bdf820;color:#38bdf8;border:1px solid #38bdf850;">🏗️ 里程碑</span>
+                </div>
+                <div class="card-time" style="color:#38bdf899;">02-20 05:06</div>
+                <div class="card-title">硬件配置结构化改造</div>
+                <div class="card-desc">InstrumentChannel通道表 · GroupChannelBinding<br/>deviceCode · 自动生成CH · 通信测试<br/>审计日志 · 33项测试通过</div>
+            </div>
+        </div>
+
+        <div class="timeline-item right">
+            <div class="timeline-dot" style="background:#fbbf24;box-shadow:0 0 12px #fbbf2480;"></div>
+            <div class="timeline-card" style="background:#4a3700;border-color:#fbbf2440;">
+                <div class="card-header">
+                    <span class="card-id" style="color:#fbbf24;">M07</span>
+                    <span class="card-badge" style="background:#fbbf2420;color:#fbbf24;border:1px solid #fbbf2450;">✨ 增强</span>
+                </div>
+                <div class="card-time" style="color:#fbbf2499;">02-20 05:26</div>
+                <div class="card-title">UI改动优化</div>
+                <div class="card-desc">仪表配置/网关配置改名<br/>COM端口内嵌网关 · 树形选择面板</div>
+            </div>
+        </div>
+
+        <div class="timeline-item left">
+            <div class="timeline-dot" style="background:#fb7185;box-shadow:0 0 12px #fb718580;"></div>
+            <div class="timeline-card" style="background:#5c1a2a;border-color:#fb718540;">
+                <div class="card-header">
+                    <span class="card-id" style="color:#fb7185;">B02</span>
+                    <span class="card-badge" style="background:#fb718520;color:#fb7185;border:1px solid #fb718550;">🔧 修复</span>
+                </div>
+                <div class="card-time" style="color:#fb718599;">02-20 05:46</div>
+                <div class="card-title">Bug修复：删除仪表报错</div>
+                <div class="card-desc">通道已被柜组绑定时删除失败<br/>改为级联解除绑定 + 二次确认</div>
+            </div>
+        </div>
+
+        <div class="timeline-item right">
+            <div class="timeline-dot" style="background:#38bdf8;box-shadow:0 0 12px #38bdf880;"></div>
+            <div class="timeline-card" style="background:#0e4a6e;border-color:#38bdf840;">
+                <div class="card-header">
+                    <span class="card-id" style="color:#38bdf8;">M08</span>
+                    <span class="card-badge" style="background:#38bdf820;color:#38bdf8;border:1px solid #38bdf850;">🏗️ 里程碑</span>
+                </div>
+                <div class="card-time" style="color:#38bdf899;">02-20 06:34</div>
+                <div class="card-title">柜组管理页面重构</div>
+                <div class="card-desc">可展开树形结构(柜组→仪表→通道)<br/>区域字段替换 · 层级缩进优化</div>
+            </div>
+        </div>
+
+        <div class="phase-separator"><span>▎第二阶段 · 架构重构与增强 · 02-20 凌晨</span></div>
+
+        <div class="timeline-item left">
+            <div class="timeline-dot" style="background:#fbbf24;box-shadow:0 0 12px #fbbf2480;"></div>
+            <div class="timeline-card" style="background:#4a3700;border-color:#fbbf2440;">
+                <div class="card-header">
+                    <span class="card-id" style="color:#fbbf24;">M09</span>
+                    <span class="card-badge" style="background:#fbbf2420;color:#fbbf24;border:1px solid #fbbf2450;">✨ 增强</span>
+                </div>
+                <div class="card-time" style="color:#fbbf2499;">02-20 07:09</div>
+                <div class="card-title">通道管理整合到仪表</div>
+                <div class="card-desc">仪表展开显示通道子行<br/>内联编辑/通信测试/启用切换<br/>删除独立通道页面 · 32项测试</div>
+            </div>
+        </div>
+
+        <div class="timeline-item right">
+            <div class="timeline-dot" style="background:#fbbf24;box-shadow:0 0 12px #fbbf2480;"></div>
+            <div class="timeline-card" style="background:#4a3700;border-color:#fbbf2440;">
+                <div class="card-header">
+                    <span class="card-id" style="color:#fbbf24;">M10</span>
+                    <span class="card-badge" style="background:#fbbf2420;color:#fbbf24;border:1px solid #fbbf2450;">✨ 增强</span>
+                </div>
+                <div class="card-time" style="color:#fbbf2499;">02-20 07:39</div>
+                <div class="card-title">柜组通道绑定树形多选</div>
+                <div class="card-desc">仪表→通道树形面板<br/>批量选择 · 批量绑定API<br/>菜单名称和顺序调整</div>
+            </div>
+        </div>
+
+        <div class="timeline-item left">
+            <div class="timeline-dot" style="background:#38bdf8;box-shadow:0 0 12px #38bdf880;"></div>
+            <div class="timeline-card" style="background:#0e4a6e;border-color:#38bdf840;">
+                <div class="card-header">
+                    <span class="card-id" style="color:#38bdf8;">M11</span>
+                    <span class="card-badge" style="background:#38bdf820;color:#38bdf8;border:1px solid #38bdf850;">🏗️ 里程碑</span>
+                </div>
+                <div class="card-time" style="color:#38bdf899;">02-20 08:01</div>
+                <div class="card-title">用户权限体系</div>
+                <div class="card-desc">admin/operator角色 · 权限表<br/>模块级中间件 · 前端路由保护<br/>权限配置对话框</div>
+            </div>
+        </div>
+
+        <div class="timeline-item right">
+            <div class="timeline-dot" style="background:#38bdf8;box-shadow:0 0 12px #38bdf880;"></div>
+            <div class="timeline-card" style="background:#0e4a6e;border-color:#38bdf840;">
+                <div class="card-header">
+                    <span class="card-id" style="color:#38bdf8;">M12</span>
+                    <span class="card-badge" style="background:#38bdf820;color:#38bdf8;border:1px solid #38bdf850;">🏗️ 里程碑</span>
+                </div>
+                <div class="card-time" style="color:#38bdf899;">02-20 08:31</div>
+                <div class="card-title">离线本地账户体系</div>
+                <div class="card-desc">用户名+密码登录 · JWT认证<br/>默认admin账户 · 密码管理<br/>管理员CRUD操作员</div>
+            </div>
+        </div>
+
+        <div class="timeline-item left">
+            <div class="timeline-dot" style="background:#fbbf24;box-shadow:0 0 12px #fbbf2480;"></div>
+            <div class="timeline-card" style="background:#4a3700;border-color:#fbbf2440;">
+                <div class="card-header">
+                    <span class="card-id" style="color:#fbbf24;">M13</span>
+                    <span class="card-badge" style="background:#fbbf2420;color:#fbbf24;border:1px solid #fbbf2450;">✨ 增强</span>
+                </div>
+                <div class="card-time" style="color:#fbbf2499;">02-20 08:54</div>
+                <div class="card-title">操作员权限编辑完善</div>
+                <div class="card-desc">模块级权限中间件<br/>PermissionGuard路由保护<br/>各页面操作按钮权限控制 · 42项测试</div>
+            </div>
+        </div>
+
+        <div class="timeline-item right">
+            <div class="timeline-dot" style="background:#fb7185;box-shadow:0 0 12px #fb718580;"></div>
+            <div class="timeline-card" style="background:#5c1a2a;border-color:#fb718540;">
+                <div class="card-header">
+                    <span class="card-id" style="color:#fb7185;">B03</span>
+                    <span class="card-badge" style="background:#fb718520;color:#fb7185;border:1px solid #fb718550;">🔧 修复</span>
+                </div>
+                <div class="card-time" style="color:#fb718599;">02-20 09:11</div>
+                <div class="card-title">Bug修复：操作员权限检查</div>
+                <div class="card-desc">权限表未推送到远程数据库<br/>实时监视跨模块API调用被拦截<br/>创建monitor专用路由</div>
+            </div>
+        </div>
+
+        <div class="timeline-item left">
+            <div class="timeline-dot" style="background:#38bdf8;box-shadow:0 0 12px #38bdf880;"></div>
+            <div class="timeline-card" style="background:#0e4a6e;border-color:#38bdf840;">
+                <div class="card-header">
+                    <span class="card-id" style="color:#38bdf8;">M14</span>
+                    <span class="card-badge" style="background:#38bdf820;color:#38bdf8;border:1px solid #38bdf850;">🏗️ 里程碑</span>
+                </div>
+                <div class="card-time" style="color:#38bdf899;">02-20 12:31</div>
+                <div class="card-title">DXF布局导入与柜列绑定</div>
+                <div class="card-desc">DXF解析 · 2D SVG渲染<br/>框选多选柜列 · 绑定柜组<br/>悬停展示详细信息</div>
+            </div>
+        </div>
+
+        <div class="timeline-item right">
+            <div class="timeline-dot" style="background:#fb7185;box-shadow:0 0 12px #fb718580;"></div>
+            <div class="timeline-card" style="background:#5c1a2a;border-color:#fb718540;">
+                <div class="card-header">
+                    <span class="card-id" style="color:#fb7185;">B04</span>
+                    <span class="card-badge" style="background:#fb718520;color:#fb7185;border:1px solid #fb718550;">🔧 修复</span>
+                </div>
+                <div class="card-time" style="color:#fb718599;">02-20 12:59</div>
+                <div class="card-title">Bug修复：DXF解析改纯Node.js</div>
+                <div class="card-desc">从Python ezdxf改为dxf-parser<br/>消除部署环境Python依赖</div>
+            </div>
+        </div>
+
+        <div class="timeline-item left">
+            <div class="timeline-dot" style="background:#fb7185;box-shadow:0 0 12px #fb718580;"></div>
+            <div class="timeline-card" style="background:#5c1a2a;border-color:#fb718540;">
+                <div class="card-header">
+                    <span class="card-id" style="color:#fb7185;">B05</span>
+                    <span class="card-badge" style="background:#fb718520;color:#fb7185;border:1px solid #fb718550;">🔧 修复</span>
+                </div>
+                <div class="card-time" style="color:#fb718599;">02-20 13:55</div>
+                <div class="card-title">Bug修复：批量删除超时</div>
+                <div class="card-desc">串行SQL改为批量inArray操作<br/>新增5个批量数据库函数</div>
+            </div>
+        </div>
+
+        <div class="timeline-item right">
+            <div class="timeline-dot" style="background:#fb7185;box-shadow:0 0 12px #fb718580;"></div>
+            <div class="timeline-card" style="background:#5c1a2a;border-color:#fb718540;">
+                <div class="card-header">
+                    <span class="card-id" style="color:#fb7185;">B06</span>
+                    <span class="card-badge" style="background:#fb718520;color:#fb7185;border:1px solid #fb718550;">🔧 修复</span>
+                </div>
+                <div class="card-time" style="color:#fb718599;">02-20 15:50</div>
+                <div class="card-title">Bug修复：DY7004编辑保存失败</div>
+                <div class="card-desc">schema缺少modelType字段<br/>型号变更时自动调整通道数量</div>
+            </div>
+        </div>
+
+        <div class="timeline-item left">
+            <div class="timeline-dot" style="background:#fbbf24;box-shadow:0 0 12px #fbbf2480;"></div>
+            <div class="timeline-card" style="background:#4a3700;border-color:#fbbf2440;">
+                <div class="card-header">
+                    <span class="card-id" style="color:#fbbf24;">M15</span>
+                    <span class="card-badge" style="background:#fbbf2420;color:#fbbf24;border:1px solid #fbbf2450;">✨ 增强</span>
+                </div>
+                <div class="card-time" style="color:#fbbf2499;">02-20 16:30</div>
+                <div class="card-title">测试框架修复</div>
+                <div class="card-desc">afterAll清理逻辑 · 随机后缀<br/>用户上下文字段修正<br/>CH1标签污染修复 · 42项测试通过</div>
+            </div>
+        </div>
+
+        <div class="timeline-item right">
+            <div class="timeline-dot" style="background:#fbbf24;box-shadow:0 0 12px #fbbf2480;"></div>
+            <div class="timeline-card" style="background:#4a3700;border-color:#fbbf2440;">
+                <div class="card-header">
+                    <span class="card-id" style="color:#fbbf24;">M16</span>
+                    <span class="card-badge" style="background:#fbbf2420;color:#fbbf24;border:1px solid #fbbf2450;">✨ 增强</span>
+                </div>
+                <div class="card-time" style="color:#fbbf2499;">02-20 17:16</div>
+                <div class="card-title">数据清理与排序修复</div>
+                <div class="card-desc">清理测试残留(柜组/网关/仪表)<br/>柜组按名称升序 · currentWeight初始化<br/>afterAll清理逻辑加固</div>
+            </div>
+        </div>
+
+        <div class="timeline-item left">
+            <div class="timeline-dot" style="background:#fb7185;box-shadow:0 0 12px #fb718580;"></div>
+            <div class="timeline-card" style="background:#5c1a2a;border-color:#fb718540;">
+                <div class="card-header">
+                    <span class="card-id" style="color:#fb7185;">M17</span>
+                    <span class="card-badge" style="background:#fb718520;color:#fb7185;border:1px solid #fb718550;">🔧 修复</span>
+                </div>
+                <div class="card-time" style="color:#fb718599;">02-20 17:31</div>
+                <div class="card-title">柜组排序与重量修复</div>
+                <div class="card-desc">内圈1~8按名称正确排序<br/>currentWeight不再复制initialWeight<br/>已有数据重置为0</div>
+            </div>
+        </div>
+
+        <div class="timeline-item right">
+            <div class="timeline-dot" style="background:#38bdf8;box-shadow:0 0 12px #38bdf880;"></div>
+            <div class="timeline-card" style="background:#0e4a6e;border-color:#38bdf840;">
+                <div class="card-header">
+                    <span class="card-id" style="color:#38bdf8;">M18</span>
+                    <span class="card-badge" style="background:#38bdf820;color:#38bdf8;border:1px solid #38bdf850;">🏗️ 里程碑</span>
+                </div>
+                <div class="card-time" style="color:#38bdf899;">02-20 18:11</div>
+                <div class="card-title">布局保存与编辑器增强</div>
+                <div class="card-desc">TEXT→mediumtext(16MB) · 加载列表优化<br/>移除重复导入 · 柜组自动分配颜色<br/>名称标签叠加 · 42项测试通过</div>
+            </div>
+        </div>
+
+        <div class="timeline-item left">
+            <div class="timeline-dot" style="background:#fbbf24;box-shadow:0 0 12px #fbbf2480;"></div>
+            <div class="timeline-card" style="background:#4a3700;border-color:#fbbf2440;">
+                <div class="card-header">
+                    <span class="card-id" style="color:#fbbf24;">M19</span>
+                    <span class="card-badge" style="background:#fbbf2420;color:#fbbf24;border:1px solid #fbbf2450;">✨ 增强</span>
+                </div>
+                <div class="card-time" style="color:#fbbf2499;">02-20 18:27</div>
+                <div class="card-title">实时监视颜色与旋转</div>
+                <div class="card-desc">柜组专属色(正常) / 状态色(警告/报警)<br/>整图旋转0~360° · 背景色差消除<br/>布局编辑器+实时监视同步</div>
+            </div>
+        </div>
+
+        <div class="timeline-item right">
+            <div class="timeline-dot" style="background:#34d399;box-shadow:0 0 12px #34d39980;"></div>
+            <div class="timeline-card" style="background:#064e3b;border-color:#34d39940;">
+                <div class="card-header">
+                    <span class="card-id" style="color:#34d399;">M20</span>
+                    <span class="card-badge" style="background:#34d39920;color:#34d399;border:1px solid #34d39950;">📦 交付</span>
+                </div>
+                <div class="card-time" style="color:#34d39999;">02-20 19:03</div>
+                <div class="card-title">本地部署移交文档包</div>
+                <div class="card-desc">17份文档 + 3个部署模板<br/>架构 · 部署 · API · 运维<br/>硬件集成 · 故障排查 · 术语表</div>
+            </div>
+        </div>
+
+
+    <div class="timeline-end">
+        <div class="end-dot">🚀</div>
+        <div class="end-title">当前状态：系统功能完整，准备本地部署</div>
+        <div class="end-desc">全部 42 项测试通过 · 17 份移交文档 · 3 个部署模板</div>
+    </div>
+</div>
+
+<div class="footer">
+    称重系统管理平台 · 项目演进路线图 · 自动生成于 2026-02-23
+</div>
+
+</body>
+</html>

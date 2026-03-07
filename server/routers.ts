@@ -309,6 +309,8 @@ export const appRouter = router({
       .input(z.object({
         gatewayId: z.number(),
         portNumber: z.string().min(1).max(10),
+        ipAddress: z.string().min(7).max(45),
+        tcpPort: z.number().int().min(1).max(65535),
         baudRate: z.number().int().default(9600),
         dataBits: z.number().int().default(8),
         stopBits: z.number().int().default(1),
@@ -316,6 +318,7 @@ export const appRouter = router({
         protocolType: z.string().max(30).default("modbus_rtu"),
         timeoutMs: z.number().int().default(1000),
         retryCount: z.number().int().default(3),
+        collectionIntervalMs: z.number().int().default(500),
         remark: z.string().optional(),
       }))
       .mutation(async ({ input, ctx }) => {
@@ -328,6 +331,8 @@ export const appRouter = router({
       .input(z.object({
         id: z.number(),
         portNumber: z.string().min(1).max(10).optional(),
+        ipAddress: z.string().min(7).max(45).optional(),
+        tcpPort: z.number().int().min(1).max(65535).optional(),
         baudRate: z.number().int().optional(),
         dataBits: z.number().int().optional(),
         stopBits: z.number().int().optional(),
@@ -335,6 +340,7 @@ export const appRouter = router({
         protocolType: z.string().max(30).optional(),
         timeoutMs: z.number().int().optional(),
         retryCount: z.number().int().optional(),
+        collectionIntervalMs: z.number().int().optional(),
         remark: z.string().optional(),
       }))
       .mutation(async ({ input, ctx }) => {
@@ -848,9 +854,9 @@ export const appRouter = router({
         if (isAlarm) {
           await db.createAlarmRecord({
             cabinetGroupId: input.id,
-            weightChangeRecordId: 0,
-            alarmType: 'threshold_exceeded',
-            alarmMessage: `重量变化${changeValue > 0 ? '增加' : '减少'}${Math.abs(changeValue).toFixed(2)}kg，超过阈值${group.alarmThreshold}kg`,
+            alarmType: 'overweight',
+            threshold: group.alarmThreshold,
+            exceedValue: Math.abs(changeValue),
           });
         }
         
@@ -887,23 +893,30 @@ export const appRouter = router({
     list: alarmView
       .input(z.object({
         cabinetGroupId: z.number().optional(),
+        status: z.enum(['active', 'acknowledged', 'resolved', 'ignored']).optional(),
         limit: z.number().int().min(1).max(1000).default(100),
+        offset: z.number().int().min(0).default(0),
       }))
       .query(async ({ input }) => {
-        if (input.cabinetGroupId) {
-          return await db.getAlarmRecordsByCabinetGroup(input.cabinetGroupId, input.limit);
-        }
-        return await db.getAllAlarmRecords(input.limit);
+        return await db.getAlarmRecords({
+          cabinetGroupId: input.cabinetGroupId,
+          status: input.status,
+          limit: input.limit,
+          offset: input.offset,
+        });
       }),
     
     getUnhandled: alarmView.query(async () => {
-      return await db.getUnhandledAlarmRecords();
+      return await db.getAlarmRecords({ status: 'active', limit: 100 });
     }),
     
-    handle: alarmOperate
-      .input(z.object({ id: z.number() }))
-      .mutation(async ({ input, ctx }) => {
-        await db.handleAlarmRecord(input.id, ctx.user.id);
+    updateStatus: alarmOperate
+      .input(z.object({ 
+        id: z.number(),
+        status: z.enum(['acknowledged', 'resolved', 'ignored']),
+      }))
+      .mutation(async ({ input }) => {
+        await db.updateAlarmStatus(input.id, input.status);
         return { success: true };
       }),
   }),

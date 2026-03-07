@@ -108,8 +108,8 @@ export default function Analytics() {
   const alarmStats = useMemo(() => {
     if (!alarms) return [];
     
-    const handled = alarms.filter(a => a.isHandled === 1).length;
-    const unhandled = alarms.filter(a => a.isHandled === 0).length;
+    const handled = alarms.filter((a: any) => a.isHandled === 1).length;
+    const unhandled = alarms.filter((a: any) => a.isHandled === 0).length;
     
     return [
       { name: "已处理", value: handled, color: COLORS.success },
@@ -129,8 +129,8 @@ export default function Analytics() {
     });
     
     return Array.from(dataMap.entries())
-      .map(([date, count]) => ({ date, count }))
-      .sort((a, b) => a.date.localeCompare(b.date));
+      .map(([date, count]: [string, number]) => ({ date, count }))
+      .sort((a: any, b: any) => a.date.localeCompare(b.date));
   }, [filteredRecords]);
 
   const getCabinetName = (cabinetId: number) => {
@@ -139,7 +139,7 @@ export default function Analytics() {
 
   // 计算统计数据
   const totalChanges = filteredRecords?.length || 0;
-  const totalAlarms = alarms?.filter(a => {
+  const totalAlarms = alarms?.filter((a: any) => {
     if (!timeRange) return true;
     const startDate = subDays(new Date(), timeRange);
     return new Date(a.createdAt) >= startDate;

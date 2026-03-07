@@ -38,13 +38,13 @@ export default function Alarms() {
   });
   const { data: unhandledAlarms } = trpc.alarms.getUnhandled.useQuery();
 
-  const handleMutation = trpc.alarms.handle.useMutation({
+  const handleMutation = trpc.alarms.updateStatus.useMutation({
     onSuccess: () => {
       utils.alarms.list.invalidate();
       utils.alarms.getUnhandled.invalidate();
       toast.success("报警已处理");
     },
-    onError: (error) => {
+    onError: (error: any) => {
       toast.error(`处理失败: ${error.message}`);
     },
   });
@@ -71,7 +71,7 @@ export default function Alarms() {
 
   const handleAlarm = (id: number) => {
     if (confirm("确认处理此报警？")) {
-      handleMutation.mutate({ id });
+      handleMutation.mutate({ id, status: 'acknowledged' });
     }
   };
 
@@ -98,7 +98,7 @@ export default function Alarms() {
               </TableCell>
             </TableRow>
           ) : (
-            alarms?.map((alarm) => {
+            alarms?.map((alarm: any) => {
               const isHandled = alarm.isHandled === 1;
               
               return (
@@ -217,7 +217,7 @@ export default function Alarms() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-success">
-              {allAlarms?.filter(a => a.isHandled === 1).length || 0}
+              {allAlarms?.filter((a: any) => a.isHandled === 1).length || 0}
             </div>
           </CardContent>
         </Card>
@@ -227,7 +227,7 @@ export default function Alarms() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-warning">
-              {allAlarms?.filter(a => a.alarmType === "threshold_exceeded").length || 0}
+              {allAlarms?.filter((a: any) => a.alarmType === "threshold_exceeded").length || 0}
             </div>
           </CardContent>
         </Card>

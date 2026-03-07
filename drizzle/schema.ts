@@ -46,11 +46,17 @@ export type InsertGateway = typeof gateways.$inferInsert;
 /**
  * 网关COM端口表
  * 每个COM端口独立配置串口参数和协议类型
+ * ZLAN5G12H 网关：前8个端口共用一个IP，后8个端口共用另一个IP
+ * 相同IP时通过不同TCP端口区分
  */
 export const gatewayComPorts = mysqlTable("gatewayComPorts", {
   id: int("id").autoincrement().primaryKey(),
   gatewayId: int("gatewayId").notNull(),
   portNumber: varchar("portNumber", { length: 10 }).notNull(),
+  /** 该COM端口对应的IP地址（前8个端口可共用一个IP，后8个端口共用另一个IP） */
+  ipAddress: varchar("ipAddress", { length: 45 }).notNull(),
+  /** 该COM端口对应的TCP端口号 */
+  tcpPort: int("tcpPort").notNull(),
   baudRate: int("baudRate").notNull().default(9600),
   dataBits: int("dataBits").notNull().default(8),
   stopBits: int("stopBits").notNull().default(1),
@@ -61,6 +67,8 @@ export const gatewayComPorts = mysqlTable("gatewayComPorts", {
   timeoutMs: int("timeoutMs").notNull().default(1000),
   /** 重试次数 */
   retryCount: int("retryCount").notNull().default(3),
+  /** 采集频率(ms)，默认500ms */
+  collectionIntervalMs: int("collectionIntervalMs").notNull().default(500),
   remark: text("remark"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
@@ -199,24 +207,6 @@ export type WeightChangeRecord = typeof weightChangeRecords.$inferSelect;
 export type InsertWeightChangeRecord = typeof weightChangeRecords.$inferInsert;
 
 /**
- * 报警记录表
- */
-export const alarmRecords = mysqlTable("alarmRecords", {
-  id: int("id").autoincrement().primaryKey(),
-  cabinetGroupId: int("cabinetGroupId").notNull(),
-  weightChangeRecordId: int("weightChangeRecordId").notNull(),
-  alarmType: mysqlEnum("alarmType", ["threshold_exceeded", "device_offline"]).notNull(),
-  alarmMessage: text("alarmMessage").notNull(),
-  isHandled: int("isHandled").notNull().default(0),
-  handledBy: int("handledBy"),
-  handledAt: timestamp("handledAt"),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-});
-
-export type AlarmRecord = typeof alarmRecords.$inferSelect;
-export type InsertAlarmRecord = typeof alarmRecords.$inferInsert;
-
-/**
  * 保管库布局表
  */
 export const vaultLayouts = mysqlTable("vaultLayouts", {
@@ -277,3 +267,110 @@ export const userPermissions = mysqlTable("userPermissions", {
 
 export type UserPermission = typeof userPermissions.$inferSelect;
 export type InsertUserPermission = typeof userPermissions.$inferInsert;
+
+/**
+ * 采集数据表
+ * 实时存储从称重仪表采集到的数据
+ */
+export const collectionData = mysqlTable("collectionData", {
+  id: int("id").autoincrement().primaryKey(),
+  /** 仪表ID */
+  instrumentId: int("instrumentId").notNull(),
+  /** 仪表通道ID */
+  channelId: int("channelId").notNull(),
+  /** 原始数值 */
+  rawValue: float("rawValue").notNull(),
+  /** 经校准后的实际值 */
+  calibratedValue: float("calibratedValue").notNull(),
+  /** 数据采集时间 */
+  collectedAt: timestamp("collectedAt").defaultNow().notNull(),
+});
+
+export type CollectionData = typeof collectionData.$inferSelect;
+export type InsertCollectionData = typeof collectionData.$inferInsert;
+
+/**
+ * 设备连接状态表
+ * 跟踪每个COM端口的连接状态（在线/离线）
+ */
+export const deviceConnectionStatus = mysqlTable("deviceConnectionStatus", {
+  id: int("id").autoincrement().primaryKey(),
+  /** COM端口ID */
+  comPortId: int("comPortId").notNull().unique(),
+  /** 连接状态: online / offline */
+  status: mysqlEnum("status", ["online", "offline"]).default("offline").notNull(),
+  /** 最后一次成功采集时间 */
+  lastSuccessAt: timestamp("lastSuccessAt"),
+  /** 最后一次失败时间 */
+  lastFailureAt: timestamp("lastFailureAt"),
+  /** 失败原因 */
+  failureReason: text("failureReason"),
+  /** 更新时间 */
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type DeviceConnectionStatus = typeof deviceConnectionStatus.$inferSelect;
+export type InsertDeviceConnectionStatus = typeof deviceConnectionStatus.$inferInsert;
+
+
+/**
+ * 报警记录表
+ * 记录所有的报警事件（超重、离线等）
+ */
+export const alarmRecords = mysqlTable("alarmRecords", {
+  id: int("id").autoincrement().primaryKey(),
+  /** 报警类型: overweight(超重) / offline(离线) */
+  alarmType: mysqlEnum("alarmType", ["overweight", "offline"]).notNull(),
+  /** 柜组ID */
+  cabinetGroupId: int("cabinetGroupId").notNull(),
+  /** 仪表ID（可选，离线报警时为null） */
+  instrumentId: int("instrumentId"),
+  /** 通道ID（可选，离线报警时为null） */
+  channelId: int("channelId"),
+  /** 原始值（超重报警时有值） */
+  rawValue: float("rawValue"),
+  /** 校准后的值（超重报警时有值） */
+  calibratedValue: float("calibratedValue"),
+  /** 设定的阈值 */
+  threshold: float("threshold"),
+  /** 超过阈值的量（超重报警时有值） */
+  exceedValue: float("exceedValue"),
+  /** 报警状态: active(活跃) / acknowledged(已确认) / resolved(已解除) / ignored(已忽略) */
+  status: mysqlEnum("status", ["active", "acknowledged", "resolved", "ignored"]).default("active").notNull(),
+  /** 报警首次发生时间 */
+  firstOccurredAt: timestamp("firstOccurredAt").defaultNow().notNull(),
+  /** 最后一次发生时间 */
+  lastOccurredAt: timestamp("lastOccurredAt").defaultNow().notNull(),
+  /** 报警发生次数 */
+  occurrenceCount: int("occurrenceCount").default(1).notNull(),
+  /** 报警是否已自动解除（true表示已自动解除，需要用户确认） */
+  autoResolved: int("autoResolved").default(0).notNull(),
+  /** 创建时间 */
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  /** 更新时间 */
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type AlarmRecord = typeof alarmRecords.$inferSelect;
+export type InsertAlarmRecord = typeof alarmRecords.$inferInsert;
+
+/**
+ * 报警处理日志表
+ * 记录对报警的所有操作（确认、忽略、自动解除等）
+ */
+export const alarmLogs = mysqlTable("alarmLogs", {
+  id: int("id").autoincrement().primaryKey(),
+  /** 报警记录ID */
+  alarmRecordId: int("alarmRecordId").notNull(),
+  /** 操作类型: acknowledge(确认) / ignore(忽略) / resolve(解除) / auto_resolve(自动解除) */
+  operationType: mysqlEnum("operationType", ["acknowledge", "ignore", "resolve", "auto_resolve"]).notNull(),
+  /** 操作人ID（自动解除时为null） */
+  operatorId: int("operatorId"),
+  /** 操作备注 */
+  remark: text("remark"),
+  /** 操作时间 */
+  operatedAt: timestamp("operatedAt").defaultNow().notNull(),
+});
+
+export type AlarmLog = typeof alarmLogs.$inferSelect;
+export type InsertAlarmLog = typeof alarmLogs.$inferInsert;

@@ -1,0 +1,29 @@
+    list: alarmView
+      .input(z.object({
+        cabinetGroupId: z.number().optional(),
+        status: z.enum(['active', 'acknowledged', 'resolved', 'ignored']).optional(),
+        limit: z.number().int().min(1).max(1000).default(100),
+        offset: z.number().int().min(0).default(0),
+      }))
+      .query(async ({ input }) => {
+        return await db.getAlarmRecords({
+          cabinetGroupId: input.cabinetGroupId,
+          status: input.status,
+          limit: input.limit,
+          offset: input.offset,
+        });
+      }),
+    
+    getUnhandled: alarmView.query(async () => {
+      return await db.getAlarmRecords({ status: 'active', limit: 100 });
+    }),
+    
+    updateStatus: alarmOperate
+      .input(z.object({ 
+        id: z.number(),
+        status: z.enum(['acknowledged', 'resolved', 'ignored']),
+      }))
+      .mutation(async ({ input }) => {
+        await db.updateAlarmStatus(input.id, input.status);
+        return { success: true };
+      }),

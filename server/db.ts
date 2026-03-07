@@ -11,6 +11,7 @@ import {
   groupChannelBindings,
   weightChangeRecords,
   alarmRecords,
+  alarmLogs,
   vaultLayouts,
   auditLogs,
   InsertGateway,
@@ -21,6 +22,7 @@ import {
   InsertGroupChannelBinding,
   InsertWeightChangeRecord,
   InsertAlarmRecord,
+  InsertAlarmLog,
   InsertVaultLayout,
   InsertAuditLog,
   userPermissions,
@@ -630,51 +632,7 @@ export async function getWeightChangeRecordsByDateRange(startDate: Date, endDate
     .orderBy(desc(weightChangeRecords.recordedAt));
 }
 
-// ==================== 报警记录管理 ====================
-
-export async function createAlarmRecord(record: InsertAlarmRecord) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
-  await db.insert(alarmRecords).values(record);
-}
-
-export async function getAllAlarmRecords(limit = 100) {
-  const db = await getDb();
-  if (!db) return [];
-  return await db.select()
-    .from(alarmRecords)
-    .orderBy(desc(alarmRecords.createdAt))
-    .limit(limit);
-}
-
-export async function getUnhandledAlarmRecords() {
-  const db = await getDb();
-  if (!db) return [];
-  return await db.select()
-    .from(alarmRecords)
-    .where(eq(alarmRecords.isHandled, 0))
-    .orderBy(desc(alarmRecords.createdAt));
-}
-
-export async function handleAlarmRecord(id: number, handledBy: number) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
-  await db.update(alarmRecords).set({ 
-    isHandled: 1, 
-    handledBy, 
-    handledAt: new Date() 
-  }).where(eq(alarmRecords.id, id));
-}
-
-export async function getAlarmRecordsByCabinetGroup(cabinetGroupId: number, limit = 100) {
-  const db = await getDb();
-  if (!db) return [];
-  return await db.select()
-    .from(alarmRecords)
-    .where(eq(alarmRecords.cabinetGroupId, cabinetGroupId))
-    .orderBy(desc(alarmRecords.createdAt))
-    .limit(limit);
-}
+// ==================== 报警记录管理（已迁移到下面的新函数） ====================
 
 // ==================== 保管库布局管理 ====================
 
@@ -815,4 +773,201 @@ export async function deleteUserPermissions(userId: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   await db.delete(userPermissions).where(eq(userPermissions.userId, userId));
+}
+
+
+// ==================== 报警管理 ====================
+
+/**
+ * 创建报警记录
+ */
+
+export async function createAlarmRecord(data: InsertAlarmRecord) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not connected");
+  
+  const result = await db.insert(alarmRecords).values(data);
+  return result;
+}
+
+/**
+ * 查询报警记录（分页）
+ */
+export async function getAlarmRecords(options: {
+  status?: string;
+  cabinetGroupId?: number;
+  alarmType?: string;
+  limit?: number;
+  offset?: number;
+} = {}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not connected");
+  
+  let query: any = db.select().from(alarmRecords);
+  
+  if (options.status) {
+    query = query.where(eq(alarmRecords.status, options.status as any));
+  }
+  if (options.cabinetGroupId) {
+    query = query.where(eq(alarmRecords.cabinetGroupId, options.cabinetGroupId));
+  }
+  if (options.alarmType) {
+    query = query.where(eq(alarmRecords.alarmType, options.alarmType as any));
+  }
+  
+  // 按最后发生时间倒序
+  query = query.orderBy(desc(alarmRecords.lastOccurredAt));
+  
+  if (options.limit) {
+    query = query.limit(options.limit);
+  }
+  if (options.offset) {
+    query = query.offset(options.offset);
+  }
+  
+  return await query
+}
+
+/**
+ * 获取未处理的报警数量
+ */
+export async function getUnhandledAlarmCount() {
+  const db = await getDb();
+  if (!db) throw new Error("Database not connected");
+  
+  const result = await db.select({ count: sql<number>`COUNT(*)` })
+    .from(alarmRecords)
+    .where(eq(alarmRecords.status, 'active'));
+  
+  return result[0]?.count || 0;
+}
+
+/**
+ * 更新报警状态
+ */
+export async function updateAlarmStatus(
+  alarmId: number,
+  status: 'acknowledged' | 'resolved' | 'ignored'
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not connected");
+  
+  const result = await db.update(alarmRecords)
+    .set({ status, updatedAt: new Date() })
+    .where(eq(alarmRecords.id, alarmId));
+  
+  return result;
+}
+
+/**
+ * 创建报警日志
+ */
+export async function createAlarmLog(data: InsertAlarmLog) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not connected");
+  
+  const result = await db.insert(alarmLogs).values(data);
+  return result;
+}
+
+/**
+ * 查询报警日志
+ */
+export async function getAlarmLogs(alarmRecordId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not connected");
+  
+  const result = await db.select()
+    .from(alarmLogs)
+    .where(eq(alarmLogs.alarmRecordId, alarmRecordId))
+    .orderBy(desc(alarmLogs.operatedAt));
+  
+  return result;
+}
+
+/**
+ * 检查是否存在相同的活跃报警
+ * 用于报警去重：相同柜组的相同类型报警
+ */
+export async function hasActiveAlarm(
+  cabinetGroupId: number,
+  alarmType: string
+): Promise<boolean> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not connected");
+  
+  const result = await db.select({ id: alarmRecords.id })
+    .from(alarmRecords)
+    .where(
+      and(
+        eq(alarmRecords.cabinetGroupId, cabinetGroupId),
+        eq(alarmRecords.alarmType, alarmType as any),
+        eq(alarmRecords.status, 'active')
+      )
+    )
+    .limit(1);
+  
+  return result.length > 0;
+}
+
+/**
+ * 获取报警统计信息
+ */
+export async function getAlarmStatistics() {
+  const db = await getDb();
+  if (!db) throw new Error("Database not connected");
+  
+  const activeCount = await db.select({ count: sql<number>`COUNT(*)` })
+    .from(alarmRecords)
+    .where(eq(alarmRecords.status, 'active'));
+  
+  const acknowledgedCount = await db.select({ count: sql<number>`COUNT(*)` })
+    .from(alarmRecords)
+    .where(eq(alarmRecords.status, 'acknowledged'));
+  
+  const resolvedCount = await db.select({ count: sql<number>`COUNT(*)` })
+    .from(alarmRecords)
+    .where(eq(alarmRecords.status, 'resolved'));
+  
+  return {
+    active: activeCount[0]?.count || 0,
+    acknowledged: acknowledgedCount[0]?.count || 0,
+    resolved: resolvedCount[0]?.count || 0,
+  };
+}
+
+/**
+ * 增加报警发生次数
+ */
+export async function incrementAlarmOccurrence(alarmId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not connected");
+  
+  const result = await db.update(alarmRecords)
+    .set({
+      occurrenceCount: sql`${alarmRecords.occurrenceCount} + 1`,
+      lastOccurredAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .where(eq(alarmRecords.id, alarmId));
+  
+  return result;
+}
+
+/**
+ * 自动解除报警（当值恢复正常时）
+ */
+export async function autoResolveAlarm(alarmId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not connected");
+  
+  const result = await db.update(alarmRecords)
+    .set({
+      status: 'resolved',
+      autoResolved: 1,
+      updatedAt: new Date(),
+    })
+    .where(eq(alarmRecords.id, alarmId));
+  
+  return result;
 }

@@ -8,6 +8,7 @@ import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { ensureDefaultAdmin } from "../db";
+import { CollectionWebSocketServer } from "./websocketServer";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -36,6 +37,8 @@ async function startServer() {
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
   // 初始化默认管理员账户
   await ensureDefaultAdmin();
+  // 初始化 WebSocket 服务器
+  const wsServer = new CollectionWebSocketServer(server);
   // 本地认证路由
   registerOAuthRoutes(app);
   // tRPC API
@@ -53,6 +56,9 @@ async function startServer() {
     serveStatic(app);
   }
 
+  // 暴露 wsServer 到全局作用域（便于调试）
+  (global as any).wsServer = wsServer;
+
   const preferredPort = parseInt(process.env.PORT || "3000");
   const port = await findAvailablePort(preferredPort);
 
@@ -62,7 +68,11 @@ async function startServer() {
 
   server.listen(port, () => {
     console.log(`Server running on http://localhost:${port}/`);
+    console.log(`WebSocket server ready at ws://localhost:${port}/api/collection`);
   });
 }
 
-startServer().catch(console.error);
+startServer().catch((err) => {
+  console.error("Server startup error:", err);
+  process.exit(1);
+});

@@ -1,0 +1,21 @@
+{
+  "name": "weighing-collection-service",
+  "version": "1.0.0",
+  "description": "Data collection service for weighing system",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "node --watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "ws": "^8.16.0",
+    "mysql2": "^3.6.5",
+    "dotenv": "^16.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.6",
+    "typescript": "^5.3.3"
+  }
+}

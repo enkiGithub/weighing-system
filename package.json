@@ -48,6 +48,7 @@
     "@trpc/client": "^11.6.0",
     "@trpc/react-query": "^11.6.0",
     "@trpc/server": "^11.6.0",
+    "@types/ws": "^8.18.1",
     "axios": "^1.12.0",
     "bcryptjs": "^3.0.3",
     "class-variance-authority": "^0.7.1",
@@ -81,6 +82,7 @@
     "three": "^0.183.0",
     "vaul": "^1.1.2",
     "wouter": "^3.3.5",
+    "ws": "^8.19.0",
     "zod": "^4.1.12"
   },
   "devDependencies": {
