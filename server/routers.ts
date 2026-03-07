@@ -893,30 +893,31 @@ export const appRouter = router({
     list: alarmView
       .input(z.object({
         cabinetGroupId: z.number().optional(),
-        status: z.enum(['active', 'acknowledged', 'resolved', 'ignored']).optional(),
+        handlingStatus: z.enum(['pending', 'handled', 'auto_resolved']).optional(),
         limit: z.number().int().min(1).max(1000).default(100),
         offset: z.number().int().min(0).default(0),
       }))
       .query(async ({ input }) => {
         return await db.getAlarmRecords({
           cabinetGroupId: input.cabinetGroupId,
-          status: input.status,
+          handlingStatus: input.handlingStatus,
           limit: input.limit,
           offset: input.offset,
         });
       }),
     
     getUnhandled: alarmView.query(async () => {
-      return await db.getAlarmRecords({ status: 'active', limit: 100 });
+      return await db.getAlarmRecords({ handlingStatus: 'pending', limit: 100 });
     }),
     
     updateStatus: alarmOperate
       .input(z.object({ 
         id: z.number(),
-        status: z.enum(['acknowledged', 'resolved', 'ignored']),
+        handlingStatus: z.enum(['handled', 'auto_resolved']),
+        alarmLogId: z.number().optional(),
       }))
       .mutation(async ({ input }) => {
-        await db.updateAlarmStatus(input.id, input.status);
+        await db.updateAlarmHandlingStatus(input.id, input.handlingStatus, input.alarmLogId);
         return { success: true };
       }),
   }),

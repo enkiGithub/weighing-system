@@ -71,7 +71,7 @@ export default function Alarms() {
 
   const handleAlarm = (id: number) => {
     if (confirm("确认处理此报警？")) {
-      handleMutation.mutate({ id, status: 'acknowledged' });
+      handleMutation.mutate({ id, handlingStatus: 'handled' });
     }
   };
 

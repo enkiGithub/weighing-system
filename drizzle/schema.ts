@@ -335,16 +335,16 @@ export const alarmRecords = mysqlTable("alarmRecords", {
   threshold: float("threshold"),
   /** 超过阈值的量（超重报警时有值） */
   exceedValue: float("exceedValue"),
-  /** 报警状态: active(活跃) / acknowledged(已确认) / resolved(已解除) / ignored(已忽略) */
-  status: mysqlEnum("status", ["active", "acknowledged", "resolved", "ignored"]).default("active").notNull(),
+  /** 处理情况: pending(未处理) / handled(已处理) / auto_resolved(自动解除) */
+  handlingStatus: mysqlEnum("handlingStatus", ["pending", "handled", "auto_resolved"]).default("pending").notNull(),
+  /** 关联的报警处理日志ID（已处理或自动解除时有值） */
+  alarmLogId: int("alarmLogId"),
   /** 报警首次发生时间 */
   firstOccurredAt: timestamp("firstOccurredAt").defaultNow().notNull(),
   /** 最后一次发生时间 */
   lastOccurredAt: timestamp("lastOccurredAt").defaultNow().notNull(),
   /** 报警发生次数 */
   occurrenceCount: int("occurrenceCount").default(1).notNull(),
-  /** 报警是否已自动解除（true表示已自动解除，需要用户确认） */
-  autoResolved: int("autoResolved").default(0).notNull(),
   /** 创建时间 */
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   /** 更新时间 */

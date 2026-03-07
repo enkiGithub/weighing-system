@@ -794,7 +794,7 @@ export async function createAlarmRecord(data: InsertAlarmRecord) {
  * 查询报警记录（分页）
  */
 export async function getAlarmRecords(options: {
-  status?: string;
+  handlingStatus?: string;
   cabinetGroupId?: number;
   alarmType?: string;
   limit?: number;
@@ -805,8 +805,8 @@ export async function getAlarmRecords(options: {
   
   let query: any = db.select().from(alarmRecords);
   
-  if (options.status) {
-    query = query.where(eq(alarmRecords.status, options.status as any));
+  if (options.handlingStatus) {
+    query = query.where(eq(alarmRecords.handlingStatus, options.handlingStatus as any));
   }
   if (options.cabinetGroupId) {
     query = query.where(eq(alarmRecords.cabinetGroupId, options.cabinetGroupId));
@@ -837,23 +837,28 @@ export async function getUnhandledAlarmCount() {
   
   const result = await db.select({ count: sql<number>`COUNT(*)` })
     .from(alarmRecords)
-    .where(eq(alarmRecords.status, 'active'));
+    .where(eq(alarmRecords.handlingStatus, 'pending'));
   
   return result[0]?.count || 0;
 }
 
 /**
- * 更新报警状态
+ * 更新报警处理情况
  */
-export async function updateAlarmStatus(
+export async function updateAlarmHandlingStatus(
   alarmId: number,
-  status: 'acknowledged' | 'resolved' | 'ignored'
+  handlingStatus: 'handled' | 'auto_resolved',
+  alarmLogId?: number
 ) {
   const db = await getDb();
   if (!db) throw new Error("Database not connected");
   
   const result = await db.update(alarmRecords)
-    .set({ status, updatedAt: new Date() })
+    .set({ 
+      handlingStatus, 
+      alarmLogId,
+      updatedAt: new Date() 
+    })
     .where(eq(alarmRecords.id, alarmId));
   
   return result;
@@ -902,7 +907,7 @@ export async function hasActiveAlarm(
       and(
         eq(alarmRecords.cabinetGroupId, cabinetGroupId),
         eq(alarmRecords.alarmType, alarmType as any),
-        eq(alarmRecords.status, 'active')
+        eq(alarmRecords.handlingStatus, 'pending')
       )
     )
     .limit(1);
@@ -919,20 +924,20 @@ export async function getAlarmStatistics() {
   
   const activeCount = await db.select({ count: sql<number>`COUNT(*)` })
     .from(alarmRecords)
-    .where(eq(alarmRecords.status, 'active'));
+    .where(eq(alarmRecords.handlingStatus, 'pending'));
   
-  const acknowledgedCount = await db.select({ count: sql<number>`COUNT(*)` })
+  const handledCount = await db.select({ count: sql<number>`COUNT(*)` })
     .from(alarmRecords)
-    .where(eq(alarmRecords.status, 'acknowledged'));
+    .where(eq(alarmRecords.handlingStatus, 'handled'));
   
-  const resolvedCount = await db.select({ count: sql<number>`COUNT(*)` })
+  const autoResolvedCount = await db.select({ count: sql<number>`COUNT(*)` })
     .from(alarmRecords)
-    .where(eq(alarmRecords.status, 'resolved'));
+    .where(eq(alarmRecords.handlingStatus, 'auto_resolved'));
   
   return {
-    active: activeCount[0]?.count || 0,
-    acknowledged: acknowledgedCount[0]?.count || 0,
-    resolved: resolvedCount[0]?.count || 0,
+    pending: activeCount[0]?.count || 0,
+    handled: handledCount[0]?.count || 0,
+    auto_resolved: autoResolvedCount[0]?.count || 0,
   };
 }
 
@@ -963,8 +968,7 @@ export async function autoResolveAlarm(alarmId: number) {
   
   const result = await db.update(alarmRecords)
     .set({
-      status: 'resolved',
-      autoResolved: 1,
+      handlingStatus: 'auto_resolved',
       updatedAt: new Date(),
     })
     .where(eq(alarmRecords.id, alarmId));
