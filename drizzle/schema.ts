@@ -53,8 +53,8 @@ export const gatewayComPorts = mysqlTable("gatewayComPorts", {
   portNumber: varchar("portNumber", { length: 10 }).notNull(),
   /** 该COM端口对应的IP地址（前8个端口可共用一个IP，后8个端口共用另一个IP） */
   ipAddress: varchar("ipAddress", { length: 45 }).notNull(),
-  /** 该COM端口对应的TCP端口号 */
-  tcpPort: int("tcpPort").notNull(),
+  /** 该COM端口对应的网络端口号（支持TCP/UDP） */
+  networkPort: int("networkPort").notNull(),
   baudRate: int("baudRate").notNull().default(9600),
   dataBits: int("dataBits").notNull().default(8),
   stopBits: int("stopBits").notNull().default(1),

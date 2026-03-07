@@ -52,7 +52,7 @@ type GatewayForm = z.infer<typeof gatewaySchema>;
 const comPortSchema = z.object({
   portNumber: z.string().min(1, "端口号不能为空").max(10),
   ipAddress: z.string().min(1, "IP地址不能为空").max(45, "IP地址过长"),
-  tcpPort: z.number().int().min(1, "TCP端口必须大于0").max(65535, "TCP端口号无效"),
+  networkPort: z.number().int().min(1, "网络端口必须大于0").max(65535, "网络端口号无效"),
   baudRate: z.number().int().optional(),
   dataBits: z.number().int().optional(),
   stopBits: z.number().int().optional(),
@@ -236,7 +236,7 @@ export default function Gateways() {
     resetComPortForm({
       portNumber: port.portNumber,
       ipAddress: port.ipAddress,
-      tcpPort: port.tcpPort,
+      networkPort: port.networkPort,
       baudRate: port.baudRate,
       dataBits: port.dataBits,
       stopBits: port.stopBits,
@@ -251,7 +251,7 @@ export default function Gateways() {
 
   const handleAddComPort = () => {
     setEditingComPort(null);
-    resetComPortForm({ ipAddress: "", tcpPort: 502, baudRate: 9600, dataBits: 8, stopBits: 1, parity: "none", protocolType: "modbus_rtu", timeoutMs: 1000, retryCount: 3 });
+    resetComPortForm({ ipAddress: "", networkPort: 502, baudRate: 9600, dataBits: 8, stopBits: 1, parity: "none", protocolType: "modbus_rtu", timeoutMs: 1000, retryCount: 3 });
     setIsComPortDialogOpen(true);
   };
 
@@ -514,6 +514,8 @@ export default function Gateways() {
                       <TableHeader>
                         <TableRow className="bg-muted/30">
                           <TableHead className="text-xs h-8">端口号</TableHead>
+                          <TableHead className="text-xs h-8">IP地址</TableHead>
+                          <TableHead className="text-xs h-8">网络端口</TableHead>
                           <TableHead className="text-xs h-8">波特率</TableHead>
                           <TableHead className="text-xs h-8">数据位/停止位/校验</TableHead>
                           <TableHead className="text-xs h-8">协议</TableHead>
@@ -526,6 +528,8 @@ export default function Gateways() {
                         {comPorts.map((port) => (
                           <TableRow key={port.id}>
                             <TableCell className="text-sm font-medium py-2">{port.portNumber}</TableCell>
+                            <TableCell className="text-sm py-2">{port.ipAddress}</TableCell>
+                            <TableCell className="text-sm py-2">{port.networkPort}</TableCell>
                             <TableCell className="text-sm py-2">{port.baudRate}</TableCell>
                             <TableCell className="text-sm py-2">{port.dataBits}/{port.stopBits}/{port.parity}</TableCell>
                             <TableCell className="text-xs py-2">
@@ -584,9 +588,9 @@ export default function Gateways() {
                 {comPortErrors.ipAddress && <p className="text-sm text-red-500">{comPortErrors.ipAddress.message}</p>}
               </div>
               <div>
-                <Label htmlFor="tcpPort">TCP端口 *</Label>
-                <Input id="tcpPort" type="number" placeholder="例如：502" {...registerComPort("tcpPort", { valueAsNumber: true })} />
-                {comPortErrors.tcpPort && <p className="text-sm text-red-500">{comPortErrors.tcpPort.message}</p>}
+                <Label htmlFor="networkPort">网络端口 *</Label>
+                <Input id="networkPort" type="number" placeholder="例如：502" {...registerComPort("networkPort", { valueAsNumber: true })} />
+                {comPortErrors.networkPort && <p className="text-sm text-red-500">{comPortErrors.networkPort.message}</p>}
               </div>
             </div>
 

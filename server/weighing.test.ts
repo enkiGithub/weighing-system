@@ -149,7 +149,7 @@ describe("Weighing Instrument Management", () => {
       gatewayId: gw.id,
       portNumber: "COM1",
       ipAddress: "192.168.1.100",
-      tcpPort: 502,
+      networkPort: 502,
     });
 
     const instrument = await caller.instruments.create({
@@ -182,7 +182,7 @@ describe("Weighing Instrument Management", () => {
       gatewayId: gw.id,
       portNumber: "COM2",
       ipAddress: "192.168.1.100",
-      tcpPort: 502,
+      networkPort: 502,
     });
 
     const instrument = await caller.instruments.create({
@@ -218,7 +218,7 @@ describe("Weighing Instrument Management", () => {
       gatewayId: gw.id,
       portNumber: "COM3",
       ipAddress: "192.168.1.100",
-      tcpPort: 502,
+      networkPort: 502,
     });
 
     const inst1 = await caller.instruments.create({
@@ -255,7 +255,7 @@ describe("Weighing Instrument Management", () => {
       gatewayId: gw.id,
       portNumber: "COM4",
       ipAddress: "192.168.1.100",
-      tcpPort: 502,
+      networkPort: 502,
     });
 
     const inst = await caller.instruments.create({
@@ -318,7 +318,7 @@ describe("Channel Binding Management", () => {
       gatewayId: gw.id,
       portNumber: "COM1",
       ipAddress: "192.168.1.100",
-      tcpPort: 502,
+      networkPort: 502,
     });
     const instrument = await caller.instruments.create({
       deviceCode: `DY-BIND-${rnd()}`,
@@ -368,7 +368,7 @@ describe("Channel Binding Management", () => {
       gatewayId: gw.id,
       portNumber: "COM2",
       ipAddress: "192.168.1.100",
-      tcpPort: 502,
+      networkPort: 502,
     });
     const instrument = await caller.instruments.create({
       deviceCode: `DY-UNBIND-${rnd()}`,
@@ -415,7 +415,7 @@ describe("Channel Binding Management", () => {
       gatewayId: gw.id,
       portNumber: "COM3",
       ipAddress: "192.168.1.100",
-      tcpPort: 502,
+      networkPort: 502,
     });
     const instrument = await caller.instruments.create({
       deviceCode: `DY-DUP-${rnd()}`,
@@ -473,7 +473,7 @@ describe("Channel Management", () => {
       gatewayId: gw.id,
       portNumber: "COM1",
       ipAddress: "192.168.1.100",
-      tcpPort: 502,
+      networkPort: 502,
     });
     const instrument = await caller.instruments.create({
       deviceCode: `DY-CH-UPD-${rnd()}`,
@@ -519,7 +519,7 @@ describe("Channel Management", () => {
       gatewayId: gw.id,
       portNumber: "COM2",
       ipAddress: "192.168.1.100",
-      tcpPort: 502,
+      networkPort: 502,
     });
     const instrument = await caller.instruments.create({
       deviceCode: `DY-CH-TEST-${rnd()}`,
@@ -666,7 +666,7 @@ describe("Gateway COM Port Management", () => {
       gatewayId: gateway.id,
       portNumber: "COM1",
       ipAddress: "192.168.1.100",
-      tcpPort: 502,
+      networkPort: 502,
       baudRate: 9600,
       dataBits: 8,
       stopBits: 1,

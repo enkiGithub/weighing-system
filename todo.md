@@ -356,3 +356,13 @@
 - [ ] 前端WebSocket集成测试（数据接收、UI更新）
 - [ ] 端到端测试（从采集到前端展示的完整流程）
 - [ ] 性能测试（多设备并发采集、WebSocket推送性能）
+
+## COM端口配置列表显示优化（新需求）
+- [x] 将gatewayComPorts表的tcpPort字段改名为networkPort
+- [x] 运行数据库迁移（pnpm db:push）
+- [x] 更新routers.ts中所有tcpPort引用改为networkPort
+- [x] 更新Gateways.tsx表单中“TCP端口”标签改为“网络端口”
+- [x] 在COM端口配置列表中添加IP地址列
+- [x] 在COM端口配置列表中添加网络端口列
+- [x] 修复所有测试用例中tcpPort改为networkPort
+- [x] 所有42项测试通过
