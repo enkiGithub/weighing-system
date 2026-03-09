@@ -225,13 +225,16 @@ export const appRouter = router({
   // 网关管理
   gateways: router({
     list: gatewayView.query(async () => {
-      return await db.getAllGateways();
+      return await db.getAllGatewaysWithStatus();
     }),
     
     getById: gatewayView
       .input(z.object({ id: z.number() }))
       .query(async ({ input }) => {
-        return await db.getGatewayById(input.id);
+        const gateway = await db.getGatewayById(input.id);
+        if (!gateway) return undefined;
+        const status = await db.calculateGatewayStatus(input.id);
+        return { ...gateway, status };
       }),
     
     create: gatewayOperate

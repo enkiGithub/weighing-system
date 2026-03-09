@@ -14,6 +14,7 @@ import {
   alarmLogs,
   vaultLayouts,
   auditLogs,
+  deviceConnectionStatus,
   InsertGateway,
   InsertGatewayComPort,
   InsertWeighingInstrument,
@@ -25,6 +26,7 @@ import {
   InsertAlarmLog,
   InsertVaultLayout,
   InsertAuditLog,
+  InsertDeviceConnectionStatus,
   userPermissions,
   InsertUserPermission,
 } from "../drizzle/schema";
@@ -974,4 +976,131 @@ export async function autoResolveAlarm(alarmId: number) {
     .where(eq(alarmRecords.id, alarmId));
   
   return result;
+}
+
+
+// ==================== 设备连接状态管理 ====================
+
+/**
+ * 获取COM端口的连接状态
+ */
+export async function getComPortConnectionStatus(comPortId: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select()
+    .from(deviceConnectionStatus)
+    .where(eq(deviceConnectionStatus.comPortId, comPortId))
+    .limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+/**
+ * 获取网关的所有COM端口连接状态
+ */
+export async function getGatewayComPortStatuses(gatewayId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  // 先获取网关的所有COM端口
+  const comPorts = await db.select({ id: gatewayComPorts.id })
+    .from(gatewayComPorts)
+    .where(eq(gatewayComPorts.gatewayId, gatewayId));
+  
+  if (comPorts.length === 0) return [];
+  
+  const comPortIds = comPorts.map(p => p.id);
+  
+  // 获取这些COM端口的连接状态
+  return await db.select()
+    .from(deviceConnectionStatus)
+    .where(inArray(deviceConnectionStatus.comPortId, comPortIds));
+}
+
+/**
+ * 计算网关的在线状态
+ * 规则：所有COM端口都在线 -> 网关在线，任一离线 -> 网关离线
+ */
+export async function calculateGatewayStatus(gatewayId: number): Promise<'online' | 'offline'> {
+  const statuses = await getGatewayComPortStatuses(gatewayId);
+  
+  // 如果没有COM端口配置，则网关离线
+  if (statuses.length === 0) return 'offline';
+  
+  // 如果有任何一个COM端口离线，则网关离线
+  const hasOfflinePort = statuses.some(s => s.status === 'offline');
+  
+  return hasOfflinePort ? 'offline' : 'online';
+}
+
+/**
+ * 更新或创建COM端口连接状态
+ */
+export async function upsertComPortStatus(
+  comPortId: number,
+  status: 'online' | 'offline',
+  failureReason?: string
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  // 检查是否已存在
+  const existing = await getComPortConnectionStatus(comPortId);
+  
+  if (existing) {
+    // 更新
+    if (status === 'online') {
+      await db.update(deviceConnectionStatus)
+        .set({
+          status,
+          lastSuccessAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(eq(deviceConnectionStatus.comPortId, comPortId));
+    } else {
+      await db.update(deviceConnectionStatus)
+        .set({
+          status,
+          lastFailureAt: new Date(),
+          failureReason,
+          updatedAt: new Date(),
+        })
+        .where(eq(deviceConnectionStatus.comPortId, comPortId));
+    }
+  } else {
+    // 创建
+    const data: InsertDeviceConnectionStatus = {
+      comPortId,
+      status,
+      updatedAt: new Date(),
+    };
+    
+    if (status === 'online') {
+      data.lastSuccessAt = new Date();
+    } else {
+      data.lastFailureAt = new Date();
+      data.failureReason = failureReason;
+    }
+    
+    await db.insert(deviceConnectionStatus).values(data);
+  }
+}
+
+/**
+ * 获取所有网关的在线状态
+ */
+export async function getAllGatewaysWithStatus() {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const allGateways = await db.select().from(gateways).orderBy(desc(gateways.createdAt));
+  
+  // 为每个网关计算在线状态
+  const gatewaysWithStatus = await Promise.all(
+    allGateways.map(async (gw) => ({
+      ...gw,
+      status: await calculateGatewayStatus(gw.id),
+    }))
+  );
+  
+  return gatewaysWithStatus;
 }
