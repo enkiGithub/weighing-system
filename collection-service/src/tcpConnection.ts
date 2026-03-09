@@ -8,7 +8,7 @@ import { EventEmitter } from 'events';
 export interface ConnectionConfig {
   id: number;
   ipAddress: string;
-  tcpPort: number;
+  networkPort: number;
   timeoutMs: number;
   retryCount: number;
 }
@@ -43,7 +43,7 @@ export class TCPConnection extends EventEmitter {
       const timeout = setTimeout(() => {
         socket.destroy();
         this.isConnecting = false;
-        reject(new Error(`连接超时: ${this.config.ipAddress}:${this.config.tcpPort}`));
+        reject(new Error(`连接超时: ${this.config.ipAddress}:${this.config.networkPort}`));
       }, 5000);
 
       socket.on('connect', () => {
@@ -52,14 +52,14 @@ export class TCPConnection extends EventEmitter {
         this.isConnecting = false;
         this.retryCount = 0;
         this.emit('connected');
-        console.log(`[TCP] 已连接: ${this.config.ipAddress}:${this.config.tcpPort}`);
+        console.log(`[TCP] 已连接: ${this.config.ipAddress}:${this.config.networkPort}`);
         resolve();
       });
 
       socket.on('error', (err) => {
         clearTimeout(timeout);
         this.isConnecting = false;
-        console.error(`[TCP] 连接错误 ${this.config.ipAddress}:${this.config.tcpPort}:`, err.message);
+        console.error(`[TCP] 连接错误 ${this.config.ipAddress}:${this.config.networkPort}:`, err.message);
         this.emit('error', err);
         reject(err);
       });
@@ -67,7 +67,7 @@ export class TCPConnection extends EventEmitter {
       socket.on('close', () => {
         this.socket = null;
         this.emit('disconnected');
-        console.log(`[TCP] 已断开: ${this.config.ipAddress}:${this.config.tcpPort}`);
+        console.log(`[TCP] 已断开: ${this.config.ipAddress}:${this.config.networkPort}`);
         this.scheduleReconnect();
       });
 
@@ -76,20 +76,20 @@ export class TCPConnection extends EventEmitter {
         this.emit('data', this.buffer);
       });
 
-      socket.connect(this.config.tcpPort, this.config.ipAddress);
+      socket.connect(this.config.networkPort, this.config.ipAddress);
     });
   }
 
   private scheduleReconnect(): void {
     if (this.retryCount >= this.config.retryCount) {
-      console.warn(`[TCP] 达到最大重试次数，停止重连: ${this.config.ipAddress}:${this.config.tcpPort}`);
+      console.warn(`[TCP] 达到最大重试次数，停止重连: ${this.config.ipAddress}:${this.config.networkPort}`);
       return;
     }
 
     this.retryCount++;
     const delay = Math.min(1000 * Math.pow(2, this.retryCount - 1), 30000);  // 指数退避，最多30秒
     
-    console.log(`[TCP] 将在 ${delay}ms 后重新连接: ${this.config.ipAddress}:${this.config.tcpPort}`);
+    console.log(`[TCP] 将在 ${delay}ms 后重新连接: ${this.config.ipAddress}:${this.config.networkPort}`);
 
     this.reconnectTimer = setTimeout(() => {
       this.connect().catch(err => {

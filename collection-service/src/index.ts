@@ -83,7 +83,7 @@ class WeighingCollectionService {
       // 启动新的或更新的端口
       for (const comPort of comPorts) {
         if (!this.portCollectors.has(comPort.id)) {
-          console.log(`[Service] 启动采集 COM 端口 #${comPort.id} (${comPort.ipAddress}:${comPort.tcpPort})`);
+          console.log(`[Service] 启动采集 COM 端口 #${comPort.id} (${comPort.ipAddress}:${comPort.networkPort})`);
           await this.startCollector(comPort);
         }
       }
@@ -96,7 +96,7 @@ class WeighingCollectionService {
     const connection = new TCPConnection({
       id: comPort.id,
       ipAddress: comPort.ipAddress,
-      tcpPort: comPort.tcpPort,
+      networkPort: comPort.networkPort,
       timeoutMs: comPort.timeoutMs,
       retryCount: comPort.retryCount,
     });

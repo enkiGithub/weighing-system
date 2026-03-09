@@ -10,7 +10,7 @@ export interface GatewayComPort {
   gatewayId: number;
   portNumber: string;
   ipAddress: string;
-  tcpPort: number;
+  networkPort: number;
   baudRate: number;
   dataBits: number;
   stopBits: number;

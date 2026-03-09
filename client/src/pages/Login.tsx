@@ -50,7 +50,7 @@ export default function Login() {
         <div className="flex flex-col items-center gap-4">
           <div className="text-center">
             <h1 className="text-2xl font-bold tracking-tight text-foreground">
-              保管库职能称重系统
+              保管库智能称重系统
             </h1>
             <p className="text-sm text-muted-foreground mt-2">
               请输入用户名和密码登录系统

@@ -68,7 +68,7 @@ export class WebSocketClient extends EventEmitter {
           resolve();
         });
 
-        this.ws.on('error', (err) => {
+        this.ws.on('error', (err: Error) => {
           clearTimeout(timeout);
           this.isConnecting = false;
           console.error('[WebSocket] 连接错误:', err.message);
@@ -82,7 +82,7 @@ export class WebSocketClient extends EventEmitter {
           this.scheduleReconnect();
         });
 
-        this.ws.on('message', (data) => {
+        this.ws.on('message', (data: Buffer) => {
           try {
             const message = JSON.parse(data.toString());
             this.emit('message', message);
@@ -122,7 +122,7 @@ export class WebSocketClient extends EventEmitter {
         return;
       }
 
-      this.ws.send(JSON.stringify(message), (err) => {
+      this.ws.send(JSON.stringify(message), (err?: Error) => {
         if (err) {
           reject(err);
         } else {
