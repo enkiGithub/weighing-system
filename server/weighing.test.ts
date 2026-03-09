@@ -560,7 +560,8 @@ describe("Alarm Management", () => {
     const ctx = createAdminContext();
     const caller = appRouter.createCaller(ctx);
     const result = await caller.alarms.getUnhandled();
-    expect(Array.isArray(result)).toBe(true);
+    expect(typeof result).toBe('number');
+    expect(result).toBeGreaterThanOrEqual(0);
   });
 });
 

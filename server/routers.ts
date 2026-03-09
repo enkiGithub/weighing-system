@@ -906,10 +906,6 @@ export const appRouter = router({
         });
       }),
     
-    getUnhandled: alarmView.query(async () => {
-      return await db.getAlarmRecords({ handlingStatus: 'pending', limit: 100 });
-    }),
-    
     updateStatus: alarmOperate
       .input(z.object({ 
         id: z.number(),
@@ -920,6 +916,27 @@ export const appRouter = router({
         await db.updateAlarmHandlingStatus(input.id, input.handlingStatus, input.alarmLogId);
         return { success: true };
       }),
+    
+    confirm: alarmOperate
+      .input(z.object({ alarmId: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        await db.updateAlarmHandlingStatus(input.alarmId, 'handled');
+        await audit(ctx.user.id, ctx.user.name, 'confirm', 'alarm', input.alarmId, `确认报警 #${input.alarmId}`);
+        return { success: true };
+      }),
+    
+    ignore: alarmOperate
+      .input(z.object({ alarmId: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        await db.updateAlarmHandlingStatus(input.alarmId, 'handled');
+        await audit(ctx.user.id, ctx.user.name, 'ignore', 'alarm', input.alarmId, `忽略报警 #${input.alarmId}`);
+        return { success: true };
+      }),
+    
+    getUnhandled: alarmView.query(async () => {
+      const count = await db.getUnhandledAlarmCount();
+      return count;
+    }),
   }),
 
   // 审计日志
@@ -960,3 +977,5 @@ export const appRouter = router({
 });
 
 export type AppRouter = typeof appRouter;
+
+    // 临时占位符 - 用于添加confirm和ignore方法

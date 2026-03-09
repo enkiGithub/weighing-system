@@ -163,3 +163,88 @@ export async function updateChannelValue(
     connection.release();
   }
 }
+
+
+// ===== 报警处理函数 =====
+
+export interface CabinetGroup {
+  id: number;
+  name: string;
+  currentWeight: number;
+  initialWeight: number;
+  alarmThreshold: number;
+  status: 'normal' | 'warning' | 'alarm';
+}
+
+export async function getCabinetGroupById(groupId: number): Promise<CabinetGroup | null> {
+  const connection = await pool.getConnection();
+  try {
+    const [rows] = await connection.query(
+      'SELECT id, name, currentWeight, initialWeight, alarmThreshold, status FROM cabinetGroups WHERE id = ?',
+      [groupId]
+    );
+    const result = (rows as any[])[0];
+    return result || null;
+  } finally {
+    connection.release();
+  }
+}
+
+export interface AlarmRecord {
+  id: number;
+  cabinetGroupId: number;
+  alarmType: 'overweight' | 'underweight';
+  currentValue: number;
+  thresholdValue: number;
+  occurrenceCount: number;
+  handlingStatus: 'pending' | 'handled' | 'auto_resolved';
+}
+
+export async function createAlarmRecord(alarm: Omit<AlarmRecord, 'id'>): Promise<number> {
+  const connection = await pool.getConnection();
+  try {
+    const [result] = await connection.query(
+      'INSERT INTO alarmRecords (cabinetGroupId, alarmType, currentValue, thresholdValue, occurrenceCount, handlingStatus, createdAt) VALUES (?, ?, ?, ?, ?, ?, NOW())',
+      [alarm.cabinetGroupId, alarm.alarmType, alarm.currentValue, alarm.thresholdValue, alarm.occurrenceCount, alarm.handlingStatus]
+    );
+    return (result as any).insertId;
+  } finally {
+    connection.release();
+  }
+}
+
+export async function getPendingAlarms(): Promise<AlarmRecord[]> {
+  const connection = await pool.getConnection();
+  try {
+    const [rows] = await connection.query(
+      'SELECT id, cabinetGroupId, alarmType, currentValue, thresholdValue, occurrenceCount, handlingStatus FROM alarmRecords WHERE handlingStatus = ?',
+      ['pending']
+    );
+    return (rows as any[]).map(row => ({
+      id: row.id,
+      cabinetGroupId: row.cabinetGroupId,
+      alarmType: row.alarmType,
+      currentValue: row.currentValue,
+      thresholdValue: row.thresholdValue,
+      occurrenceCount: row.occurrenceCount,
+      handlingStatus: row.handlingStatus,
+    }));
+  } finally {
+    connection.release();
+  }
+}
+
+export async function updateAlarmHandlingStatus(
+  alarmId: number,
+  handlingStatus: 'handled' | 'auto_resolved'
+): Promise<void> {
+  const connection = await pool.getConnection();
+  try {
+    await connection.query(
+      'UPDATE alarmRecords SET handlingStatus = ?, handledAt = NOW() WHERE id = ?',
+      [handlingStatus, alarmId]
+    );
+  } finally {
+    connection.release();
+  }
+}

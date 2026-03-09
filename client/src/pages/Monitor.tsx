@@ -1,9 +1,13 @@
-import { useState, useCallback, useMemo, useRef, useEffect } from "react";
+"use client";
+
+import { useEffect, useRef, useState, useMemo, useCallback } from "react";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Loader2, CheckCircle2, AlertTriangle, AlertOctagon, Activity, ZoomIn, ZoomOut, Maximize2 } from "lucide-react";
+import { Loader2, CheckCircle2, AlertTriangle, AlertOctagon, Activity, ZoomIn, ZoomOut, Maximize2, Bell } from "lucide-react";
+import { AlarmPanel } from "@/components/AlarmPanel";
+import { AlarmSound } from "@/components/AlarmSound";
 
 // ===== Types =====
 interface DxfCabinet {
@@ -100,242 +104,174 @@ function MonitorSVG({
   }, [layoutData]);
 
   const [viewBox, setViewBox] = useState(initialViewBox);
-  useEffect(() => { setViewBox(initialViewBox); }, [initialViewBox]);
 
-  const screenToSvg = useCallback((clientX: number, clientY: number) => {
-    if (!svgRef.current) return { x: 0, y: 0 };
-    const rect = svgRef.current.getBoundingClientRect();
-    const x = viewBox.x + (clientX - rect.left) / rect.width * viewBox.w;
-    const y = viewBox.y + (clientY - rect.top) / rect.height * viewBox.h;
-    return { x, y };
-  }, [viewBox]);
+  // Reset viewBox when layout changes
+  useEffect(() => {
+    setViewBox(initialViewBox);
+  }, [initialViewBox]);
 
   const handleWheel = useCallback((e: React.WheelEvent) => {
     e.preventDefault();
-    const factor = e.deltaY > 0 ? 1.1 : 0.9;
-    const svgPt = screenToSvg(e.clientX, e.clientY);
+    const zoomFactor = e.deltaY > 0 ? 1.1 : 0.9;
     setViewBox(prev => ({
-      x: svgPt.x - (svgPt.x - prev.x) * factor,
-      y: svgPt.y - (svgPt.y - prev.y) * factor,
-      w: prev.w * factor,
-      h: prev.h * factor,
+      ...prev,
+      w: prev.w * zoomFactor,
+      h: prev.h * zoomFactor,
     }));
-  }, [screenToSvg]);
+  }, []);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    if (e.button === 0 || e.button === 1) {
-      setIsPanning(true);
-      setPanStart({ x: e.clientX, y: e.clientY, vx: viewBox.x, vy: viewBox.y });
-    }
+    setIsPanning(true);
+    setPanStart({ x: e.clientX, y: e.clientY, vx: viewBox.x, vy: viewBox.y });
   }, [viewBox]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    if (isPanning && svgRef.current) {
-      const rect = svgRef.current.getBoundingClientRect();
-      const dx = (e.clientX - panStart.x) / rect.width * viewBox.w;
-      const dy = (e.clientY - panStart.y) / rect.height * viewBox.h;
-      setViewBox(prev => ({ ...prev, x: panStart.vx - dx, y: panStart.vy - dy }));
-    }
+    if (!isPanning || !svgRef.current) return;
+
+    const dx = (e.clientX - panStart.x) * (viewBox.w / svgRef.current.clientWidth);
+    const dy = (e.clientY - panStart.y) * (viewBox.h / svgRef.current.clientHeight);
+
+    setViewBox(prev => ({
+      ...prev,
+      x: panStart.vx - dx,
+      y: panStart.vy - dy,
+    }));
   }, [isPanning, panStart, viewBox]);
 
-  const handleMouseUp = useCallback(() => { setIsPanning(false); }, []);
-
-  const zoomIn = useCallback(() => {
-    setViewBox(prev => {
-      const cx = prev.x + prev.w / 2, cy = prev.y + prev.h / 2;
-      const nw = prev.w * 0.75, nh = prev.h * 0.75;
-      return { x: cx - nw / 2, y: cy - nh / 2, w: nw, h: nh };
-    });
+  const handleMouseUp = useCallback(() => {
+    setIsPanning(false);
   }, []);
 
-  const zoomOut = useCallback(() => {
-    setViewBox(prev => {
-      const cx = prev.x + prev.w / 2, cy = prev.y + prev.h / 2;
-      const nw = prev.w * 1.33, nh = prev.h * 1.33;
-      return { x: cx - nw / 2, y: cy - nh / 2, w: nw, h: nh };
-    });
-  }, []);
-
-  const fitAll = useCallback(() => { setViewBox(initialViewBox); }, [initialViewBox]);
-
-  // Background geometry
-  const bgElements = useMemo(() => (
-    <>
-      {layoutData.polylines.map((pl, i) => {
-        const pts = pl.points.map(p => `${p[0]},${p[1]}`).join(" ");
-        return pl.closed ? (
-          <polygon key={`pl-${i}`} points={pts} fill="none" stroke="#94a3b8" strokeWidth={0.5} strokeOpacity={0.4} />
-        ) : (
-          <polyline key={`pl-${i}`} points={pts} fill="none" stroke="#94a3b8" strokeWidth={0.5} strokeOpacity={0.4} />
-        );
-      })}
-      {layoutData.lines.map((l, i) => (
-        <line key={`ln-${i}`} x1={l.x1} y1={l.y1} x2={l.x2} y2={l.y2} stroke="#94a3b8" strokeWidth={0.5} strokeOpacity={0.4} />
-      ))}
-    </>
-  ), [layoutData.polylines, layoutData.lines]);
-
-  // Group label overlays - show group name at centroid of bound cabinets
-  const groupLabels = useMemo(() => {
-    const groupCabs = new Map<number, DxfCabinet[]>();
-    for (const cab of layoutData.cabinets) {
-      if (cab.cabinetGroupId !== null) {
-        if (!groupCabs.has(cab.cabinetGroupId)) groupCabs.set(cab.cabinetGroupId, []);
-        groupCabs.get(cab.cabinetGroupId)!.push(cab);
-      }
-    }
-    const labels: React.ReactElement[] = [];
-    groupCabs.forEach((cabs, groupId) => {
-      const group = cabinetGroupsMap.get(groupId);
-      if (!group) return;
-      const cx = cabs.reduce((s, c) => s + c.centerX, 0) / cabs.length;
-      const cy = cabs.reduce((s, c) => s + c.centerY, 0) / cabs.length;
-      const status = group.status || "normal";
-      const groupColor = groupColorMap.get(groupId) || getGroupColor(groupId);
-      const color = status === "alarm" ? "#ef4444" : status === "warning" ? "#f59e0b" : groupColor;
-      const fontSize = Math.max(viewBox.w, viewBox.h) * 0.012;
-      const bgPadX = fontSize * 0.4;
-      const bgPadY = fontSize * 0.25;
-      const textWidth = group.name.length * fontSize * 0.6;
-      labels.push(
-        <g key={`label-${groupId}`} style={{ pointerEvents: "none" }}>
-          <rect
-            x={cx - textWidth / 2 - bgPadX}
-            y={cy - fontSize / 2 - bgPadY}
-            width={textWidth + bgPadX * 2}
-            height={fontSize + bgPadY * 2}
-            rx={fontSize * 0.2}
-            fill={color}
-            fillOpacity={0.85}
+  // Background elements (lines, polylines)
+  const bgElements = useMemo(() => {
+    return (
+      <>
+        {layoutData.lines.map((line, i) => (
+          <line
+            key={`line-${i}`}
+            x1={line.x1}
+            y1={line.y1}
+            x2={line.x2}
+            y2={line.y2}
+            stroke="#475569"
+            strokeWidth="2"
           />
-          <text
-            x={cx} y={cy}
-            textAnchor="middle" dominantBaseline="central"
-            fill="white" fontSize={fontSize} fontWeight="bold"
-            style={{ textShadow: "0 1px 2px rgba(0,0,0,0.5)" }}
-          >
-            {group.name}
-          </text>
-        </g>
-      );
-    });
-    return labels;
-  }, [layoutData.cabinets, cabinetGroupsMap, groupColorMap, viewBox]);
+        ))}
+        {layoutData.polylines.map((poly, i) => (
+          <polyline
+            key={`poly-${i}`}
+            points={poly.points.map(p => `${p[0]},${p[1]}`).join(" ")}
+            fill="none"
+            stroke="#475569"
+            strokeWidth="2"
+          />
+        ))}
+      </>
+    );
+  }, [layoutData]);
 
-  // Cabinet elements with status coloring
+  // Cabinet elements (rectangles with status colors)
   const cabinetElements = useMemo(() => {
-    return layoutData.cabinets.map(cab => {
+    return layoutData.cabinets.map((cab) => {
       const groupId = cab.cabinetGroupId;
-      const groupData = groupId !== null ? cabinetGroupsMap.get(groupId) : undefined;
-      const status = groupData?.status || "normal";
-      const isBound = groupId !== null;
-
-      let fillColor: string;
-      let fillOpacity: number;
-      let strokeColor: string;
-
-      if (isBound && groupData) {
-        const groupColor = groupColorMap.get(groupId!) || getGroupColor(groupId!);
-        const statusFill = getStatusFill(status);
-        const statusStroke = getStatusColor(status);
-        // Use status color for alarm/warning, group color for normal
-        fillColor = statusFill || darkenColor(groupColor, 0.35);
-        fillOpacity = 0.7;
-        strokeColor = statusStroke || groupColor;
-      } else if (isBound) {
-        const color = groupColorMap.get(groupId!) || getGroupColor(groupId!);
-        fillColor = darkenColor(color, 0.35);
-        fillOpacity = 0.7;
-        strokeColor = color;
-      } else {
-        fillColor = "#334155";
-        fillOpacity = 0.15;
-        strokeColor = "#64748b";
-      }
-
-      const pts = cab.corners.map(c => `${c[0]},${c[1]}`).join(" ");
+      const group = groupId ? cabinetGroupsMap.get(groupId) : null;
+      const statusColor = group ? getStatusColor(group.status) : null;
+      const statusFill = group ? getStatusFill(group.status) : null;
+      const baseColor = groupColorMap.get(groupId || 0) || "#94a3b8";
+      const fillColor = statusFill || darkenColor(baseColor);
+      const strokeColor = statusColor || baseColor;
 
       return (
-        <g
-          key={cab.id}
-          onMouseEnter={(e) => {
-            if (isBound) onCabinetHover(cab.id, e.clientX, e.clientY);
-          }}
-          onMouseMove={(e) => {
-            if (isBound) onCabinetHover(cab.id, e.clientX, e.clientY);
-          }}
-          onMouseLeave={onCabinetLeave}
-          style={{ cursor: isBound ? "pointer" : "default" }}
-        >
+        <g key={`cabinet-${cab.id}`}>
+          {/* Cabinet rectangle */}
           <polygon
-            points={pts}
+            points={cab.corners.map(c => `${c[0]},${c[1]}`).join(" ")}
             fill={fillColor}
-            fillOpacity={fillOpacity}
             stroke={strokeColor}
-            strokeWidth={0.8}
+            strokeWidth="3"
+            opacity="0.7"
+            onMouseEnter={(e) => {
+              const rect = svgRef.current?.getBoundingClientRect();
+              if (rect) {
+                onCabinetHover(cab.id, e.clientX - rect.left, e.clientY - rect.top);
+              }
+            }}
+            onMouseLeave={onCabinetLeave}
+            style={{ cursor: "pointer" }}
           />
-          {cab.crossLines.map((cl, i) => (
+
+          {/* Cross lines */}
+          {cab.crossLines.map((line, i) => (
             <line
-              key={i}
-              x1={cl[0][0]} y1={cl[0][1]}
-              x2={cl[1][0]} y2={cl[1][1]}
+              key={`cross-${cab.id}-${i}`}
+              x1={line[0][0]}
+              y1={line[0][1]}
+              x2={line[1][0]}
+              y2={line[1][1]}
               stroke={strokeColor}
-              strokeWidth={0.3}
-              strokeOpacity={0.4}
+              strokeWidth="1"
+              opacity="0.5"
             />
           ))}
-          {/* Alarm pulse animation */}
-          {status === "alarm" && (
-            <polygon
-              points={pts}
-              fill="none"
-              stroke="#ef4444"
-              strokeWidth={1.5}
-              strokeOpacity={0.6}
-            >
-              <animate attributeName="stroke-opacity" values="0.6;0.1;0.6" dur="1.5s" repeatCount="indefinite" />
-            </polygon>
-          )}
         </g>
       );
     });
   }, [layoutData.cabinets, cabinetGroupsMap, groupColorMap, onCabinetHover, onCabinetLeave]);
 
-  return (
-    <div className="relative w-full h-full">
-      {/* Toolbar */}
-      <div className="absolute top-3 left-3 z-10 flex items-center gap-1 bg-slate-900/90 border border-slate-700/50 rounded-lg p-1 backdrop-blur-sm">
-        <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={zoomIn} title="放大">
-          <ZoomIn className="h-3.5 w-3.5" />
-        </Button>
-        <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={zoomOut} title="缩小">
-          <ZoomOut className="h-3.5 w-3.5" />
-        </Button>
-        <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={fitAll} title="适应全部">
-          <Maximize2 className="h-3.5 w-3.5" />
-        </Button>
-      </div>
+  // Group labels
+  const groupLabels = useMemo(() => {
+    const labelMap = new Map<number, { x: number; y: number; label: string }>();
 
-      <svg
-        ref={svgRef}
-        className="w-full h-full"
-        viewBox={`${viewBox.x} ${viewBox.y} ${viewBox.w} ${viewBox.h}`}
-        onWheel={handleWheel}
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
-        style={{ cursor: isPanning ? "grabbing" : "grab" }}
+    layoutData.cabinets.forEach(cab => {
+      if (cab.cabinetGroupId !== null) {
+        const group = cabinetGroupsMap.get(cab.cabinetGroupId);
+        if (group) {
+          labelMap.set(cab.cabinetGroupId, {
+            x: cab.centerX,
+            y: cab.centerY,
+            label: group.name,
+          });
+        }
+      }
+    });
+
+    return Array.from(labelMap.values()).map((label, i) => (
+      <text
+        key={`label-${i}`}
+        x={label.x}
+        y={label.y}
+        textAnchor="middle"
+        dominantBaseline="middle"
+        fill="#e2e8f0"
+        fontSize="14"
+        fontWeight="600"
+        pointerEvents="none"
       >
-        {/* Use oversized rect to eliminate color gap between SVG and container */}
-        <rect x={viewBox.x - viewBox.w} y={viewBox.y - viewBox.h} width={viewBox.w * 3} height={viewBox.h * 3} fill="#020617" />
-        <g transform={`rotate(${layoutData.rotation || 0} ${viewBox.x + viewBox.w / 2} ${viewBox.y + viewBox.h / 2})`}>
-          {bgElements}
-          {cabinetElements}
-          {groupLabels}
-        </g>
-      </svg>
-    </div>
+        {label.label}
+      </text>
+    ));
+  }, [layoutData.cabinets, cabinetGroupsMap]);
+
+  return (
+    <svg
+      ref={svgRef}
+      className="w-full h-full"
+      viewBox={`${viewBox.x} ${viewBox.y} ${viewBox.w} ${viewBox.h}`}
+      onWheel={handleWheel}
+      onMouseDown={handleMouseDown}
+      onMouseMove={handleMouseMove}
+      onMouseUp={handleMouseUp}
+      onMouseLeave={handleMouseUp}
+      style={{ cursor: isPanning ? "grabbing" : "grab" }}
+    >
+      {/* Use oversized rect to eliminate color gap between SVG and container */}
+      <rect x={viewBox.x - viewBox.w} y={viewBox.y - viewBox.h} width={viewBox.w * 3} height={viewBox.h * 3} fill="#020617" />
+      <g transform={`rotate(${layoutData.rotation || 0} ${viewBox.x + viewBox.w / 2} ${viewBox.y + viewBox.h / 2})`}>
+        {bgElements}
+        {cabinetElements}
+        {groupLabels}
+      </g>
+    </svg>
   );
 }
 
@@ -347,12 +283,21 @@ export default function Monitor() {
     screenY: number;
   } | null>(null);
 
+  // 报警面板状态
+  const [showAlarmPanel, setShowAlarmPanel] = useState(false);
+  const [alarmSoundEnabled, setAlarmSoundEnabled] = useState(true);
+
   // Queries with auto-refresh (使用monitor专用API)
   const activeLayoutQuery = trpc.monitor.getActiveLayout.useQuery(undefined, {
     refetchInterval: 10000,
   });
   const cabinetGroupsQuery = trpc.monitor.getCabinetGroups.useQuery(undefined, {
     refetchInterval: 5000,
+  });
+
+  // 查询未处理报警数量
+  const unhandledAlarmsQuery = trpc.alarms.getUnhandled.useQuery(undefined, {
+    refetchInterval: 3000,
   });
 
   // Parse layout data (new DXF format)
@@ -477,6 +422,20 @@ export default function Monitor() {
             <AlertOctagon className="h-4 w-4 text-red-400" />
             <span className="text-xs text-slate-300">报警</span>
           </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowAlarmPanel(!showAlarmPanel)}
+            className="relative"
+          >
+            <Bell className="h-4 w-4 mr-2" />
+            报警
+            {(unhandledAlarmsQuery.data || 0) > 0 && (
+              <Badge variant="destructive" className="absolute -top-2 -right-2 h-5 w-5 p-0 flex items-center justify-center text-xs">
+                {unhandledAlarmsQuery.data}
+              </Badge>
+            )}
+          </Button>
         </div>
       </div>
 
@@ -591,6 +550,20 @@ export default function Monitor() {
           </CardContent>
         </Card>
       </div>
+
+      {/* 报警面板 */}
+      <AlarmPanel
+        isOpen={showAlarmPanel}
+        onClose={() => setShowAlarmPanel(false)}
+        onAlarmSoundToggle={setAlarmSoundEnabled}
+        alarmSoundEnabled={alarmSoundEnabled}
+      />
+
+      {/* 报警声音提示 */}
+      <AlarmSound
+        enabled={alarmSoundEnabled}
+        alarmCount={unhandledAlarmsQuery.data || 0}
+      />
     </div>
   );
 }

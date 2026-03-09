@@ -207,7 +207,7 @@ export default function Alarms() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-destructive">
-              {unhandledAlarms?.length || 0}
+              {typeof unhandledAlarms === 'number' ? unhandledAlarms : 0}
             </div>
           </CardContent>
         </Card>
@@ -250,7 +250,7 @@ export default function Alarms() {
                   全部报警 ({allAlarms?.length || 0})
                 </TabsTrigger>
                 <TabsTrigger value="unhandled">
-                  待处理 ({unhandledAlarms?.length || 0})
+                  待处理 ({typeof unhandledAlarms === 'number' ? unhandledAlarms : 0})
                 </TabsTrigger>
               </TabsList>
               <TabsContent value="all" className="mt-6">
