@@ -1,0 +1,38 @@
+{
+  "query": "SELECT id, channelNo, label, currentValue, lastReadAt FROM instrumentChannels WHERE instrumentId = (SELECT id FROM weighingInstruments WHERE deviceCode = 'C001') ORDER BY channelNo;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user KBF53B6TGXz9Z1D.root --database SQ6yxhwuwXauyoM9DVdVk2 --execute SELECT id, channelNo, label, currentValue, lastReadAt FROM instrumentChannels WHERE instrumentId = (SELECT id FROM weighingInstruments WHERE deviceCode = 'C001') ORDER BY channelNo;",
+  "rows": [
+    {
+      "id": "270001",
+      "channelNo": "1",
+      "label": "CH1",
+      "currentValue": "0",
+      "lastReadAt": "NULL"
+    },
+    {
+      "id": "270002",
+      "channelNo": "2",
+      "label": "CH2",
+      "currentValue": "0",
+      "lastReadAt": "NULL"
+    },
+    {
+      "id": "270003",
+      "channelNo": "3",
+      "label": "CH3",
+      "currentValue": "0",
+      "lastReadAt": "NULL"
+    },
+    {
+      "id": "270004",
+      "channelNo": "4",
+      "label": "CH4",
+      "currentValue": "0",
+      "lastReadAt": "NULL"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tchannelNo\tlabel\tcurrentValue\tlastReadAt\n270001\t1\tCH1\t0\tNULL\n270002\t2\tCH2\t0\tNULL\n270003\t3\tCH3\t0\tNULL\n270004\t4\tCH4\t0\tNULL\n",
+  "stderr": "",
+  "execution_time_ms": 1594
+}

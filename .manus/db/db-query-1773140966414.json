@@ -1,0 +1,24 @@
+{
+  "query": "SELECT i.id, i.deviceCode, i.slaveId, i.modelType, cp.ipAddress, cp.networkPort FROM weighingInstruments i LEFT JOIN gatewayComPorts cp ON i.comPortId = cp.id WHERE i.deviceCode = 'C001'; SELECT ic.id, ic.channelNo, ic.label, ic.scale, ic.offset, ic.unit, ic.precision, ic.currentValue, ic.lastReadAt, ic.enabled FROM instrumentChannels ic JOIN weighingInstruments i ON ic.instrumentId = i.id WHERE i.deviceCode = 'C001' ORDER BY ic.channelNo;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user KBF53B6TGXz9Z1D.root --database SQ6yxhwuwXauyoM9DVdVk2 --execute SELECT i.id, i.deviceCode, i.slaveId, i.modelType, cp.ipAddress, cp.networkPort FROM weighingInstruments i LEFT JOIN gatewayComPorts cp ON i.comPortId = cp.id WHERE i.deviceCode = 'C001'; SELECT ic.id, ic.channelNo, ic.label, ic.scale, ic.offset, ic.unit, ic.precision, ic.currentValue, ic.lastReadAt, ic.enabled FROM instrumentChannels ic JOIN weighingInstruments i ON ic.instrumentId = i.id WHERE i.deviceCode = 'C001' ORDER BY ic.channelNo;",
+  "rows": [
+    {
+      "id": "300001",
+      "deviceCode": "C001",
+      "slaveId": "1",
+      "modelType": "DY7004",
+      "ipAddress": "58.33.106.19",
+      "networkPort": "5001"
+    }
+  ],
+  "messages": [
+    "id\tchannelNo\tlabel\tscale\toffset\tunit\tprecision\tcurrentValue\tlastReadAt\tenabled",
+    "270001\t1\tCH1\t1\t0\tkg\t2\t5.989754\t2026-03-10 10:48:40\t0",
+    "270002\t2\tCH2\t1\t0\tkg\t2\t68.32301\t2026-03-10 10:49:02\t0",
+    "270003\t3\tCH3\t1\t0\tkg\t2\t5.941224\t2026-03-10 10:48:48\t0",
+    "270004\t4\tCH4\t1\t0\tkg\t2\t83.71272\t2026-03-10 10:48:52\t0"
+  ],
+  "stdout": "id\tdeviceCode\tslaveId\tmodelType\tipAddress\tnetworkPort\n300001\tC001\t1\tDY7004\t58.33.106.19\t5001\nid\tchannelNo\tlabel\tscale\toffset\tunit\tprecision\tcurrentValue\tlastReadAt\tenabled\n270001\t1\tCH1\t1\t0\tkg\t2\t5.989754\t2026-03-10 10:48:40\t0\n270002\t2\tCH2\t1\t0\tkg\t2\t68.32301\t2026-03-10 10:49:02\t0\n270003\t3\tCH3\t1\t0\tkg\t2\t5.941224\t2026-03-10 10:48:48\t0\n270004\t4\tCH4\t1\t0\tkg\t2\t83.71272\t2026-03-10 10:48:52\t0\n",
+  "stderr": "",
+  "execution_time_ms": 1853
+}

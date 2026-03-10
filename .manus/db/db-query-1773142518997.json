@@ -1,0 +1,70 @@
+{
+  "query": "SELECT wi.id, wi.name, wi.deviceCode, wi.slaveId, wi.modelType, ic.id as chId, ic.channelNo, ic.label, ic.enabled, ic.scale, ic.`offset`, ic.unit, ic.currentValue FROM weighingInstruments wi LEFT JOIN instrumentChannels ic ON ic.instrumentId = wi.id WHERE wi.deviceCode = 'C001' ORDER BY ic.channelNo;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user KBF53B6TGXz9Z1D.root --database SQ6yxhwuwXauyoM9DVdVk2 --execute SELECT wi.id, wi.name, wi.deviceCode, wi.slaveId, wi.modelType, ic.id as chId, ic.channelNo, ic.label, ic.enabled, ic.scale, ic.`offset`, ic.unit, ic.currentValue FROM weighingInstruments wi LEFT JOIN instrumentChannels ic ON ic.instrumentId = wi.id WHERE wi.deviceCode = 'C001' ORDER BY ic.channelNo;",
+  "rows": [
+    {
+      "id": "300001",
+      "name": "C001",
+      "deviceCode": "C001",
+      "slaveId": "1",
+      "modelType": "DY7004",
+      "chId": "270001",
+      "channelNo": "1",
+      "label": "CH1",
+      "enabled": "0",
+      "scale": "1",
+      "offset": "0",
+      "unit": "kg",
+      "currentValue": "0"
+    },
+    {
+      "id": "300001",
+      "name": "C001",
+      "deviceCode": "C001",
+      "slaveId": "1",
+      "modelType": "DY7004",
+      "chId": "270002",
+      "channelNo": "2",
+      "label": "CH2",
+      "enabled": "0",
+      "scale": "1",
+      "offset": "0",
+      "unit": "kg",
+      "currentValue": "-6"
+    },
+    {
+      "id": "300001",
+      "name": "C001",
+      "deviceCode": "C001",
+      "slaveId": "1",
+      "modelType": "DY7004",
+      "chId": "270003",
+      "channelNo": "3",
+      "label": "CH3",
+      "enabled": "0",
+      "scale": "1",
+      "offset": "0",
+      "unit": "kg",
+      "currentValue": "17257"
+    },
+    {
+      "id": "300001",
+      "name": "C001",
+      "deviceCode": "C001",
+      "slaveId": "1",
+      "modelType": "DY7004",
+      "chId": "270004",
+      "channelNo": "4",
+      "label": "CH4",
+      "enabled": "0",
+      "scale": "1",
+      "offset": "0",
+      "unit": "kg",
+      "currentValue": "1948"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\tdeviceCode\tslaveId\tmodelType\tchId\tchannelNo\tlabel\tenabled\tscale\toffset\tunit\tcurrentValue\n300001\tC001\tC001\t1\tDY7004\t270001\t1\tCH1\t0\t1\t0\tkg\t0\n300001\tC001\tC001\t1\tDY7004\t270002\t2\tCH2\t0\t1\t0\tkg\t-6\n300001\tC001\tC001\t1\tDY7004\t270003\t3\tCH3\t0\t1\t0\tkg\t17257\n300001\tC001\tC001\t1\tDY7004\t270004\t4\tCH4\t0\t1\t0\tkg\t1948\n",
+  "stderr": "",
+  "execution_time_ms": 1502
+}

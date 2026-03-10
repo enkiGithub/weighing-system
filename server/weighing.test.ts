@@ -531,13 +531,14 @@ describe("Channel Management", () => {
 
     const channels = await caller.channels.listByInstrument({ instrumentId: instrument.id });
 
-    // 新建的通道没有采集数据，应返回 success: false
+    // 实时读取：测试环境中网关不可达，应返回 success: false（连接失败或超时）
     const result = await caller.channels.testRead({ channelId: channels[0].id });
     expect(result.success).toBe(false);
     expect(typeof result.rawValue).toBe("number");
     expect(typeof result.calibratedValue).toBe("number");
     expect(typeof result.unit).toBe("string");
-    expect((result as any).message).toContain('采集');
+    // 实时TCP读取失败时会返回连接失败或超时的消息
+    expect(typeof result.message).toBe("string");
   });
 });
 

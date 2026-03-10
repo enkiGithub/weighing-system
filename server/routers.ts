@@ -7,6 +7,7 @@ import * as db from "./db";
 import { TRPCError } from "@trpc/server";
 import { layoutEditorRouter } from "./routers/layoutEditor";
 import { sdk } from "./_core/sdk";
+import { readChannelRealtime } from "./modbusReader";
 
 // Admin权限检查
 const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
@@ -618,34 +619,46 @@ export const appRouter = router({
         return { success: true };
       }),
 
-    /** 通信测试：从数据库读取采集服务已采集的真实通道值 */
+    /** 通信测试：实时通过TCP连接485网关，发送Modbus命令读取仪表通道数据 */
     testRead: instrumentOperate
       .input(z.object({ channelId: z.number() }))
       .mutation(async ({ input }) => {
+        // 1. 查找通道信息
         const channel = await db.getChannelById(input.channelId);
         if (!channel) {
           throw new TRPCError({ code: 'NOT_FOUND', message: '通道不存在' });
         }
-        const currentValue = channel.currentValue ?? 0;
-        const lastReadAt = channel.lastReadAt;
-        // 判断数据是否有效（采集服务是否在运行并写入了数据）
-        const hasData = lastReadAt !== null && lastReadAt !== undefined;
-        if (!hasData) {
-          return {
-            success: false,
-            message: '暂无采集数据，请确认采集服务已启动且仪表通信正常',
-            rawValue: 0,
-            calibratedValue: 0,
-            unit: channel.unit,
-          };
+
+        // 2. 查找仪表信息（获取 slaveId）
+        const instrument = await db.getInstrumentById(channel.instrumentId);
+        if (!instrument) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: '仪表不存在' });
         }
-        return { 
-          success: true, 
-          rawValue: Number(currentValue.toFixed(channel.precision)),
-          calibratedValue: Number(currentValue.toFixed(channel.precision)),
-          unit: channel.unit,
-          lastReadAt: lastReadAt,
-        };
+
+        // 3. 查找 COM 端口信息（获取网关 IP 和端口）
+        const comPort = await db.getComPortById(instrument.comPortId);
+        if (!comPort) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'COM端口配置不存在' });
+        }
+
+        // 4. 实时 TCP 连接网关读取仪表数据
+        const result = await readChannelRealtime(
+          {
+            ipAddress: comPort.ipAddress,
+            networkPort: comPort.networkPort,
+            timeoutMs: comPort.timeoutMs,
+          },
+          instrument.slaveId,
+          {
+            channelNo: channel.channelNo,
+            scale: channel.scale,
+            offset: channel.offset,
+            precision: channel.precision,
+            unit: channel.unit,
+          }
+        );
+
+        return result;
       }),
   }),
 

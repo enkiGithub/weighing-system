@@ -1,0 +1,21 @@
+{
+  "query": "SELECT i.id, i.deviceCode, i.modelType, i.slaveId, i.comPortId, i.status, cp.ipAddress, cp.networkPort, cp.portNumber FROM weighingInstruments i LEFT JOIN gatewayComPorts cp ON i.comPortId = cp.id WHERE i.deviceCode = 'C001';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user KBF53B6TGXz9Z1D.root --database SQ6yxhwuwXauyoM9DVdVk2 --execute SELECT i.id, i.deviceCode, i.modelType, i.slaveId, i.comPortId, i.status, cp.ipAddress, cp.networkPort, cp.portNumber FROM weighingInstruments i LEFT JOIN gatewayComPorts cp ON i.comPortId = cp.id WHERE i.deviceCode = 'C001';",
+  "rows": [
+    {
+      "id": "300001",
+      "deviceCode": "C001",
+      "modelType": "DY7004",
+      "slaveId": "1",
+      "comPortId": "300001",
+      "status": "offline",
+      "ipAddress": "58.33.106.19",
+      "networkPort": "5001",
+      "portNumber": "COM1"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tdeviceCode\tmodelType\tslaveId\tcomPortId\tstatus\tipAddress\tnetworkPort\tportNumber\n300001\tC001\tDY7004\t1\t300001\toffline\t58.33.106.19\t5001\tCOM1\n",
+  "stderr": "",
+  "execution_time_ms": 1662
+}
