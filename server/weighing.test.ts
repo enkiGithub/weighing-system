@@ -531,11 +531,13 @@ describe("Channel Management", () => {
 
     const channels = await caller.channels.listByInstrument({ instrumentId: instrument.id });
 
+    // 新建的通道没有采集数据，应返回 success: false
     const result = await caller.channels.testRead({ channelId: channels[0].id });
-    expect(result.success).toBe(true);
+    expect(result.success).toBe(false);
     expect(typeof result.rawValue).toBe("number");
     expect(typeof result.calibratedValue).toBe("number");
     expect(typeof result.unit).toBe("string");
+    expect((result as any).message).toContain('采集');
   });
 });
 

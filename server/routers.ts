@@ -618,7 +618,7 @@ export const appRouter = router({
         return { success: true };
       }),
 
-    /** 通信测试：模拟读取仪表通道值 */
+    /** 通信测试：从数据库读取采集服务已采集的真实通道值 */
     testRead: instrumentOperate
       .input(z.object({ channelId: z.number() }))
       .mutation(async ({ input }) => {
@@ -626,19 +626,25 @@ export const appRouter = router({
         if (!channel) {
           throw new TRPCError({ code: 'NOT_FOUND', message: '通道不存在' });
         }
-        // 模拟读取：生成随机值
-        const rawValue = Math.random() * 100;
-        const calibratedValue = rawValue * channel.scale + channel.offset;
-        // 更新通道当前值
-        await db.updateChannel(input.channelId, { 
-          currentValue: calibratedValue,
-          lastReadAt: new Date(),
-        });
+        const currentValue = channel.currentValue ?? 0;
+        const lastReadAt = channel.lastReadAt;
+        // 判断数据是否有效（采集服务是否在运行并写入了数据）
+        const hasData = lastReadAt !== null && lastReadAt !== undefined;
+        if (!hasData) {
+          return {
+            success: false,
+            message: '暂无采集数据，请确认采集服务已启动且仪表通信正常',
+            rawValue: 0,
+            calibratedValue: 0,
+            unit: channel.unit,
+          };
+        }
         return { 
           success: true, 
-          rawValue: Number(rawValue.toFixed(channel.precision)),
-          calibratedValue: Number(calibratedValue.toFixed(channel.precision)),
+          rawValue: Number(currentValue.toFixed(channel.precision)),
+          calibratedValue: Number(currentValue.toFixed(channel.precision)),
           unit: channel.unit,
+          lastReadAt: lastReadAt,
         };
       }),
   }),

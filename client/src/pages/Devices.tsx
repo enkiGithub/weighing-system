@@ -90,13 +90,18 @@ function ChannelSubRows({ instrumentId }: { instrumentId: number }) {
     onError: (error) => toast.error(`更新失败: ${error.message}`),
   });
 
-  // 通信测试
+  // 通信测试（从采集服务读取真实值）
   const testReadMutation = trpc.channels.testRead.useMutation({
     onSuccess: (data) => {
       utils.channels.listByInstrument.invalidate({ instrumentId });
-      toast.success(
-        `通信测试成功！原始值: ${data.rawValue}，校准值: ${data.calibratedValue} ${data.unit}`
-      );
+      if (data.success) {
+        const timeStr = data.lastReadAt ? `，更新时间: ${new Date(data.lastReadAt).toLocaleString()}` : '';
+        toast.success(
+          `读取成功！当前值: ${data.calibratedValue} ${data.unit}${timeStr}`
+        );
+      } else {
+        toast.warning((data as any).message || '暂无采集数据，请确认采集服务已启动');
+      }
       setTestingChannelId(null);
     },
     onError: (error) => {
