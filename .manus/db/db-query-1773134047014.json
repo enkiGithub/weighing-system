@@ -1,0 +1,9 @@
+{
+  "query": "UPDATE instrumentChannels ic JOIN weighingInstruments wi ON ic.instrumentId = wi.id SET ic.scale = 0.1, ic.unit = 'kg', ic.`precision` = 1 WHERE wi.deviceCode = 'C001';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user KBF53B6TGXz9Z1D.root --database SQ6yxhwuwXauyoM9DVdVk2 --execute UPDATE instrumentChannels ic JOIN weighingInstruments wi ON ic.instrumentId = wi.id SET ic.scale = 0.1, ic.unit = 'kg', ic.`precision` = 1 WHERE wi.deviceCode = 'C001';",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1644
+}

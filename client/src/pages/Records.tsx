@@ -157,10 +157,10 @@ export default function Records() {
                             {format(recordDate, "HH:mm:ss")}
                           </TableCell>
                           <TableCell className="text-right font-mono">
-                            {(record.previousWeight / 1000).toFixed(3)} kg
+                            {record.previousWeight.toFixed(3)} kg
                           </TableCell>
                           <TableCell className="text-right font-mono font-semibold">
-                            {(record.currentWeight / 1000).toFixed(3)} kg
+                            {record.currentWeight.toFixed(3)} kg
                           </TableCell>
                           <TableCell className="text-right">
                             <div className={cn(
@@ -173,7 +173,7 @@ export default function Records() {
                                 <TrendingDown className="h-4 w-4" />
                               )}
                               {isIncrease ? "+" : ""}
-                              {(record.changeValue / 1000).toFixed(3)} kg
+                              {record.changeValue.toFixed(3)} kg
                             </div>
                           </TableCell>
                           <TableCell>

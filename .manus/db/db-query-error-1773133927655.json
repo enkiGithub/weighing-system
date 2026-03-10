@@ -1,0 +1,8 @@
+{
+  "query": "UPDATE weighingInstruments SET slave_id = 1 WHERE device_code = 'C001';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user KBF53B6TGXz9Z1D.root --database SQ6yxhwuwXauyoM9DVdVk2 --execute UPDATE weighingInstruments SET slave_id = 1 WHERE device_code = 'C001';",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1054 (42S22) at line 1: Unknown column 'device_code' in 'where clause'"
+  ]
+}

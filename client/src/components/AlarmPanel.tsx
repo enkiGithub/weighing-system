@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { X, CheckCircle2, Eye, Volume2, VolumeX } from "lucide-react";
@@ -22,6 +22,9 @@ export function AlarmPanel({
 }: AlarmPanelProps) {
   const [alarms, setAlarms] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+
+  // 查询柜组列表用于显示名称
+  const cabinetGroupsQuery = trpc.cabinetGroups.list.useQuery();
 
   // 查询未处理报警
   const alarmsQuery = trpc.alarms.list.useQuery(
@@ -47,6 +50,10 @@ export function AlarmPanel({
     setAlarms(alarmsQuery.data || []);
   }, [alarmsQuery.data]);
 
+  const getCabinetName = (cabinetGroupId: number) => {
+    return cabinetGroupsQuery.data?.find((c) => c.id === cabinetGroupId)?.name || `柜组 #${cabinetGroupId}`;
+  };
+
   const handleConfirm = async (alarmId: number) => {
     setIsLoading(true);
     try {
@@ -57,7 +64,7 @@ export function AlarmPanel({
   };
 
   const handleIgnore = async (alarmId: number) => {
-    setIsLoading(false);
+    setIsLoading(true);
     try {
       await ignoreAlarmMutation.mutateAsync({ alarmId });
     } finally {
@@ -112,7 +119,7 @@ export function AlarmPanel({
         {alarms.length === 0 ? (
           <div className="text-center py-8">
             <CheckCircle2 className="h-12 w-12 text-green-500/30 mx-auto mb-2" />
-            <p className="text-sm text-slate-400">暂无报警</p>
+            <p className="text-sm text-slate-400">暂无待处理报警</p>
           </div>
         ) : (
           alarms.map((alarm) => (
@@ -125,10 +132,11 @@ export function AlarmPanel({
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1 min-w-0">
                     <div className="font-semibold text-slate-200 truncate">
-                      {alarm.cabinetGroupName || `柜组 #${alarm.cabinetGroupId}`}
+                      {getCabinetName(alarm.cabinetGroupId)}
                     </div>
                     <div className="text-xs text-slate-400 mt-1">
-                      {alarm.alarmType === "overweight" ? "超重报警" : "其他报警"}
+                      {alarm.alarmType === "overweight" ? "超重报警" :
+                       alarm.alarmType === "offline" ? "设备离线" : "其他报警"}
                     </div>
                   </div>
                   <Badge
@@ -142,23 +150,31 @@ export function AlarmPanel({
                 {/* 报警详情 */}
                 <div className="grid grid-cols-2 gap-2 text-xs">
                   <div className="bg-slate-900/50 rounded p-2">
-                    <div className="text-slate-500">当前重量</div>
+                    <div className="text-slate-500">校准值</div>
                     <div className="font-semibold text-slate-300">
-                      {(alarm.currentValue / 1000).toFixed(2)} kg
+                      {alarm.calibratedValue != null ? alarm.calibratedValue.toFixed(2) : '-'} kg
                     </div>
                   </div>
                   <div className="bg-slate-900/50 rounded p-2">
                     <div className="text-slate-500">阈值</div>
                     <div className="font-semibold text-amber-400">
-                      {(alarm.thresholdValue / 1000).toFixed(2)} kg
+                      {alarm.threshold != null ? alarm.threshold.toFixed(2) : '-'} kg
                     </div>
                   </div>
                 </div>
+
+                {alarm.exceedValue != null && alarm.exceedValue > 0 && (
+                  <div className="text-xs text-red-400 bg-red-500/10 rounded p-1.5">
+                    超出阈值: {alarm.exceedValue.toFixed(2)} kg
+                  </div>
+                )}
 
                 {/* 时间 */}
                 <div className="text-xs text-slate-500 border-t border-slate-700/50 pt-2">
                   {alarm.lastOccurredAt
                     ? new Date(alarm.lastOccurredAt).toLocaleString()
+                    : alarm.createdAt
+                    ? new Date(alarm.createdAt).toLocaleString()
                     : "未知时间"}
                 </div>
 

@@ -449,16 +449,14 @@ export default function Cabinets() {
   });
 
   const onSubmit = (data: CabinetForm) => {
-    const dataInGrams = {
+    const submitData = {
       ...data,
       area: data.area || "",
-      initialWeight: Math.round(data.initialWeight * 1000),
-      alarmThreshold: Math.round(data.alarmThreshold * 1000),
     };
     if (editingCabinet) {
-      updateMutation.mutate({ id: editingCabinet.id, ...dataInGrams });
+      updateMutation.mutate({ id: editingCabinet.id, ...submitData });
     } else {
-      createMutation.mutate(dataInGrams);
+      createMutation.mutate(submitData);
     }
   };
 
@@ -467,8 +465,8 @@ export default function Cabinets() {
     reset({
       area: cabinet.area || "",
       name: cabinet.name,
-      initialWeight: cabinet.initialWeight / 1000,
-      alarmThreshold: cabinet.alarmThreshold / 1000,
+      initialWeight: cabinet.initialWeight,
+      alarmThreshold: cabinet.alarmThreshold,
       remark: cabinet.remark || "",
     });
     setIsDialogOpen(true);
@@ -700,13 +698,13 @@ export default function Cabinets() {
                             </TableCell>
                             <TableCell className="font-medium">{cabinet.name}</TableCell>
                             <TableCell className="font-semibold">
-                              {(cabinet.currentWeight / 1000).toFixed(2)} kg
+                              {cabinet.currentWeight.toFixed(2)} kg
                             </TableCell>
                             <TableCell className="text-muted-foreground">
-                              {(cabinet.initialWeight / 1000).toFixed(2)} kg
+                              {cabinet.initialWeight.toFixed(2)} kg
                             </TableCell>
                             <TableCell className="text-muted-foreground">
-                              {(cabinet.alarmThreshold / 1000).toFixed(2)} kg
+                              {cabinet.alarmThreshold.toFixed(2)} kg
                             </TableCell>
                             <TableCell>{getStatusBadge(cabinet.status)}</TableCell>
                             <TableCell className="max-w-xs truncate text-sm text-muted-foreground">

@@ -1,0 +1,8 @@
+{
+  "query": "SELECT ic.id, ic.channelIndex, ic.label, ic.registerAddress, ic.registerCount, ic.dataFormat, ic.scaleFactor, ic.offsetValue, ic.unit, ic.decimalPrecision, ic.enabled FROM instrumentChannels ic JOIN weighingInstruments wi ON ic.instrumentId = wi.id WHERE wi.deviceCode = 'C001' ORDER BY ic.channelIndex;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user KBF53B6TGXz9Z1D.root --database SQ6yxhwuwXauyoM9DVdVk2 --execute SELECT ic.id, ic.channelIndex, ic.label, ic.registerAddress, ic.registerCount, ic.dataFormat, ic.scaleFactor, ic.offsetValue, ic.unit, ic.decimalPrecision, ic.enabled FROM instrumentChannels ic JOIN weighingInstruments wi ON ic.instrumentId = wi.id WHERE wi.deviceCode = 'C001' ORDER BY ic.channelIndex;",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1054 (42S22) at line 1: Unknown column 'ic.channelIndex' in 'order clause'"
+  ]
+}

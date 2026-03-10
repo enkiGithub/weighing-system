@@ -167,41 +167,72 @@ class WeighingCollectionService {
     }
   }
 
+  /**
+   * DY7004/DY7001 仪表寄存器地址映射
+   * 每个通道的毛重值占用2个寄存器（32位有符号整数）
+   * CH1: 0x07D0 (2000), CH2: 0x07D2 (2002), CH3: 0x07D4 (2004), CH4: 0x07D6 (2006)
+   */
+  private getChannelRegisterAddress(modelType: string, channelNo: number): number {
+    // DY7004/DY7001 毛重寄存器起始地址
+    const baseAddress = 0x07D0; // 2000
+    return baseAddress + (channelNo - 1) * 2;
+  }
+
   private async collectFromInstrument(
     instrument: db.WeighingInstrument,
     connection: TCPConnection,
     comPort: db.GatewayComPort
   ): Promise<void> {
     try {
-      // 获取仪表的所有通道
+      // 获取仪表的所有启用通道
       const channels = await db.getChannelsByInstrument(instrument.id);
 
+      // 优化：一次性读取所有通道数据（DY7004有4个通道，共8个寄存器）
+      const channelCount = instrument.modelType === 'DY7004' ? 4 : 1;
+      const baseAddress = this.getChannelRegisterAddress(instrument.modelType, 1);
+      const totalRegisters = channelCount * 2; // 每通道2个寄存器
+
+      // 先清空接收缓冲区中的背景数据（网关可能有自动推送）
+      try {
+        await connection.drainBuffer();
+      } catch (_) {
+        // 忽略清空错误
+      }
+
+      // 构建 Modbus RTU 读命令
+      const command = modbus.buildReadHoldingRegistersCommand(
+        instrument.slaveId,
+        baseAddress,
+        totalRegisters
+      );
+
+      // 发送命令
+      await connection.send(command);
+
+      // 等待一小段时间让仪表响应
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // 读取响应（传入期望的从站地址和字节数，以从混合数据中正确提取响应帧）
+      const expectedByteCount = totalRegisters * 2; // 每个寄存器2字节
+      const response = await connection.readResponse(comPort.timeoutMs, instrument.slaveId, expectedByteCount);
+
+      // 解析响应
+      const registers = modbus.parseReadHoldingRegistersResponse(response);
+      if (!registers || registers.length < totalRegisters) {
+        throw new Error(`Modbus 响应格式错误: 期望 ${totalRegisters} 个寄存器，实际 ${registers?.length || 0} 个`);
+      }
+
+      // 处理每个通道的数据
       for (const channel of channels) {
-        // 构建 Modbus 读命令
-        // DY7001/DY7004 的测量值通常存储在寄存器 0x0000-0x0001（32位浮点数）
-        const command = modbus.buildReadHoldingRegistersCommand(
-          instrument.slaveId,
-          0x0000,  // 起始地址
-          2        // 读取2个寄存器（32位浮点数）
-        );
+        const regIndex = (channel.channelNo - 1) * 2;
+        if (regIndex + 1 >= registers.length) continue;
 
-        // 发送命令
-        await connection.send(command);
+        // 两个16位寄存器组合为32位有符号整数
+        const rawValue = modbus.registersToInt32(registers[regIndex], registers[regIndex + 1]);
 
-        // 读取响应
-        const response = await connection.readResponse(comPort.timeoutMs);
-
-        // 解析响应
-        const registers = modbus.parseReadHoldingRegistersResponse(response);
-        if (!registers || registers.length < 2) {
-          throw new Error('Modbus 响应格式错误');
-        }
-
-        // 转换为浮点数
-        const rawValue = modbus.registersToFloat(registers[0], registers[1]);
-
-        // 应用校准系数
-        const calibratedValue = rawValue * channel.scale + channel.offset;
+        // 应用校准系数: 实际值(kg) = rawValue * scale + offset
+        // DY7004: scale=0.1, offset=0 → rawValue=13 → 1.3kg
+        const calibratedValue = parseFloat((rawValue * channel.scale + channel.offset).toFixed(channel.precision));
 
         // 保存采集数据
         await db.saveCollectionData(instrument.id, channel.id, rawValue, calibratedValue);
@@ -214,19 +245,25 @@ class WeighingCollectionService {
           await this.wsClient.send({
             type: 'collection_data',
             instrumentId: instrument.id,
+            instrumentCode: instrument.deviceCode,
             channelId: channel.id,
+            channelNo: channel.channelNo,
+            channelLabel: channel.label,
             rawValue,
             calibratedValue,
+            unit: channel.unit,
             timestamp: Date.now(),
           });
         }
+
+        console.log(`[Collection] ${instrument.deviceCode} CH${channel.channelNo}: raw=${rawValue} → ${calibratedValue} ${channel.unit}`);
       }
 
       // 更新仪表状态为在线
       await db.updateInstrumentStatus(instrument.id, 'online');
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : String(err);
-      console.error(`[Collection] 采集失败 (仪表 #${instrument.id}):`, errorMsg);
+      console.error(`[Collection] 采集失败 (仪表 ${instrument.deviceCode}):`, errorMsg);
       
       // 更新仪表状态为离线
       await db.updateInstrumentStatus(instrument.id, 'offline');

@@ -1,0 +1,54 @@
+{
+  "query": "SELECT ic.id, ic.channelNo, ic.label, ic.scale, ic.offset, ic.unit, ic.`precision`, ic.enabled, ic.currentValue FROM instrumentChannels ic JOIN weighingInstruments wi ON ic.instrumentId = wi.id WHERE wi.deviceCode = 'C001' ORDER BY ic.channelNo;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user KBF53B6TGXz9Z1D.root --database SQ6yxhwuwXauyoM9DVdVk2 --execute SELECT ic.id, ic.channelNo, ic.label, ic.scale, ic.offset, ic.unit, ic.`precision`, ic.enabled, ic.currentValue FROM instrumentChannels ic JOIN weighingInstruments wi ON ic.instrumentId = wi.id WHERE wi.deviceCode = 'C001' ORDER BY ic.channelNo;",
+  "rows": [
+    {
+      "id": "90018",
+      "channelNo": "1",
+      "label": "CH1",
+      "scale": "1",
+      "offset": "0",
+      "unit": "kg",
+      "precision": "2",
+      "enabled": "1",
+      "currentValue": "21.695526"
+    },
+    {
+      "id": "120001",
+      "channelNo": "2",
+      "label": "CH2",
+      "scale": "1",
+      "offset": "0",
+      "unit": "g",
+      "precision": "2",
+      "enabled": "1",
+      "currentValue": "0"
+    },
+    {
+      "id": "120002",
+      "channelNo": "3",
+      "label": "CH3",
+      "scale": "1",
+      "offset": "0",
+      "unit": "g",
+      "precision": "2",
+      "enabled": "1",
+      "currentValue": "0"
+    },
+    {
+      "id": "120003",
+      "channelNo": "4",
+      "label": "CH4",
+      "scale": "1",
+      "offset": "0",
+      "unit": "g",
+      "precision": "2",
+      "enabled": "1",
+      "currentValue": "0"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tchannelNo\tlabel\tscale\toffset\tunit\tprecision\tenabled\tcurrentValue\n90018\t1\tCH1\t1\t0\tkg\t2\t1\t21.695526\n120001\t2\tCH2\t1\t0\tg\t2\t1\t0\n120002\t3\tCH3\t1\t0\tg\t2\t1\t0\n120003\t4\tCH4\t1\t0\tg\t2\t1\t0\n",
+  "stderr": "",
+  "execution_time_ms": 1548
+}

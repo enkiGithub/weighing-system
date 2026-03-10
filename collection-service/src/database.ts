@@ -193,19 +193,38 @@ export async function getCabinetGroupById(groupId: number): Promise<CabinetGroup
 export interface AlarmRecord {
   id: number;
   cabinetGroupId: number;
-  alarmType: 'overweight' | 'underweight';
-  currentValue: number;
-  thresholdValue: number;
+  alarmType: string;
+  calibratedValue: number;
+  threshold: number;
+  exceedValue: number;
   occurrenceCount: number;
   handlingStatus: 'pending' | 'handled' | 'auto_resolved';
+  firstOccurredAt: Date;
+  lastOccurredAt: Date;
 }
 
-export async function createAlarmRecord(alarm: Omit<AlarmRecord, 'id'>): Promise<number> {
+export async function createAlarmRecord(alarm: {
+  cabinetGroupId: number;
+  alarmType: string;
+  calibratedValue: number;
+  threshold: number;
+  exceedValue: number;
+  occurrenceCount?: number;
+}): Promise<number> {
   const connection = await pool.getConnection();
   try {
     const [result] = await connection.query(
-      'INSERT INTO alarmRecords (cabinetGroupId, alarmType, currentValue, thresholdValue, occurrenceCount, handlingStatus, createdAt) VALUES (?, ?, ?, ?, ?, ?, NOW())',
-      [alarm.cabinetGroupId, alarm.alarmType, alarm.currentValue, alarm.thresholdValue, alarm.occurrenceCount, alarm.handlingStatus]
+      `INSERT INTO alarmRecords 
+        (cabinetGroupId, alarmType, calibratedValue, threshold, exceedValue, occurrenceCount, handlingStatus, firstOccurredAt, lastOccurredAt, createdAt) 
+       VALUES (?, ?, ?, ?, ?, ?, 'pending', NOW(), NOW(), NOW())`,
+      [
+        alarm.cabinetGroupId,
+        alarm.alarmType,
+        alarm.calibratedValue,
+        alarm.threshold,
+        alarm.exceedValue,
+        alarm.occurrenceCount || 1,
+      ]
     );
     return (result as any).insertId;
   } finally {
@@ -217,18 +236,11 @@ export async function getPendingAlarms(): Promise<AlarmRecord[]> {
   const connection = await pool.getConnection();
   try {
     const [rows] = await connection.query(
-      'SELECT id, cabinetGroupId, alarmType, currentValue, thresholdValue, occurrenceCount, handlingStatus FROM alarmRecords WHERE handlingStatus = ?',
-      ['pending']
+      `SELECT id, cabinetGroupId, alarmType, calibratedValue, threshold, exceedValue, 
+              occurrenceCount, handlingStatus, firstOccurredAt, lastOccurredAt 
+       FROM alarmRecords WHERE handlingStatus = 'pending'`
     );
-    return (rows as any[]).map(row => ({
-      id: row.id,
-      cabinetGroupId: row.cabinetGroupId,
-      alarmType: row.alarmType,
-      currentValue: row.currentValue,
-      thresholdValue: row.thresholdValue,
-      occurrenceCount: row.occurrenceCount,
-      handlingStatus: row.handlingStatus,
-    }));
+    return rows as AlarmRecord[];
   } finally {
     connection.release();
   }
@@ -241,7 +253,7 @@ export async function updateAlarmHandlingStatus(
   const connection = await pool.getConnection();
   try {
     await connection.query(
-      'UPDATE alarmRecords SET handlingStatus = ?, handledAt = NOW() WHERE id = ?',
+      'UPDATE alarmRecords SET handlingStatus = ?, updatedAt = NOW() WHERE id = ?',
       [handlingStatus, alarmId]
     );
   } finally {

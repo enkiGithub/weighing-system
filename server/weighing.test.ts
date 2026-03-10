@@ -292,8 +292,8 @@ describe("Cabinet Group Management", () => {
     const group = await caller.cabinetGroups.create({
       area: `测试区-${rnd()}`,
       name: `Test Cabinet Group ${rnd()}`,
-      initialWeight: 50000,
-      alarmThreshold: 5000,
+      initialWeight: 50,
+      alarmThreshold: 5,
     });
     createdCabinetGroupIds.push(group.id);
 
@@ -334,8 +334,8 @@ describe("Channel Binding Management", () => {
     const group = await caller.cabinetGroups.create({
       area: `测试区`,
       name: `Binding Test Group ${rnd()}`,
-      initialWeight: 30000,
-      alarmThreshold: 3000,
+      initialWeight: 30,
+      alarmThreshold: 3,
     });
     createdCabinetGroupIds.push(group.id);
 
@@ -383,8 +383,8 @@ describe("Channel Binding Management", () => {
     const group = await caller.cabinetGroups.create({
       area: `测试区`,
       name: `Unbind Test Group ${rnd()}`,
-      initialWeight: 20000,
-      alarmThreshold: 2000,
+      initialWeight: 20,
+      alarmThreshold: 2,
     });
     createdCabinetGroupIds.push(group.id);
 
@@ -430,8 +430,8 @@ describe("Channel Binding Management", () => {
     const group = await caller.cabinetGroups.create({
       area: `测试区`,
       name: `Dup Binding Group ${rnd()}`,
-      initialWeight: 15000,
-      alarmThreshold: 1500,
+      initialWeight: 15,
+      alarmThreshold: 1.5,
     });
     createdCabinetGroupIds.push(group.id);
 
@@ -719,14 +719,14 @@ describe("Batch Delete Operations", () => {
     const cab1 = await caller.cabinetGroups.create({
       area: `测试区`,
       name: `Batch Del Cab 1 ${rnd()}`,
-      initialWeight: 10000,
-      alarmThreshold: 1000,
+      initialWeight: 10,
+      alarmThreshold: 1,
     });
     const cab2 = await caller.cabinetGroups.create({
       area: `测试区`,
       name: `Batch Del Cab 2 ${rnd()}`,
-      initialWeight: 20000,
-      alarmThreshold: 2000,
+      initialWeight: 20,
+      alarmThreshold: 2,
     });
 
     const result = await caller.cabinetGroups.batchDelete({ ids: [cab1.id, cab2.id] });

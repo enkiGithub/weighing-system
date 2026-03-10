@@ -1,0 +1,21 @@
+{
+  "query": "SELECT wi.id, wi.name, wi.deviceCode, wi.modelType, wi.slaveId, wi.comPortId, gcp.portNumber, gcp.ipAddress, gcp.networkPort FROM weighingInstruments wi LEFT JOIN gatewayComPorts gcp ON wi.comPortId = gcp.id WHERE gcp.portNumber = 'COM1';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user KBF53B6TGXz9Z1D.root --database SQ6yxhwuwXauyoM9DVdVk2 --execute SELECT wi.id, wi.name, wi.deviceCode, wi.modelType, wi.slaveId, wi.comPortId, gcp.portNumber, gcp.ipAddress, gcp.networkPort FROM weighingInstruments wi LEFT JOIN gatewayComPorts gcp ON wi.comPortId = gcp.id WHERE gcp.portNumber = 'COM1';",
+  "rows": [
+    {
+      "id": "120009",
+      "name": "C001",
+      "deviceCode": "C001",
+      "modelType": "DY7004",
+      "slaveId": "4",
+      "comPortId": "120012",
+      "portNumber": "COM1",
+      "ipAddress": "",
+      "networkPort": "0"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\tdeviceCode\tmodelType\tslaveId\tcomPortId\tportNumber\tipAddress\tnetworkPort\n120009\tC001\tC001\tDY7004\t4\t120012\tCOM1\t\t0\n",
+  "stderr": "",
+  "execution_time_ms": 1658
+}

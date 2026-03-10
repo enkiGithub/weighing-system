@@ -1,0 +1,46 @@
+{
+  "query": "SELECT wi.id, wi.name, wi.deviceCode, wi.modelType, wi.slaveId, wi.comPortId, gcp.portNumber, gcp.ipAddress, gcp.networkPort, g.name as gatewayName FROM weighingInstruments wi LEFT JOIN gatewayComPorts gcp ON wi.comPortId = gcp.id LEFT JOIN gateways g ON gcp.gatewayId = g.id ORDER BY wi.id;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user KBF53B6TGXz9Z1D.root --database SQ6yxhwuwXauyoM9DVdVk2 --execute SELECT wi.id, wi.name, wi.deviceCode, wi.modelType, wi.slaveId, wi.comPortId, gcp.portNumber, gcp.ipAddress, gcp.networkPort, g.name as gatewayName FROM weighingInstruments wi LEFT JOIN gatewayComPorts gcp ON wi.comPortId = gcp.id LEFT JOIN gateways g ON gcp.gatewayId = g.id ORDER BY wi.id;",
+  "rows": [
+    {
+      "id": "120007",
+      "name": "C003",
+      "deviceCode": "C003",
+      "modelType": "DY7001",
+      "slaveId": "1",
+      "comPortId": "150002",
+      "portNumber": "COM3",
+      "ipAddress": "192.168.50.98",
+      "networkPort": "5001",
+      "gatewayName": "16口RS485网关#1"
+    },
+    {
+      "id": "120008",
+      "name": "C002",
+      "deviceCode": "C002",
+      "modelType": "DY7004",
+      "slaveId": "4",
+      "comPortId": "150001",
+      "portNumber": "COM2",
+      "ipAddress": "",
+      "networkPort": "0",
+      "gatewayName": "16口RS485网关#1"
+    },
+    {
+      "id": "120009",
+      "name": "C001",
+      "deviceCode": "C001",
+      "modelType": "DY7004",
+      "slaveId": "4",
+      "comPortId": "120012",
+      "portNumber": "COM1",
+      "ipAddress": "",
+      "networkPort": "0",
+      "gatewayName": "16口RS485网关#1"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\tdeviceCode\tmodelType\tslaveId\tcomPortId\tportNumber\tipAddress\tnetworkPort\tgatewayName\n120007\tC003\tC003\tDY7001\t1\t150002\tCOM3\t192.168.50.98\t5001\t16口RS485网关#1\n120008\tC002\tC002\tDY7004\t4\t150001\tCOM2\t\t0\t16口RS485网关#1\n120009\tC001\tC001\tDY7004\t4\t120012\tCOM1\t\t0\t16口RS485网关#1\n",
+  "stderr": "",
+  "execution_time_ms": 2270
+}

@@ -84,7 +84,7 @@ export default function Analytics() {
     return Array.from(dataMap.values())
       .map(item => ({
         date: item.date,
-        weight: Number((item.weight / item.count / 1000).toFixed(2)),
+        weight: Number((item.weight / item.count).toFixed(2)),
       }))
       .sort((a, b) => a.date.localeCompare(b.date));
   }, [filteredRecords]);
@@ -148,13 +148,13 @@ export default function Analytics() {
   const avgChange = useMemo(() => {
     if (!filteredRecords || filteredRecords.length === 0) return 0;
     const sum = filteredRecords.reduce((acc, r) => acc + Math.abs(r.changeValue), 0);
-    return (sum / filteredRecords.length / 1000).toFixed(2);
+    return (sum / filteredRecords.length).toFixed(2);
   }, [filteredRecords]);
 
   const maxChange = useMemo(() => {
     if (!filteredRecords || filteredRecords.length === 0) return 0;
     const max = Math.max(...filteredRecords.map(r => Math.abs(r.changeValue)));
-    return (max / 1000).toFixed(2);
+    return max.toFixed(2);
   }, [filteredRecords]);
 
   return (

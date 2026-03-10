@@ -473,11 +473,11 @@ export default function Monitor() {
                 <div className="grid grid-cols-2 gap-2">
                   <div className="bg-slate-800/50 rounded-lg p-2">
                     <div className="text-[10px] text-slate-500">当前重量</div>
-                    <div className="text-sm font-bold text-cyan-400">{(hoveredGroupData.currentWeight / 1000).toFixed(2)} kg</div>
+                    <div className="text-sm font-bold text-cyan-400">{hoveredGroupData.currentWeight.toFixed(1)} kg</div>
                   </div>
                   <div className="bg-slate-800/50 rounded-lg p-2">
                     <div className="text-[10px] text-slate-500">初始重量</div>
-                    <div className="text-sm font-bold text-slate-300">{(hoveredGroupData.initialWeight / 1000).toFixed(2)} kg</div>
+                    <div className="text-sm font-bold text-slate-300">{hoveredGroupData.initialWeight.toFixed(1)} kg</div>
                   </div>
                   <div className="bg-slate-800/50 rounded-lg p-2">
                     <div className="text-[10px] text-slate-500">变化量</div>
@@ -486,12 +486,12 @@ export default function Monitor() {
                       hoveredGroupData.currentWeight - hoveredGroupData.initialWeight < 0 ? "text-red-400" :
                       "text-slate-400"
                     }`}>
-                      {((hoveredGroupData.currentWeight - hoveredGroupData.initialWeight) / 1000).toFixed(2)} kg
+                      {(hoveredGroupData.currentWeight - hoveredGroupData.initialWeight).toFixed(1)} kg
                     </div>
                   </div>
                   <div className="bg-slate-800/50 rounded-lg p-2">
                     <div className="text-[10px] text-slate-500">报警阈值</div>
-                    <div className="text-sm font-bold text-amber-400">{(hoveredGroupData.alarmThreshold / 1000).toFixed(2)} kg</div>
+                    <div className="text-sm font-bold text-amber-400">{hoveredGroupData.alarmThreshold.toFixed(1)} kg</div>
                   </div>
                 </div>
                 <div className="text-[10px] text-slate-500 border-t border-slate-700 pt-2">

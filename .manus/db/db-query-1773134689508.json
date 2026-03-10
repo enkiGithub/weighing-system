@@ -1,0 +1,45 @@
+{
+  "query": "SELECT id, name, initialWeight, currentWeight, alarmThreshold FROM cabinetGroups LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user KBF53B6TGXz9Z1D.root --database SQ6yxhwuwXauyoM9DVdVk2 --execute SELECT id, name, initialWeight, currentWeight, alarmThreshold FROM cabinetGroups LIMIT 5;",
+  "rows": [
+    {
+      "id": "90021",
+      "name": "内圈6柜组",
+      "initialWeight": "20000000",
+      "currentWeight": "0",
+      "alarmThreshold": "2000"
+    },
+    {
+      "id": "90022",
+      "name": "内圈5柜组",
+      "initialWeight": "20000000",
+      "currentWeight": "0",
+      "alarmThreshold": "1000"
+    },
+    {
+      "id": "120001",
+      "name": "内圈4柜组",
+      "initialWeight": "20000000",
+      "currentWeight": "0",
+      "alarmThreshold": "5000"
+    },
+    {
+      "id": "120002",
+      "name": "内圈3柜组",
+      "initialWeight": "20000000",
+      "currentWeight": "0",
+      "alarmThreshold": "3000"
+    },
+    {
+      "id": "120003",
+      "name": "内圈2柜组",
+      "initialWeight": "20000000",
+      "currentWeight": "0",
+      "alarmThreshold": "2000"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\tinitialWeight\tcurrentWeight\talarmThreshold\n90021\t内圈6柜组\t20000000\t0\t2000\n90022\t内圈5柜组\t20000000\t0\t1000\n120001\t内圈4柜组\t20000000\t0\t5000\n120002\t内圈3柜组\t20000000\t0\t3000\n120003\t内圈2柜组\t20000000\t0\t2000\n",
+  "stderr": "",
+  "execution_time_ms": 1616
+}

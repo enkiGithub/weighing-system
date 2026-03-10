@@ -1,0 +1,8 @@
+{
+  "query": "SELECT id, comNumber, baudRate, dataBits, parity, stopBits, ipAddress, networkPort FROM gatewayComPorts WHERE id = 1;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user KBF53B6TGXz9Z1D.root --database SQ6yxhwuwXauyoM9DVdVk2 --execute SELECT id, comNumber, baudRate, dataBits, parity, stopBits, ipAddress, networkPort FROM gatewayComPorts WHERE id = 1;",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1054 (42S22) at line 1: Unknown column 'comnumber' in 'field list'"
+  ]
+}

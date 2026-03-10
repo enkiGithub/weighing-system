@@ -117,25 +117,69 @@ export class TCPConnection extends EventEmitter {
 
   /**
    * 读取一个完整的 Modbus 响应
+   * 会从缓冲区中扫描所有数据，找到匹配的响应帧
    * @param timeout 超时时间（毫秒）
+   * @param expectedSlaveId 期望的从站地址（可选）
+   * @param expectedByteCount 期望的数据字节数（可选）
    */
-  async readResponse(timeout: number = this.config.timeoutMs): Promise<Buffer> {
+  async readResponse(timeout: number = this.config.timeoutMs, expectedSlaveId?: number, expectedByteCount?: number): Promise<Buffer> {
     return new Promise((resolve, reject) => {
+      const startTime = Date.now();
+      let checkInterval: NodeJS.Timeout;
+
       const timer = setTimeout(() => {
-        this.removeListener('data', dataHandler);
+        if (checkInterval) clearInterval(checkInterval);
+        this.buffer = Buffer.alloc(0);
         reject(new Error('读取响应超时'));
       }, timeout);
 
-      const dataHandler = (data: Buffer) => {
-        clearTimeout(timer);
-        this.removeListener('data', dataHandler);
-        // 清空缓冲区
-        this.buffer = Buffer.alloc(0);
-        resolve(data);
-      };
+      // 定期检查缓冲区中是否有完整的响应帧
+      checkInterval = setInterval(() => {
+        if (this.buffer.length < 5) return; // 最小响应帧: 从站(1)+功能码(1)+字节数(1)+CRC(2) = 5
 
-      this.on('data', dataHandler);
+        // 扫描缓冲区中的所有可能的帧起始位置
+        for (let i = 0; i < this.buffer.length - 4; i++) {
+          const slaveId = this.buffer[i];
+          const funcCode = this.buffer[i + 1];
+
+          // 只处理功能码 0x03 的响应
+          if (funcCode !== 0x03) continue;
+
+          // 如果指定了期望的从站地址，跳过不匹配的
+          if (expectedSlaveId !== undefined && slaveId !== expectedSlaveId) continue;
+
+          const byteCount = this.buffer[i + 2];
+
+          // 如果指定了期望字节数，检查是否匹配
+          if (expectedByteCount !== undefined && byteCount !== expectedByteCount) continue;
+
+          // 检查数据是否完整
+          const frameLength = 3 + byteCount + 2; // 从站+功能码+字节数+数据+CRC
+          if (i + frameLength > this.buffer.length) continue;
+
+          // 提取帧数据
+          const frame = this.buffer.slice(i, i + frameLength);
+
+          // 清空缓冲区
+          this.buffer = Buffer.alloc(0);
+          clearTimeout(timer);
+          clearInterval(checkInterval);
+          resolve(frame);
+          return;
+        }
+      }, 20); // 每20ms检查一次
     });
+  }
+
+  /**
+   * 清空接收缓冲区中的残留数据
+   * 网关可能有自动推送的背景数据，发送命令前需要清空
+   */
+  async drainBuffer(): Promise<void> {
+    this.buffer = Buffer.alloc(0);
+    // 等待一小段时间让背景数据到达，然后清空
+    await new Promise(resolve => setTimeout(resolve, 50));
+    this.buffer = Buffer.alloc(0);
   }
 
   isConnected(): boolean {

@@ -9,9 +9,13 @@ import { EventEmitter } from 'events';
 export interface CollectionDataMessage {
   type: 'collection_data';
   instrumentId: number;
+  instrumentCode: string;
   channelId: number;
+  channelNo: number;
+  channelLabel: string;
   rawValue: number;
   calibratedValue: number;
+  unit: string;
   timestamp: number;
 }
 

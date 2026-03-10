@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, AlertTriangle, CheckCircle2, Clock } from "lucide-react";
+import { Loader2, AlertTriangle, CheckCircle2, Clock, RotateCcw } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -36,7 +36,7 @@ export default function Alarms() {
     cabinetGroupId: selectedCabinetId,
     limit: 200,
   });
-  const { data: unhandledAlarms } = trpc.alarms.getUnhandled.useQuery();
+  const { data: unhandledCount } = trpc.alarms.getUnhandled.useQuery();
 
   const handleMutation = trpc.alarms.updateStatus.useMutation({
     onSuccess: () => {
@@ -53,19 +53,41 @@ export default function Alarms() {
     return cabinets?.find((c) => c.id === cabinetId)?.name || "未知柜组";
   };
 
-  const getUserName = (userId: number | null) => {
-    if (!userId) return "-";
-    return `用户 #${userId}`;
-  };
-
   const getAlarmTypeText = (type: string) => {
     switch (type) {
-      case "threshold_exceeded":
-        return "阈值超限";
-      case "device_offline":
+      case "overweight":
+        return "超重报警";
+      case "offline":
         return "设备离线";
       default:
         return type;
+    }
+  };
+
+  const getHandlingStatusBadge = (status: string) => {
+    switch (status) {
+      case "handled":
+        return (
+          <Badge variant="default" className="gap-1 bg-success text-success-foreground">
+            <CheckCircle2 className="h-3 w-3" />
+            已处理
+          </Badge>
+        );
+      case "auto_resolved":
+        return (
+          <Badge variant="default" className="gap-1 bg-blue-600 text-white">
+            <RotateCcw className="h-3 w-3" />
+            自动解除
+          </Badge>
+        );
+      case "pending":
+      default:
+        return (
+          <Badge variant="destructive" className="gap-1">
+            <Clock className="h-3 w-3" />
+            待处理
+          </Badge>
+        );
     }
   };
 
@@ -75,34 +97,45 @@ export default function Alarms() {
     }
   };
 
-  const AlarmTable = ({ alarms, showActions = true }: { alarms: typeof allAlarms; showActions?: boolean }) => (
+  // 统计数据
+  const pendingAlarms = useMemo(() => {
+    return allAlarms?.filter((a: any) => a.handlingStatus === 'pending') || [];
+  }, [allAlarms]);
+
+  const handledAlarms = useMemo(() => {
+    return allAlarms?.filter((a: any) => a.handlingStatus !== 'pending') || [];
+  }, [allAlarms]);
+
+  const AlarmTable = ({ alarms, showActions = true }: { alarms: any[]; showActions?: boolean }) => (
     <div className="rounded-lg border border-border">
       <Table>
         <TableHeader>
           <TableRow>
             <TableHead>柜组名称</TableHead>
             <TableHead>报警类型</TableHead>
-            <TableHead>报警信息</TableHead>
-            <TableHead>报警时间</TableHead>
+            <TableHead>校准值</TableHead>
+            <TableHead>阈值</TableHead>
+            <TableHead>超出量</TableHead>
+            <TableHead>发生次数</TableHead>
+            <TableHead>首次时间</TableHead>
+            <TableHead>最后时间</TableHead>
             <TableHead>处理状态</TableHead>
-            <TableHead>处理人</TableHead>
-            <TableHead>处理时间</TableHead>
             {showActions && <TableHead className="text-right">操作</TableHead>}
           </TableRow>
         </TableHeader>
         <TableBody>
           {alarms?.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={showActions ? 8 : 7} className="text-center text-muted-foreground py-8">
+              <TableCell colSpan={showActions ? 10 : 9} className="text-center text-muted-foreground py-8">
                 暂无报警记录
               </TableCell>
             </TableRow>
           ) : (
             alarms?.map((alarm: any) => {
-              const isHandled = alarm.isHandled === 1;
+              const isPending = alarm.handlingStatus === 'pending';
               
               return (
-                <TableRow key={alarm.id} className={cn(!isHandled && "bg-destructive/5")}>
+                <TableRow key={alarm.id} className={cn(isPending && "bg-destructive/5")}>
                   <TableCell className="font-medium">
                     {getCabinetName(alarm.cabinetGroupId)}
                   </TableCell>
@@ -112,36 +145,36 @@ export default function Alarms() {
                       {getAlarmTypeText(alarm.alarmType)}
                     </Badge>
                   </TableCell>
-                  <TableCell className="max-w-md">
-                    <p className="text-sm text-muted-foreground">{alarm.alarmMessage}</p>
+                  <TableCell className="font-mono text-sm">
+                    {alarm.calibratedValue != null ? `${alarm.calibratedValue.toFixed(2)} kg` : '-'}
                   </TableCell>
                   <TableCell className="font-mono text-sm">
-                    {format(new Date(alarm.createdAt), "yyyy-MM-dd HH:mm:ss")}
+                    {alarm.threshold != null ? `${alarm.threshold.toFixed(2)} kg` : '-'}
+                  </TableCell>
+                  <TableCell className="font-mono text-sm text-red-400">
+                    {alarm.exceedValue != null && alarm.exceedValue > 0
+                      ? `+${alarm.exceedValue.toFixed(2)} kg`
+                      : '-'}
+                  </TableCell>
+                  <TableCell className="text-center">
+                    {alarm.occurrenceCount || 1}
+                  </TableCell>
+                  <TableCell className="font-mono text-sm">
+                    {alarm.firstOccurredAt
+                      ? format(new Date(alarm.firstOccurredAt), "yyyy-MM-dd HH:mm:ss")
+                      : '-'}
+                  </TableCell>
+                  <TableCell className="font-mono text-sm">
+                    {alarm.lastOccurredAt
+                      ? format(new Date(alarm.lastOccurredAt), "yyyy-MM-dd HH:mm:ss")
+                      : '-'}
                   </TableCell>
                   <TableCell>
-                    {isHandled ? (
-                      <Badge variant="default" className="gap-1 bg-success text-success-foreground">
-                        <CheckCircle2 className="h-3 w-3" />
-                        已处理
-                      </Badge>
-                    ) : (
-                      <Badge variant="destructive" className="gap-1">
-                        <Clock className="h-3 w-3" />
-                        待处理
-                      </Badge>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
-                    {getUserName(alarm.handledBy)}
-                  </TableCell>
-                  <TableCell className="font-mono text-sm text-muted-foreground">
-                    {alarm.handledAt
-                      ? format(new Date(alarm.handledAt), "yyyy-MM-dd HH:mm:ss")
-                      : "-"}
+                    {getHandlingStatusBadge(alarm.handlingStatus)}
                   </TableCell>
                   {showActions && (
                     <TableCell className="text-right">
-                      {!isHandled && canEdit && (
+                      {isPending && canEdit && (
                         <Button
                           size="sm"
                           variant="outline"
@@ -207,7 +240,7 @@ export default function Alarms() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-destructive">
-              {typeof unhandledAlarms === 'number' ? unhandledAlarms : 0}
+              {typeof unhandledCount === 'number' ? unhandledCount : 0}
             </div>
           </CardContent>
         </Card>
@@ -217,17 +250,17 @@ export default function Alarms() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-success">
-              {allAlarms?.filter((a: any) => a.isHandled === 1).length || 0}
+              {allAlarms?.filter((a: any) => a.handlingStatus === 'handled').length || 0}
             </div>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground">阈值超限</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">自动解除</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-warning">
-              {allAlarms?.filter((a: any) => a.alarmType === "threshold_exceeded").length || 0}
+            <div className="text-2xl font-bold text-blue-500">
+              {allAlarms?.filter((a: any) => a.handlingStatus === 'auto_resolved').length || 0}
             </div>
           </CardContent>
         </Card>
@@ -245,19 +278,25 @@ export default function Alarms() {
             </div>
           ) : (
             <Tabs defaultValue="all" className="w-full">
-              <TabsList className="grid w-full max-w-md grid-cols-2">
+              <TabsList className="grid w-full max-w-lg grid-cols-3">
                 <TabsTrigger value="all">
-                  全部报警 ({allAlarms?.length || 0})
+                  全部 ({allAlarms?.length || 0})
                 </TabsTrigger>
-                <TabsTrigger value="unhandled">
-                  待处理 ({typeof unhandledAlarms === 'number' ? unhandledAlarms : 0})
+                <TabsTrigger value="pending">
+                  待处理 ({pendingAlarms.length})
+                </TabsTrigger>
+                <TabsTrigger value="handled">
+                  已处理 ({handledAlarms.length})
                 </TabsTrigger>
               </TabsList>
               <TabsContent value="all" className="mt-6">
-                <AlarmTable alarms={allAlarms} />
+                <AlarmTable alarms={allAlarms || []} />
               </TabsContent>
-              <TabsContent value="unhandled" className="mt-6">
-                <AlarmTable alarms={unhandledAlarms} />
+              <TabsContent value="pending" className="mt-6">
+                <AlarmTable alarms={pendingAlarms} />
+              </TabsContent>
+              <TabsContent value="handled" className="mt-6">
+                <AlarmTable alarms={handledAlarms} showActions={false} />
               </TabsContent>
             </Tabs>
           )}

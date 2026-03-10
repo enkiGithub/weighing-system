@@ -31,12 +31,16 @@ export class AlarmHandler {
 
   /**
    * 检查并处理报警
+   * @param cabinetGroupId 柜组ID
+   * @param calibratedValue 校准后的当前值（kg）
+   * @param threshold 报警阈值（kg）
+   * @param alarmType 报警类型
    * @returns 是否需要创建新报警
    */
   async checkAndHandleAlarm(
     cabinetGroupId: number,
-    currentValue: number,
-    thresholdValue: number,
+    calibratedValue: number,
+    threshold: number,
     alarmType: 'overweight' | 'underweight'
   ): Promise<boolean> {
     const key = `${cabinetGroupId}_${alarmType}`;
@@ -49,10 +53,9 @@ export class AlarmHandler {
       return false;
     }
 
-    // 检查是否应该触发报警
-    const shouldAlarm = alarmType === 'overweight'
-      ? currentValue > thresholdValue
-      : currentValue < thresholdValue;
+    // 检查是否应该触发报警（比较变化量与阈值）
+    const changeValue = Math.abs(calibratedValue - group.initialWeight);
+    const shouldAlarm = changeValue > threshold;
 
     if (!shouldAlarm) {
       // 重量已恢复正常，清除报警状态
@@ -98,24 +101,30 @@ export class AlarmHandler {
 
   /**
    * 创建报警记录
+   * @param cabinetGroupId 柜组ID
+   * @param calibratedValue 校准后的当前值（kg）
+   * @param threshold 报警阈值（kg）
+   * @param alarmType 报警类型
    */
   async createAlarm(
     cabinetGroupId: number,
-    currentValue: number,
-    thresholdValue: number,
+    calibratedValue: number,
+    threshold: number,
     alarmType: 'overweight' | 'underweight'
   ): Promise<void> {
     try {
-      const key = `${cabinetGroupId}_${alarmType}`;
-      const alarmState = this.alarmStates.get(key);
+      const group = await db.getCabinetGroupById(cabinetGroupId);
+      const exceedValue = group
+        ? Math.abs(calibratedValue - group.initialWeight) - threshold
+        : 0;
 
       await db.createAlarmRecord({
         cabinetGroupId,
         alarmType,
-        currentValue,
-        thresholdValue,
-        occurrenceCount: alarmState?.occurrenceCount || 1,
-        handlingStatus: 'pending',
+        calibratedValue,
+        threshold,
+        exceedValue: Math.max(0, exceedValue),
+        occurrenceCount: 1,
       });
 
       console.log(`[AlarmHandler] 报警记录已创建: 柜组 #${cabinetGroupId}`);
@@ -137,17 +146,16 @@ export class AlarmHandler {
         const group = await db.getCabinetGroupById(alarm.cabinetGroupId);
         if (!group) continue;
 
-        // 检查是否已恢复正常
-        const isResolved = alarm.alarmType === 'overweight'
-          ? group.currentWeight <= alarm.thresholdValue
-          : group.currentWeight >= alarm.thresholdValue;
+        // 检查是否已恢复正常（变化量小于阈值）
+        const changeValue = Math.abs(group.currentWeight - group.initialWeight);
+        const isResolved = changeValue <= alarm.threshold;
 
         if (isResolved) {
           // 自动解除报警
           await db.updateAlarmHandlingStatus(alarm.id, 'auto_resolved');
           console.log(
             `[AlarmHandler] 自动解除报警: 柜组 #${alarm.cabinetGroupId} ` +
-            `(当前: ${(group.currentWeight / 1000).toFixed(2)}kg, 阈值: ${(alarm.thresholdValue / 1000).toFixed(2)}kg)`
+            `(当前: ${group.currentWeight.toFixed(2)}kg, 阈值: ${alarm.threshold.toFixed(2)}kg)`
           );
         }
       }
