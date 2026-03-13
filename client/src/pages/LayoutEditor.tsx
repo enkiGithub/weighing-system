@@ -319,12 +319,34 @@ export default function LayoutEditor() {
   const { canOperate } = usePermissions();
   const canEdit = canOperate('layout_editor');
 
-  // Layout state
-  const [layoutData, setLayoutData] = useState<DxfLayoutData | null>(null);
+  // localStorage key for caching editor state
+  const CACHE_KEY = 'layout-editor-state';
+
+  // Try to restore from localStorage on initial mount
+  const cachedState = useMemo(() => {
+    try {
+      const raw = localStorage.getItem(CACHE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed.layoutData?.bounds && parsed.layoutData?.cabinets) {
+          return parsed as {
+            layoutData: DxfLayoutData;
+            currentLayoutId: number | null;
+            layoutName: string;
+            layoutDesc: string;
+          };
+        }
+      }
+    } catch { /* ignore */ }
+    return null;
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Layout state - initialize from cache if available
+  const [layoutData, setLayoutData] = useState<DxfLayoutData | null>(cachedState?.layoutData || null);
   const [selectedCabinetIds, setSelectedCabinetIds] = useState<Set<number>>(new Set());
-  const [currentLayoutId, setCurrentLayoutId] = useState<number | null>(null);
-  const [layoutName, setLayoutName] = useState("新布局");
-  const [layoutDesc, setLayoutDesc] = useState("");
+  const [currentLayoutId, setCurrentLayoutId] = useState<number | null>(cachedState?.currentLayoutId ?? null);
+  const [layoutName, setLayoutName] = useState(cachedState?.layoutName || "新布局");
+  const [layoutDesc, setLayoutDesc] = useState(cachedState?.layoutDesc || "");
   const [showLoadDialog, setShowLoadDialog] = useState(false);
   const [showBindDialog, setShowBindDialog] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -338,9 +360,25 @@ export default function LayoutEditor() {
   const activeLayoutQuery = trpc.monitor.getActiveLayout.useQuery();
   const utils = trpc.useUtils();
 
-  // 组件挂载时自动加载已激活的布局（解决切换页面后内容丢失问题）
+  // 缓存编辑状态到localStorage（当layoutData、currentLayoutId、layoutName、layoutDesc变化时）
   useEffect(() => {
-    if (!layoutData && activeLayoutQuery.data) {
+    if (layoutData) {
+      try {
+        localStorage.setItem(CACHE_KEY, JSON.stringify({
+          layoutData,
+          currentLayoutId,
+          layoutName,
+          layoutDesc,
+        }));
+      } catch { /* storage full or unavailable, ignore */ }
+    } else {
+      localStorage.removeItem(CACHE_KEY);
+    }
+  }, [layoutData, currentLayoutId, layoutName, layoutDesc]);
+
+  // 组件挂载时：如果localStorage没有缓存，则加载已激活的布局作为默认
+  useEffect(() => {
+    if (!cachedState && !layoutData && activeLayoutQuery.data) {
       const layout = activeLayoutQuery.data as any;
       try {
         const data = JSON.parse(layout.layoutData);
