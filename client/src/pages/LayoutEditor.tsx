@@ -91,7 +91,18 @@ function LayoutSVG({
 
   const screenToSvg = useCallback((clientX: number, clientY: number) => {
     if (!svgRef.current) return { x: 0, y: 0 };
-    const rect = svgRef.current.getBoundingClientRect();
+    // 使用SVG原生坐标变换API，精确处理preserveAspectRatio带来的偏移
+    const svg = svgRef.current;
+    const pt = svg.createSVGPoint();
+    pt.x = clientX;
+    pt.y = clientY;
+    const ctm = svg.getScreenCTM();
+    if (ctm) {
+      const svgPt = pt.matrixTransform(ctm.inverse());
+      return { x: svgPt.x, y: svgPt.y };
+    }
+    // 回退方案：手动计算
+    const rect = svg.getBoundingClientRect();
     const x = localViewBox.x + (clientX - rect.left) / rect.width * localViewBox.w;
     const y = localViewBox.y + (clientY - rect.top) / rect.height * localViewBox.h;
     return { x, y };
@@ -328,6 +339,10 @@ export default function LayoutEditor() {
       const raw = localStorage.getItem(CACHE_KEY);
       if (raw) {
         const parsed = JSON.parse(raw);
+        // 如果是“已清空”标记，返回空状态标记（不加载激活布局）
+        if (parsed._cleared) {
+          return { _cleared: true } as any;
+        }
         if (parsed.layoutData?.bounds && parsed.layoutData?.cabinets) {
           return parsed as {
             layoutData: DxfLayoutData;
@@ -371,12 +386,11 @@ export default function LayoutEditor() {
           layoutDesc,
         }));
       } catch { /* storage full or unavailable, ignore */ }
-    } else {
-      localStorage.removeItem(CACHE_KEY);
     }
+    // 注意：layoutData为null时不在这里删除缓存，因为“新建”操作会单独写入_cleared标记
   }, [layoutData, currentLayoutId, layoutName, layoutDesc]);
 
-  // 组件挂载时：如果localStorage没有缓存，则加载已激活的布局作为默认
+  // 组件挂载时：如果localStorage没有缓存且没有“已清空”标记，则加载已激活的布局作为默认
   useEffect(() => {
     if (!cachedState && !layoutData && activeLayoutQuery.data) {
       const layout = activeLayoutQuery.data as any;
@@ -652,6 +666,10 @@ export default function LayoutEditor() {
     setLayoutName("新布局");
     setLayoutDesc("");
     setSelectedCabinetIds(new Set());
+    // 写入“已清空”标记，防止切换页面回来后加载激活布局
+    try {
+      localStorage.setItem(CACHE_KEY, JSON.stringify({ _cleared: true }));
+    } catch { /* ignore */ }
   }, []);
 
   const selectAll = useCallback(() => {
