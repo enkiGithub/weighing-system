@@ -52,6 +52,10 @@ export class CollectionWebSocketServer {
   private _groupWeightUpdateQueue: Map<number, NodeJS.Timeout> = new Map();
   // 内存中缓存每个通道的最新值，用于计算柜组重量
   private _channelValues: Map<number, number> = new Map();
+  // 记录每个柜组上一次记录的重量，用于判断是否需要写入变化记录
+  private _lastRecordedWeight: Map<number, number> = new Map();
+  // 记录每个柜组上一次写入记录的时间，避免过于频繁写入
+  private _lastRecordTime: Map<number, number> = new Map();
 
   constructor(httpServer: HTTPServer) {
     this.wss = new WebSocketServer({ 
@@ -285,8 +289,47 @@ export class CollectionWebSocketServer {
     const isWarning = Math.abs(changeValue) > group.alarmThreshold * 0.7;
     const status = isAlarm ? 'alarm' : isWarning ? 'warning' : 'normal';
 
+    // 上一次记录的重量（用于判断是否有变化）
+    const previousWeight = group.currentWeight;
+
     // 更新柜组重量和状态到数据库
     await db.updateCabinetGroupWeight(groupId, totalWeight, status);
+
+    // 写入重量变化记录（条件：重量变化超过0.001，且距上次记录至少5秒）
+    const weightDiff = Math.abs(totalWeight - previousWeight);
+    const lastRecordTime = this._lastRecordTime.get(groupId) || 0;
+    const now = Date.now();
+    if (weightDiff > 0.001 && (now - lastRecordTime > 5000)) {
+      this._lastRecordTime.set(groupId, now);
+      this._lastRecordedWeight.set(groupId, totalWeight);
+      try {
+        const recordChangeValue = totalWeight - previousWeight;
+        await db.createWeightChangeRecord({
+          cabinetGroupId: groupId,
+          previousWeight,
+          currentWeight: totalWeight,
+          changeValue: recordChangeValue,
+          isAlarm: isAlarm ? 1 : 0,
+        });
+
+        // 如果触发报警，同时写入报警记录
+        if (isAlarm) {
+          await db.createAlarmRecord({
+            alarmType: 'overweight',
+            cabinetGroupId: groupId,
+            rawValue: totalWeight,
+            calibratedValue: totalWeight,
+            threshold: group.alarmThreshold,
+            exceedValue: Math.abs(changeValue) - group.alarmThreshold,
+          });
+        }
+      } catch (err: any) {
+        if (!this._lastPersistError || now - this._lastPersistError > 30000) {
+          console.error(`[WS] 写入柜组${groupId}变化记录失败:`, err.message);
+          this._lastPersistError = now;
+        }
+      }
+    }
 
     // 广播柜组重量更新消息给前端客户端（即时推送）
     const updateMsg: GroupWeightUpdateMessage = {

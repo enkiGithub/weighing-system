@@ -572,3 +572,10 @@
 - [x] 保留tRPC查询作为初始数据加载和fallback（降低到30秒轮询）
 - [x] 构建并部署到现场服务器（weighing-web.service active running）
 - [x] 验证毫秒级即时更新效果
+
+## 数据记录页面排查与修复
+- [x] 审查数据记录页面前端实现（Records.tsx）——前端和后端API均已实现
+- [x] 审查数据记录后端API和数据库表——weightChangeRecords表已存在
+- [x] 确认数据写入问题：WebSocket实时采集未写入变化记录（仅手动updateWeight才写入）
+- [x] 修复：在recalculateGroupWeight中添加自动写入weightChangeRecords和alarmRecords逻辑
+- [x] 防护机制：重量变化>0.001且距上次记录>5秒才写入，避免刷库
