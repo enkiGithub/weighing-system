@@ -14,11 +14,12 @@ function getWsServer() {
   return (global as any).wsServer as import('./_core/websocketServer').CollectionWebSocketServer | undefined;
 }
 
-/** 通知采集服务重载配置 */
+/** 通知采集服务重载配置，并清除WebSocket服务端的绑定缓存 */
 function notifyCollectorReload(reason: string) {
   const ws = getWsServer();
   if (ws) {
     ws.sendReloadConfig(reason);
+    ws.clearBindingsCache();
   }
 }
 

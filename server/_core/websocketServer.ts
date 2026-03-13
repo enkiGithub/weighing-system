@@ -5,6 +5,7 @@
 
 import { WebSocketServer, WebSocket } from 'ws';
 import { Server as HTTPServer } from 'http';
+import * as db from '../db';
 
 export interface CollectionDataMessage {
   type: 'collection_data';
@@ -35,6 +36,13 @@ export class CollectionWebSocketServer {
   private wss: WebSocketServer;
   private collectorConnection: WebSocket | null = null;
   private clientConnections: Set<WebSocket> = new Set();
+  private _lastPersistError: number = 0;
+  // 缓存通道到柜组的绑定关系，避免每次都查数据库
+  private _bindingsCache: Map<number, { groupId: number; coefficient: number; offset: number }[]> | null = null;
+  private _bindingsCacheTime: number = 0;
+  private _groupWeightUpdateQueue: Map<number, NodeJS.Timeout> = new Map();
+  // 内存中缓存每个通道的最新值，用于计算柜组重量
+  private _channelValues: Map<number, number> = new Map();
 
   constructor(httpServer: HTTPServer) {
     this.wss = new WebSocketServer({ 
@@ -73,6 +81,16 @@ export class CollectionWebSocketServer {
       try {
         const message = JSON.parse(data.toString()) as Message;
         this.broadcastToClients(message);
+        // 持久化采集数据到数据库
+        if (message.type === 'collection_data') {
+          this.persistCollectionData(message).catch(err => {
+            // 仅在非重复错误时打印日志，避免刷屏
+            if (!this._lastPersistError || Date.now() - this._lastPersistError > 30000) {
+              console.error('[WS] 持久化采集数据失败:', err.message);
+              this._lastPersistError = Date.now();
+            }
+          });
+        }
       } catch (err) {
         console.error('[WS] 消息解析失败:', err);
       }
@@ -159,6 +177,116 @@ export class CollectionWebSocketServer {
       console.error('[WS] 发送重载指令失败:', err);
       return false;
     }
+  }
+
+  /**
+   * 持久化采集数据：更新通道currentValue，并重新计算关联柜组的currentWeight
+   */
+  private async persistCollectionData(msg: CollectionDataMessage): Promise<void> {
+    const { channelId, calibratedValue } = msg;
+
+    // 1. 更新通道的 currentValue 和 lastReadAt
+    await db.updateChannel(channelId, {
+      currentValue: calibratedValue,
+      lastReadAt: new Date(),
+    });
+
+    // 2. 缓存通道值到内存
+    this._channelValues.set(channelId, calibratedValue);
+
+    // 3. 查找该通道绑定的柜组（使用缓存，每60秒刷新）
+    const bindings = await this.getBindingsForChannel(channelId);
+    if (bindings.length === 0) return;
+
+    // 4. 对每个关联的柜组，延迟批量更新重量（防止同一柜组多通道同时更新导致频繁写库）
+    for (const binding of bindings) {
+      this.scheduleGroupWeightUpdate(binding.groupId);
+    }
+  }
+
+  /**
+   * 获取通道的绑定关系（带缓存）
+   */
+  private async getBindingsForChannel(channelId: number): Promise<{ groupId: number; coefficient: number; offset: number }[]> {
+    // 缓存60秒
+    if (!this._bindingsCache || Date.now() - this._bindingsCacheTime > 60000) {
+      const allBindings = await db.getAllBindings();
+      this._bindingsCache = new Map();
+      for (const b of allBindings) {
+        const list = this._bindingsCache.get(b.channelId) || [];
+        list.push({ groupId: b.groupId, coefficient: b.coefficient, offset: b.offset });
+        this._bindingsCache.set(b.channelId, list);
+      }
+      this._bindingsCacheTime = Date.now();
+    }
+    return this._bindingsCache.get(channelId) || [];
+  }
+
+  /**
+   * 延迟批量更新柜组重量（500ms内合并同一柜组的多次更新）
+   */
+  private scheduleGroupWeightUpdate(groupId: number): void {
+    // 如果已有pending的更新，跳过（等待已有的定时器触发）
+    if (this._groupWeightUpdateQueue.has(groupId)) return;
+
+    const timer = setTimeout(async () => {
+      this._groupWeightUpdateQueue.delete(groupId);
+      try {
+        await this.recalculateGroupWeight(groupId);
+      } catch (err: any) {
+        if (!this._lastPersistError || Date.now() - this._lastPersistError > 30000) {
+          console.error(`[WS] 更新柜组${groupId}重量失败:`, err.message);
+          this._lastPersistError = Date.now();
+        }
+      }
+    }, 500);
+
+    this._groupWeightUpdateQueue.set(groupId, timer);
+  }
+
+  /**
+   * 重新计算柜组重量：weight = sum(channelValue_i * coefficient_i + offset_i)
+   */
+  private async recalculateGroupWeight(groupId: number): Promise<void> {
+    // 获取柜组的所有通道绑定
+    const bindings = await db.getBindingsByGroup(groupId);
+    if (bindings.length === 0) return;
+
+    // 获取柜组信息
+    const group = await db.getCabinetGroupById(groupId);
+    if (!group) return;
+
+    // 计算总重量
+    let totalWeight = 0;
+    for (const binding of bindings) {
+      // 优先从内存缓存获取，否则查数据库
+      let channelValue = this._channelValues.get(binding.channelId);
+      if (channelValue === undefined) {
+        const channel = await db.getChannelById(binding.channelId);
+        channelValue = channel?.currentValue || 0;
+        this._channelValues.set(binding.channelId, channelValue);
+      }
+      totalWeight += channelValue * binding.coefficient + binding.offset;
+    }
+
+    // 计算状态
+    const changeValue = totalWeight - group.initialWeight;
+    const isAlarm = Math.abs(changeValue) > group.alarmThreshold;
+    const isWarning = Math.abs(changeValue) > group.alarmThreshold * 0.7;
+    const status = isAlarm ? 'alarm' : isWarning ? 'warning' : 'normal';
+
+    // 更新柜组重量和状态
+    await db.updateCabinetGroupWeight(groupId, totalWeight, status);
+  }
+
+  /**
+   * 清除绑定缓存（配置变更时调用）
+   */
+  clearBindingsCache(): void {
+    this._bindingsCache = null;
+    this._bindingsCacheTime = 0;
+    this._channelValues.clear();
+    console.log('[WS] 绑定缓存已清除');
   }
 
   close(): void {
