@@ -1019,12 +1019,25 @@ export async function getGatewayComPortStatuses(gatewayId: number) {
 /**
  * 计算网关的在线状态
  * 规则：所有COM端口都在线 -> 网关在线，任一离线 -> 网关离线
+ * 没有状态记录的COM端口视为离线
  */
 export async function calculateGatewayStatus(gatewayId: number): Promise<'online' | 'offline'> {
-  const statuses = await getGatewayComPortStatuses(gatewayId);
+  const db = await getDb();
+  if (!db) return 'offline';
+  
+  // 先获取网关的所有COM端口
+  const comPorts = await db.select({ id: gatewayComPorts.id })
+    .from(gatewayComPorts)
+    .where(eq(gatewayComPorts.gatewayId, gatewayId));
   
   // 如果没有COM端口配置，则网关离线
-  if (statuses.length === 0) return 'offline';
+  if (comPorts.length === 0) return 'offline';
+  
+  // 获取有状态记录的COM端口
+  const statuses = await getGatewayComPortStatuses(gatewayId);
+  
+  // 如果状态记录数量少于COM端口数量，说明有COM端口没有状态记录，视为离线
+  if (statuses.length < comPorts.length) return 'offline';
   
   // 如果有任何一个COM端口离线，则网关离线
   const hasOfflinePort = statuses.some(s => s.status === 'offline');
