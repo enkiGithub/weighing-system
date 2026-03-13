@@ -563,3 +563,12 @@
 - [x] 修复当前重量为绑定通道的实时测量数据（WebSocket服务端持久化采集数据到DB）
 - [x] 确保当前重量根据WebSocket推送的实时数据不断刷新（通道值+柜组重量每500ms合并更新）
 - [x] 构建并部署到现场服务器
+
+## Monitor页面WebSocket直连即时更新（新需求）
+- [x] 分析当前Monitor页面5秒tRPC轮询数据获取方式
+- [x] 创建WebSocket连接hook（useCollectionWebSocket），监听group_weight_update消息
+- [x] 在Monitor页面中集成WebSocket，接收实时柜组重量更新
+- [x] 后端重新计算柜组重量后广播group_weight_update消息给前端
+- [x] 保留tRPC查询作为初始数据加载和fallback（降低到30秒轮询）
+- [x] 构建并部署到现场服务器（weighing-web.service active running）
+- [x] 验证毫秒级即时更新效果

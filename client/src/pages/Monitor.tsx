@@ -5,9 +5,10 @@ import { trpc } from "@/lib/trpc";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Loader2, CheckCircle2, AlertTriangle, AlertOctagon, Activity, ZoomIn, ZoomOut, Maximize2, Bell } from "lucide-react";
+import { Loader2, CheckCircle2, AlertTriangle, AlertOctagon, Activity, Bell, Wifi, WifiOff } from "lucide-react";
 import { AlarmPanel } from "@/components/AlarmPanel";
 import { AlarmSound } from "@/components/AlarmSound";
+import { useCollectionWebSocket, type GroupWeightUpdate } from "@/hooks/useCollectionWebSocket";
 
 // ===== Types =====
 interface DxfCabinet {
@@ -287,17 +288,37 @@ export default function Monitor() {
   const [showAlarmPanel, setShowAlarmPanel] = useState(false);
   const [alarmSoundEnabled, setAlarmSoundEnabled] = useState(true);
 
-  // Queries with auto-refresh (使用monitor专用API)
+  // WebSocket实时柜组重量覆盖层：groupId -> { currentWeight, status }
+  const [wsGroupOverrides, setWsGroupOverrides] = useState<Map<number, { currentWeight: number; status: string }>>(new Map());
+
+  // Queries - 布局数据低频刷新，柜组数据作为初始加载和fallback（降低到30秒）
   const activeLayoutQuery = trpc.monitor.getActiveLayout.useQuery(undefined, {
-    refetchInterval: 10000,
+    refetchInterval: 30000,
   });
   const cabinetGroupsQuery = trpc.monitor.getCabinetGroups.useQuery(undefined, {
-    refetchInterval: 5000,
+    refetchInterval: 30000, // 降低为30秒，WebSocket负责即时更新
   });
 
   // 查询未处理报警数量
   const unhandledAlarmsQuery = trpc.alarms.getUnhandled.useQuery(undefined, {
     refetchInterval: 3000,
+  });
+
+  // WebSocket直连：接收实时柜组重量更新
+  const handleGroupWeightUpdate = useCallback((update: GroupWeightUpdate) => {
+    setWsGroupOverrides(prev => {
+      const next = new Map(prev);
+      next.set(update.groupId, {
+        currentWeight: update.currentWeight,
+        status: update.status,
+      });
+      return next;
+    });
+  }, []);
+
+  const { connected: wsConnected } = useCollectionWebSocket({
+    onGroupWeightUpdate: handleGroupWeightUpdate,
+    enabled: true,
   });
 
   // Parse layout data (new DXF format)
@@ -313,12 +334,20 @@ export default function Monitor() {
     }
   }, [activeLayoutQuery.data]);
 
-  // Cabinet groups map
+  // Cabinet groups map - 合并tRPC查询数据和WebSocket实时覆盖
   const cabinetGroupsMap = useMemo(() => {
     const map = new Map<number, any>();
-    (cabinetGroupsQuery.data || []).forEach((g: any) => map.set(g.id, g));
+    (cabinetGroupsQuery.data || []).forEach((g: any) => {
+      const override = wsGroupOverrides.get(g.id);
+      if (override) {
+        // WebSocket实时数据覆盖数据库查询数据
+        map.set(g.id, { ...g, currentWeight: override.currentWeight, status: override.status });
+      } else {
+        map.set(g.id, g);
+      }
+    });
     return map;
-  }, [cabinetGroupsQuery.data]);
+  }, [cabinetGroupsQuery.data, wsGroupOverrides]);
 
   // Group color map
   const groupColorMap = useMemo(() => {
@@ -410,6 +439,16 @@ export default function Monitor() {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          {/* WebSocket连接状态指示器 */}
+          <div className="flex items-center gap-1.5" title={wsConnected ? "实时数据连接正常" : "实时数据连接断开，使用轮询模式"}>
+            {wsConnected ? (
+              <Wifi className="h-4 w-4 text-green-400" />
+            ) : (
+              <WifiOff className="h-4 w-4 text-slate-500" />
+            )}
+            <span className="text-xs text-slate-400">{wsConnected ? "实时" : "轮询"}</span>
+          </div>
+          <div className="w-px h-4 bg-slate-700" />
           <div className="flex items-center gap-1.5">
             <CheckCircle2 className="h-4 w-4 text-cyan-400" />
             <span className="text-xs text-slate-300">正常</span>

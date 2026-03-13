@@ -23,6 +23,14 @@ export interface ConnectionStatusMessage {
   timestamp: number;
 }
 
+export interface GroupWeightUpdateMessage {
+  type: 'group_weight_update';
+  groupId: number;
+  currentWeight: number;
+  status: 'normal' | 'warning' | 'alarm';
+  timestamp: number;
+}
+
 export interface ReloadConfigCommand {
   type: 'reload_config';
   reason: string;
@@ -30,6 +38,7 @@ export interface ReloadConfigCommand {
 }
 
 export type Message = CollectionDataMessage | ConnectionStatusMessage;
+export type ClientMessage = Message | GroupWeightUpdateMessage;
 export type ServerCommand = ReloadConfigCommand;
 
 export class CollectionWebSocketServer {
@@ -122,7 +131,7 @@ export class CollectionWebSocketServer {
     });
   }
 
-  private broadcastToClients(message: Message): void {
+  private broadcastToClients(message: Message | GroupWeightUpdateMessage): void {
     const data = JSON.stringify(message);
     let successCount = 0;
     let errorCount = 0;
@@ -246,6 +255,7 @@ export class CollectionWebSocketServer {
 
   /**
    * 重新计算柜组重量：weight = sum(channelValue_i * coefficient_i + offset_i)
+   * 计算完成后广播 group_weight_update 消息给前端客户端
    */
   private async recalculateGroupWeight(groupId: number): Promise<void> {
     // 获取柜组的所有通道绑定
@@ -275,8 +285,18 @@ export class CollectionWebSocketServer {
     const isWarning = Math.abs(changeValue) > group.alarmThreshold * 0.7;
     const status = isAlarm ? 'alarm' : isWarning ? 'warning' : 'normal';
 
-    // 更新柜组重量和状态
+    // 更新柜组重量和状态到数据库
     await db.updateCabinetGroupWeight(groupId, totalWeight, status);
+
+    // 广播柜组重量更新消息给前端客户端（即时推送）
+    const updateMsg: GroupWeightUpdateMessage = {
+      type: 'group_weight_update',
+      groupId,
+      currentWeight: totalWeight,
+      status,
+      timestamp: Date.now(),
+    };
+    this.broadcastToClients(updateMsg);
   }
 
   /**
