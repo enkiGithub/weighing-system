@@ -683,6 +683,14 @@ export const appRouter = router({
           }
         );
 
+        // 5. 成功读取后，更新通道的当前值和最后读取时间
+        if (result.success) {
+          await db.updateChannel(input.channelId, {
+            currentValue: result.calibratedValue,
+            lastReadAt: new Date(),
+          });
+        }
+
         return result;
       }),
   }),

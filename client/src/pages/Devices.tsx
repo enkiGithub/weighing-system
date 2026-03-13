@@ -90,21 +90,21 @@ function ChannelSubRows({ instrumentId }: { instrumentId: number }) {
     onError: (error) => toast.error(`更新失败: ${error.message}`),
   });
 
-  // 通信测试（实时TCP连接网关读取仪表数据）
+  // 获取当前值（实时TCP连接网关读取仪表数据）
   const testReadMutation = trpc.channels.testRead.useMutation({
     onSuccess: (data) => {
       utils.channels.listByInstrument.invalidate({ instrumentId });
       if (data.success) {
         toast.success(
-          `实时读取成功！原始值: ${data.rawValue}，校准值: ${data.calibratedValue} ${data.unit}`
+          `获取成功！当前值: ${data.calibratedValue} ${data.unit}`
         );
       } else {
-        toast.warning(data.message || '通信失败，请检查网关连接和仪表状态');
+        toast.warning(data.message || '获取失败，请检查网关连接和仪表状态');
       }
       setTestingChannelId(null);
     },
     onError: (error) => {
-      toast.error(`通信测试失败: ${error.message}`);
+      toast.error(`获取当前值失败: ${error.message}`);
       setTestingChannelId(null);
     },
   });
@@ -214,7 +214,7 @@ function ChannelSubRows({ instrumentId }: { instrumentId: number }) {
                   className="h-7 w-7 p-0"
                   onClick={() => handleTestRead(ch.id)}
                   disabled={testingChannelId === ch.id}
-                  title="通信测试"
+                  title="获取当前值"
                 >
                   {testingChannelId === ch.id ? (
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -588,7 +588,7 @@ export default function Devices() {
         <CardHeader>
           <CardTitle>仪表列表</CardTitle>
           <CardDescription>
-            点击行首 ▶ 箭头展开查看通道配置。每个通道可直接编辑参数或进行通信测试。
+            点击行首 ▶ 箭头展开查看通道配置。每个通道可直接编辑参数或获取当前值。
           </CardDescription>
         </CardHeader>
         <CardContent>
