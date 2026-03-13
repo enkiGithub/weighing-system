@@ -372,3 +372,21 @@ export const alarmLogs = mysqlTable("alarmLogs", {
 
 export type AlarmLog = typeof alarmLogs.$inferSelect;
 export type InsertAlarmLog = typeof alarmLogs.$inferInsert;
+
+/**
+ * 系统设置表
+ * 存储系统级配置参数（键值对形式）
+ */
+export const systemSettings = mysqlTable("systemSettings", {
+  id: int("id").autoincrement().primaryKey(),
+  /** 设置键名 */
+  settingKey: varchar("settingKey", { length: 100 }).notNull().unique(),
+  /** 设置值（JSON字符串） */
+  settingValue: text("settingValue").notNull(),
+  /** 设置描述 */
+  description: text("description"),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type SystemSetting = typeof systemSettings.$inferSelect;
+export type InsertSystemSetting = typeof systemSettings.$inferInsert;

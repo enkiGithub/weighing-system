@@ -16,6 +16,7 @@ import Analytics from "./pages/Analytics";
 import Users from "./pages/Users";
 import LayoutEditor from "./pages/LayoutEditor";
 import AuditLogs from "./pages/AuditLogs";
+import SystemSettings from "./pages/SystemSettings";
 import Login from "./pages/Login";
 
 function DashboardRouter() {
@@ -70,6 +71,11 @@ function DashboardRouter() {
         <Route path={"/layout-editor"}>
           <PermissionGuard moduleId="layout_editor">
             <LayoutEditor />
+          </PermissionGuard>
+        </Route>
+        <Route path={"/system-settings"}>
+          <PermissionGuard moduleId="user_management">
+            <SystemSettings />
           </PermissionGuard>
         </Route>
         <Route path={"/404"} component={NotFound} />

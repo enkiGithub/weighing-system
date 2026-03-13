@@ -66,6 +66,10 @@ async function startServer() {
     console.log(`Port ${preferredPort} is busy, using port ${port} instead`);
   }
 
+  // 启动数据自动清理定时任务
+  const { startAutoCleanup } = await import('../dataCleanup');
+  startAutoCleanup();
+
   server.listen(port, () => {
     console.log(`Server running on http://localhost:${port}/`);
     console.log(`WebSocket server ready at ws://localhost:${port}/api/collection`);

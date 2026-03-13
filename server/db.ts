@@ -29,6 +29,8 @@ import {
   InsertDeviceConnectionStatus,
   userPermissions,
   InsertUserPermission,
+  systemSettings,
+  collectionData,
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 import bcrypt from 'bcryptjs';
@@ -976,6 +978,149 @@ export async function autoResolveAlarm(alarmId: number) {
     .where(eq(alarmRecords.id, alarmId));
   
   return result;
+}
+
+// ==================== 系统设置管理 ====================
+
+/** 获取系统设置 */
+export async function getSystemSetting(key: string): Promise<string | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const result = await db.select().from(systemSettings).where(eq(systemSettings.settingKey, key)).limit(1);
+  return result.length > 0 ? result[0].settingValue : null;
+}
+
+/** 获取所有系统设置 */
+export async function getAllSystemSettings() {
+  const db = await getDb();
+  if (!db) return [];
+  return await db.select().from(systemSettings);
+}
+
+/** 设置系统设置（upsert） */
+export async function setSystemSetting(key: string, value: string, description?: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not connected");
+  
+  const existing = await db.select().from(systemSettings).where(eq(systemSettings.settingKey, key)).limit(1);
+  if (existing.length > 0) {
+    await db.update(systemSettings)
+      .set({ settingValue: value, description: description || existing[0].description })
+      .where(eq(systemSettings.settingKey, key));
+  } else {
+    await db.insert(systemSettings).values({ settingKey: key, settingValue: value, description });
+  }
+}
+
+// ==================== 数据清理 ====================
+
+/** 获取各表记录数统计 */
+export async function getTableRowCounts() {
+  const db = await getDb();
+  if (!db) throw new Error("Database not connected");
+  
+  const [cd] = await db.select({ count: sql<number>`COUNT(*)` }).from(collectionData);
+  const [wcr] = await db.select({ count: sql<number>`COUNT(*)` }).from(weightChangeRecords);
+  const [ar] = await db.select({ count: sql<number>`COUNT(*)` }).from(alarmRecords);
+  const [al] = await db.select({ count: sql<number>`COUNT(*)` }).from(alarmLogs);
+  const [audit] = await db.select({ count: sql<number>`COUNT(*)` }).from(auditLogs);
+  
+  return {
+    collectionData: cd?.count || 0,
+    weightChangeRecords: wcr?.count || 0,
+    alarmRecords: ar?.count || 0,
+    alarmLogs: al?.count || 0,
+    auditLogs: audit?.count || 0,
+  };
+}
+
+/** 清理过期采集数据（按时间） */
+export async function purgeCollectionData(beforeDate: Date) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not connected");
+  const result = await db.delete(collectionData).where(lte(collectionData.collectedAt, beforeDate));
+  return result;
+}
+
+/** 清理过期重量变化记录（按时间） */
+export async function purgeWeightChangeRecords(beforeDate: Date) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not connected");
+  const result = await db.delete(weightChangeRecords).where(lte(weightChangeRecords.recordedAt, beforeDate));
+  return result;
+}
+
+/** 清理过期报警记录（按时间，仅清理已处理/自动解除的） */
+export async function purgeAlarmRecords(beforeDate: Date) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not connected");
+  // 先清理关联的报警日志
+  const oldAlarms = await db.select({ id: alarmRecords.id })
+    .from(alarmRecords)
+    .where(
+      and(
+        lte(alarmRecords.createdAt, beforeDate),
+        sql`${alarmRecords.handlingStatus} IN ('handled', 'auto_resolved')`
+      )
+    );
+  
+  if (oldAlarms.length > 0) {
+    const alarmIds = oldAlarms.map(a => a.id);
+    // 分批清理报警日志
+    for (let i = 0; i < alarmIds.length; i += 500) {
+      const batch = alarmIds.slice(i, i + 500);
+      await db.delete(alarmLogs).where(sql`${alarmLogs.alarmRecordId} IN (${sql.join(batch.map(id => sql`${id}`), sql`, `)})`);
+    }
+    // 清理报警记录
+    for (let i = 0; i < alarmIds.length; i += 500) {
+      const batch = alarmIds.slice(i, i + 500);
+      await db.delete(alarmRecords).where(sql`${alarmRecords.id} IN (${sql.join(batch.map(id => sql`${id}`), sql`, `)})`);
+    }
+  }
+  return oldAlarms.length;
+}
+
+/** 清理过期审计日志（按时间） */
+export async function purgeAuditLogs(beforeDate: Date) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not connected");
+  const result = await db.delete(auditLogs).where(lte(auditLogs.createdAt, beforeDate));
+  return result;
+}
+
+/** 按最大记录数清理采集数据（保留最新的N条，删除其余） */
+export async function trimCollectionData(maxRows: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not connected");
+  // 找到第N条的id作为分界线
+  const boundary = await db.select({ id: collectionData.id })
+    .from(collectionData)
+    .orderBy(desc(collectionData.id))
+    .limit(1)
+    .offset(maxRows);
+  
+  if (boundary.length > 0) {
+    const result = await db.delete(collectionData).where(lte(collectionData.id, boundary[0].id));
+    return result;
+  }
+  return null;
+}
+
+/** 按最大记录数清理重量变化记录（保留最新的N条） */
+export async function trimWeightChangeRecords(maxRows: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not connected");
+  const boundary = await db.select({ id: weightChangeRecords.id })
+    .from(weightChangeRecords)
+    .orderBy(desc(weightChangeRecords.id))
+    .limit(1)
+    .offset(maxRows);
+  
+  if (boundary.length > 0) {
+    const result = await db.delete(weightChangeRecords).where(lte(weightChangeRecords.id, boundary[0].id));
+    return result;
+  }
+  return null;
 }
 
 

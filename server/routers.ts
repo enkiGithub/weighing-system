@@ -1054,6 +1054,103 @@ export const appRouter = router({
       return await db.getAllCabinetGroups();
     }),
   }),
+
+  // 系统设置与数据维护（仅管理员）
+  systemSettings: router({
+    /** 获取所有清理配置 */
+    getCleanupConfig: adminProcedure.query(async () => {
+      const settings = await db.getAllSystemSettings();
+      const config: Record<string, string> = {};
+      for (const s of settings) {
+        config[s.settingKey] = s.settingValue;
+      }
+      // 返回默认值
+      return {
+        collectionData_retentionDays: parseInt(config['collectionData_retentionDays'] || '30'),
+        collectionData_maxRows: parseInt(config['collectionData_maxRows'] || '5000000'),
+        weightChangeRecords_retentionDays: parseInt(config['weightChangeRecords_retentionDays'] || '365'),
+        weightChangeRecords_maxRows: parseInt(config['weightChangeRecords_maxRows'] || '2000000'),
+        alarmRecords_retentionDays: parseInt(config['alarmRecords_retentionDays'] || '365'),
+        auditLogs_retentionDays: parseInt(config['auditLogs_retentionDays'] || '365'),
+        autoCleanupEnabled: config['autoCleanupEnabled'] === 'true',
+        autoCleanupHour: parseInt(config['autoCleanupHour'] || '3'),
+      };
+    }),
+
+    /** 更新清理配置 */
+    updateCleanupConfig: adminProcedure
+      .input(z.object({
+        collectionData_retentionDays: z.number().int().min(1).max(3650),
+        collectionData_maxRows: z.number().int().min(10000).max(100000000),
+        weightChangeRecords_retentionDays: z.number().int().min(1).max(3650),
+        weightChangeRecords_maxRows: z.number().int().min(10000).max(100000000),
+        alarmRecords_retentionDays: z.number().int().min(1).max(3650),
+        auditLogs_retentionDays: z.number().int().min(1).max(3650),
+        autoCleanupEnabled: z.boolean(),
+        autoCleanupHour: z.number().int().min(0).max(23),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const entries = Object.entries(input) as [string, any][];
+        for (const [key, value] of entries) {
+          await db.setSystemSetting(key, String(value));
+        }
+        await audit(ctx.user.id, ctx.user.name, 'update', 'systemSettings', null, `更新数据清理配置`);
+        return { success: true };
+      }),
+
+    /** 获取各表记录数统计 */
+    getTableStats: adminProcedure.query(async () => {
+      return await db.getTableRowCounts();
+    }),
+
+    /** 手动执行数据清理 */
+    executeCleanup: adminProcedure
+      .input(z.object({
+        tables: z.array(z.enum(['collectionData', 'weightChangeRecords', 'alarmRecords', 'auditLogs'])),
+        mode: z.enum(['byTime', 'byMaxRows']),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const settings = await db.getAllSystemSettings();
+        const config: Record<string, string> = {};
+        for (const s of settings) config[s.settingKey] = s.settingValue;
+
+        const results: Record<string, string> = {};
+
+        for (const table of input.tables) {
+          try {
+            if (input.mode === 'byTime') {
+              const retentionDays = parseInt(config[`${table}_retentionDays`] || '365');
+              const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
+
+              if (table === 'collectionData') {
+                await db.purgeCollectionData(cutoff);
+              } else if (table === 'weightChangeRecords') {
+                await db.purgeWeightChangeRecords(cutoff);
+              } else if (table === 'alarmRecords') {
+                await db.purgeAlarmRecords(cutoff);
+              } else if (table === 'auditLogs') {
+                await db.purgeAuditLogs(cutoff);
+              }
+              results[table] = `已清理 ${retentionDays} 天前的数据`;
+            } else {
+              const maxRows = parseInt(config[`${table}_maxRows`] || '5000000');
+              if (table === 'collectionData') {
+                await db.trimCollectionData(maxRows);
+              } else if (table === 'weightChangeRecords') {
+                await db.trimWeightChangeRecords(maxRows);
+              }
+              results[table] = `已保留最新 ${maxRows} 条记录`;
+            }
+          } catch (err: any) {
+            results[table] = `清理失败: ${err.message}`;
+          }
+        }
+
+        await audit(ctx.user.id, ctx.user.name, 'cleanup', 'systemSettings', null,
+          `手动执行数据清理: ${input.tables.join(', ')} (模式: ${input.mode})`);
+        return results;
+      }),
+  }),
 });
 
 export type AppRouter = typeof appRouter;

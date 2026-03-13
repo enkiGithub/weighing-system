@@ -579,3 +579,10 @@
 - [x] 确认数据写入问题：WebSocket实时采集未写入变化记录（仅手动updateWeight才写入）
 - [x] 修复：在recalculateGroupWeight中添加自动写入weightChangeRecords和alarmRecords逻辑
 - [x] 防护机制：重量变化>0.001且距上次记录>5秒才写入，避免刷库
+
+## 数据库记录自动清理机制
+- [x] 排查所有持续增长的数据表（5张表：collectionData/weightChangeRecords/alarmRecords/alarmLogs/auditLogs）
+- [x] 设计清理策略（按时间过期 + 最大记录数上限双重保护）
+- [x] 实现后端定时清理任务（dataCleanup.ts，每小时检查，配置时间执行）
+- [x] 在系统设置中添加清理参数配置界面（SystemSettings页面）
+- [x] 构建并部署到现场服务器（active running, HTTP 200）

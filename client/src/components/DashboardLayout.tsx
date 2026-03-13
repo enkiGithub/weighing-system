@@ -21,7 +21,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { useIsMobile } from "@/hooks/useMobile";
-import { LayoutDashboard, LogOut, PanelLeft, Users, Gauge, Server, Archive, Database, Bell, BarChart3, Grid3x3, ClipboardList, KeyRound } from "lucide-react";
+import { LayoutDashboard, LogOut, PanelLeft, Users, Gauge, Server, Archive, Database, Bell, BarChart3, Grid3x3, ClipboardList, KeyRound, Settings } from "lucide-react";
 import { usePermissions } from "@/hooks/usePermissions";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -39,6 +39,7 @@ const menuItems = [
   { icon: ClipboardList, label: "审计日志", path: "/audit-logs", moduleId: "audit_logs" as const },
   { icon: Users, label: "用户管理", path: "/users", moduleId: "user_management" as const },
   { icon: Grid3x3, label: "布局编辑器", path: "/layout-editor", moduleId: "layout_editor" as const },
+  { icon: Settings, label: "系统设置", path: "/system-settings", moduleId: "user_management" as const },
 ];
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";
