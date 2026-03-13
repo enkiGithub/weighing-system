@@ -31,7 +31,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { Plus, Edit, Trash2, Loader2, WifiOff, Wifi, ChevronLeft, ChevronRight, Cable, Settings2 } from "lucide-react";
+import { Plus, Edit, Trash2, Loader2, WifiOff, Wifi, ChevronLeft, ChevronRight, Cable, Settings2, RefreshCw, Radio } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -66,6 +67,61 @@ const comPortSchema = z.object({
 type ComPortForm = z.infer<typeof comPortSchema>;
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
+
+/** 采集服务状态指示器 + 手动重载按钮 */
+function CollectorStatusBadge() {
+  const { data: status } = trpc.collector.status.useQuery(undefined, { refetchInterval: 5000 });
+  const reloadMutation = trpc.collector.reloadConfig.useMutation({
+    onSuccess: () => {
+      toast.success('已发送重载指令，采集服务正在重新加载配置');
+    },
+    onError: (err) => {
+      toast.error(err.message || '发送重载指令失败');
+    },
+  });
+
+  const connected = status?.connected ?? false;
+
+  return (
+    <TooltipProvider>
+      <div className="flex items-center gap-2 mr-2">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium ${
+              connected
+                ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                : 'bg-red-500/10 text-red-400 border border-red-500/20'
+            }`}>
+              <Radio className={`h-3 w-3 ${connected ? 'text-emerald-400' : 'text-red-400'}`} />
+              采集服务{connected ? '已连接' : '未连接'}
+            </div>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>采集服务{connected ? '已连接到Web服务器' : '未连接，请检查采集服务是否已启动'}</p>
+          </TooltipContent>
+        </Tooltip>
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => reloadMutation.mutate()}
+              disabled={!connected || reloadMutation.isPending}
+              className="h-8"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${reloadMutation.isPending ? 'animate-spin' : ''}`} />
+              重载采集配置
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>手动通知采集服务重新加载网关、仪表、通道配置</p>
+          </TooltipContent>
+        </Tooltip>
+      </div>
+    </TooltipProvider>
+  );
+}
 
 export default function Gateways() {
   const { canOperate } = usePermissions();
@@ -288,7 +344,8 @@ export default function Gateways() {
           <h1 className="text-3xl font-bold tracking-tight text-foreground">网关配置</h1>
           <p className="text-muted-foreground mt-2">管理所有RS485网关设备及其COM端口配置</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
+          <CollectorStatusBadge />
           {canEdit && selectedIds.size > 0 && (
             <Button variant="destructive" onClick={handleBatchDelete} disabled={batchDeleteMutation.isPending}>
               {batchDeleteMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

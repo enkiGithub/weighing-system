@@ -50,22 +50,47 @@ class WeighingCollectionService {
         console.warn('[Service] 后端连接已断开，将自动重连');
       });
 
+      // 监听后端下发的重载配置指令
+      this.wsClient.on('reload_config', (msg: any) => {
+        console.log(`[Service] 收到配置重载指令，原因: ${msg.reason}`);
+        this.reloadConfig().catch(err => {
+          console.error('[Service] 配置重载失败:', err);
+        });
+      });
+
       this.isRunning = true;
 
       // 加载配置并启动采集
       await this.loadAndStartCollectors();
 
-      // 定期重新加载配置（每30秒）
+      // 定期重新加载配置（每60秒，作为实时通知的备用机制）
       setInterval(() => {
         this.loadAndStartCollectors().catch(err => {
-          console.error('[Service] 重新加载配置失败:', err);
+          console.error('[Service] 定时重新加载配置失败:', err);
         });
-      }, 30000);
+      }, 60000);
 
     } catch (err) {
       console.error('[Service] 启动失败:', err);
       process.exit(1);
     }
+  }
+
+  /**
+   * 重新加载配置（停止所有现有采集器，重新初始化）
+   * 用于响应后端的配置变更通知
+   */
+  private async reloadConfig(): Promise<void> {
+    console.log('[Service] 开始重新加载配置...');
+    
+    // 停止所有现有采集器
+    for (const comPortId of this.portCollectors.keys()) {
+      this.stopCollector(comPortId);
+    }
+    
+    // 重新加载并启动
+    await this.loadAndStartCollectors();
+    console.log('[Service] 配置重载完成');
   }
 
   private async loadAndStartCollectors(): Promise<void> {
@@ -321,7 +346,7 @@ class WeighingCollectionService {
 // 启动服务
 const config: CollectorConfig = {
   databaseUrl: process.env.DATABASE_URL || 'mysql://root:password@localhost:3306/weighing_system',
-  backendWebSocketUrl: process.env.BACKEND_WS_URL || 'ws://localhost:3000/api/collection',
+  backendWebSocketUrl: (process.env.BACKEND_WS_URL || 'ws://localhost:3000/api/collection') + '?role=collector',
 };
 
 const service = new WeighingCollectionService(config);

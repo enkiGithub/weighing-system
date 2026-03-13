@@ -22,7 +22,14 @@ export interface ConnectionStatusMessage {
   timestamp: number;
 }
 
+export interface ReloadConfigCommand {
+  type: 'reload_config';
+  reason: string;
+  timestamp: number;
+}
+
 export type Message = CollectionDataMessage | ConnectionStatusMessage;
+export type ServerCommand = ReloadConfigCommand;
 
 export class CollectionWebSocketServer {
   private wss: WebSocketServer;
@@ -37,11 +44,12 @@ export class CollectionWebSocketServer {
 
     this.wss.on('connection', (ws: WebSocket, req: any) => {
       const clientIp = req.socket.remoteAddress;
-      console.log(`[WS] 新连接: ${clientIp}`);
+      const url = req.url || '';
+      console.log(`[WS] 新连接: ${clientIp} (URL: ${url})`);
 
-      // 判断是采集服务还是前端客户端
-      // 采集服务通常来自 localhost，前端来自浏览器
-      if (clientIp === '127.0.0.1' || clientIp === '::1' || clientIp?.startsWith('127.')) {
+      // 通过 URL 参数区分采集服务和前端客户端
+      // 采集服务连接时会带上 ?role=collector 参数
+      if (url.includes('role=collector')) {
         this.handleCollectorConnection(ws, clientIp);
       } else {
         this.handleClientConnection(ws, clientIp);
@@ -124,6 +132,33 @@ export class CollectionWebSocketServer {
 
   getClientCount(): number {
     return this.clientConnections.size;
+  }
+
+  /**
+   * 向采集服务发送重载配置指令
+   * @param reason 触发原因（如 "网关配置变更"、"手动触发" 等）
+   * @returns 是否成功发送
+   */
+  sendReloadConfig(reason: string): boolean {
+    if (!this.collectorConnection || this.collectorConnection.readyState !== WebSocket.OPEN) {
+      console.warn('[WS] 无法发送重载指令：采集服务未连接');
+      return false;
+    }
+
+    const command: ReloadConfigCommand = {
+      type: 'reload_config',
+      reason,
+      timestamp: Date.now(),
+    };
+
+    try {
+      this.collectorConnection.send(JSON.stringify(command));
+      console.log(`[WS] 已向采集服务发送重载配置指令 (原因: ${reason})`);
+      return true;
+    } catch (err) {
+      console.error('[WS] 发送重载指令失败:', err);
+      return false;
+    }
   }
 
   close(): void {

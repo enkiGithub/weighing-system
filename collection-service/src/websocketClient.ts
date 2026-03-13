@@ -89,7 +89,13 @@ export class WebSocketClient extends EventEmitter {
         this.ws.on('message', (data: Buffer) => {
           try {
             const message = JSON.parse(data.toString());
-            this.emit('message', message);
+            // 处理服务端下发的指令
+            if (message.type === 'reload_config') {
+              console.log(`[WebSocket] 收到重载配置指令 (原因: ${message.reason})`);
+              this.emit('reload_config', message);
+            } else {
+              this.emit('message', message);
+            }
           } catch (err) {
             console.error('[WebSocket] 消息解析错误:', err);
           }

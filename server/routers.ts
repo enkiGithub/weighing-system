@@ -9,6 +9,19 @@ import { layoutEditorRouter } from "./routers/layoutEditor";
 import { sdk } from "./_core/sdk";
 import { readChannelRealtime } from "./modbusReader";
 
+/** 获取全局 WebSocket 服务器实例，用于向采集服务发送指令 */
+function getWsServer() {
+  return (global as any).wsServer as import('./_core/websocketServer').CollectionWebSocketServer | undefined;
+}
+
+/** 通知采集服务重载配置 */
+function notifyCollectorReload(reason: string) {
+  const ws = getWsServer();
+  if (ws) {
+    ws.sendReloadConfig(reason);
+  }
+}
+
 // Admin权限检查
 const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
   if (ctx.user.role !== 'admin') {
@@ -247,6 +260,7 @@ export const appRouter = router({
       .mutation(async ({ input, ctx }) => {
         const id = await db.createGateway(input);
         await audit(ctx.user.id, ctx.user.name, "create", "gateway", id, `创建网关: ${input.name}`, input);
+        notifyCollectorReload(`创建网关: ${input.name}`);
         const gateway = await db.getGatewayById(id);
         return gateway || { id, ...input };
       }),
@@ -262,6 +276,7 @@ export const appRouter = router({
         const { id, ...data } = input;
         await db.updateGateway(id, data);
         await audit(ctx.user.id, ctx.user.name, "update", "gateway", id, `更新网关 #${id}`, data);
+        notifyCollectorReload(`更新网关 #${id}`);
         return { success: true };
       }),
     
@@ -270,6 +285,7 @@ export const appRouter = router({
       .mutation(async ({ input, ctx }) => {
         await db.deleteGateway(input.id);
         await audit(ctx.user.id, ctx.user.name, "delete", "gateway", input.id, `删除网关 #${input.id}`);
+        notifyCollectorReload(`删除网关 #${input.id}`);
         return { success: true };
       }),
 
@@ -280,6 +296,7 @@ export const appRouter = router({
           await db.deleteGateway(id);
         }
         await audit(ctx.user.id, ctx.user.name, "batchDelete", "gateway", null, `批量删除网关: ${input.ids.join(",")}`, { ids: input.ids });
+        notifyCollectorReload(`批量删除网关: ${input.ids.join(',')}`);
         return { success: true, count: input.ids.length };
       }),
     
@@ -325,6 +342,7 @@ export const appRouter = router({
       .mutation(async ({ input, ctx }) => {
         const id = await db.createComPort(input);
         await audit(ctx.user.id, ctx.user.name, "create", "comPort", id, `创建COM端口: ${input.portNumber}`, input);
+        notifyCollectorReload(`创建COM端口: ${input.portNumber}`);
         return { id, ...input };
       }),
     
@@ -348,6 +366,7 @@ export const appRouter = router({
         const { id, ...data } = input;
         await db.updateComPort(id, data);
         await audit(ctx.user.id, ctx.user.name, "update", "comPort", id, `更新COM端口 #${id}`, data);
+        notifyCollectorReload(`更新COM端口 #${id}`);
         return { success: true };
       }),
     
@@ -364,6 +383,7 @@ export const appRouter = router({
         }
         await db.deleteComPort(input.id);
         await audit(ctx.user.id, ctx.user.name, "delete", "comPort", input.id, `删除COM端口 #${input.id}`);
+        notifyCollectorReload(`删除COM端口 #${input.id}`);
         return { success: true };
       }),
   }),
@@ -413,6 +433,7 @@ export const appRouter = router({
         const channelIds = await db.autoGenerateChannels(id, input.modelType);
         
         await audit(ctx.user.id, ctx.user.name, "create", "instrument", id, `创建仪表: ${input.deviceCode} (${input.modelType})`, { ...input, channelIds });
+        notifyCollectorReload(`创建仪表: ${input.deviceCode}`);
         return { id, channelIds, ...input };
       }),
     
@@ -489,6 +510,7 @@ export const appRouter = router({
         }
         
         await audit(ctx.user.id, ctx.user.name, "update", "instrument", id, `更新仪表 #${id}`, data);
+        notifyCollectorReload(`更新仪表 #${id}`);
         return { success: true };
       }),
     
@@ -518,6 +540,7 @@ export const appRouter = router({
         await db.deleteInstrument(input.id);
         const detail = boundChannels.length > 0 ? `（已自动解除 ${boundChannels.join(',')} 的柜组绑定）` : '';
         await audit(ctx.user.id, ctx.user.name, "delete", "instrument", input.id, `删除仪表 #${input.id}${detail}`);
+        notifyCollectorReload(`删除仪表 #${input.id}`);
         return { success: true };
       }),
 
@@ -554,6 +577,7 @@ export const appRouter = router({
         }
         await db.deleteInstrumentsByIds(input.ids);
         await audit(ctx.user.id, ctx.user.name, "batchDelete", "instrument", null, `批量删除仪表: ${input.ids.join(",")}（含级联解绑）`, { ids: input.ids });
+        notifyCollectorReload(`批量删除仪表: ${input.ids.join(',')}`);
         return { success: true, count: input.ids.length };
       }),
     
@@ -616,6 +640,7 @@ export const appRouter = router({
         const { id, ...data } = input;
         await db.updateChannel(id, data);
         await audit(ctx.user.id, ctx.user.name, "update", "channel", id, `更新通道 #${id}`, data);
+        notifyCollectorReload(`更新通道 #${id}`);
         return { success: true };
       }),
 
@@ -980,6 +1005,33 @@ export const appRouter = router({
   }),
 
   layoutEditor: layoutEditorRouter,
+
+  // 采集服务管理
+  collector: router({
+    /** 获取采集服务连接状态 */
+    status: gatewayView.query(() => {
+      const ws = getWsServer();
+      return {
+        connected: ws?.getCollectorConnected() ?? false,
+        clientCount: ws?.getClientCount() ?? 0,
+      };
+    }),
+
+    /** 手动重载采集配置 */
+    reloadConfig: gatewayOperate
+      .mutation(async ({ ctx }) => {
+        const ws = getWsServer();
+        if (!ws || !ws.getCollectorConnected()) {
+          throw new TRPCError({ code: 'PRECONDITION_FAILED', message: '采集服务未连接，无法发送重载指令' });
+        }
+        const sent = ws.sendReloadConfig(`用户 ${ctx.user.name || ctx.user.username} 手动触发`);
+        if (!sent) {
+          throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: '发送重载指令失败' });
+        }
+        await audit(ctx.user.id, ctx.user.name, 'reload_config', 'collector', null, `手动重载采集配置`);
+        return { success: true };
+      }),
+  }),
 
   // 实时监视专用路由（使用dashboard权限，避免跨模块权限冲突）
   monitor: router({
