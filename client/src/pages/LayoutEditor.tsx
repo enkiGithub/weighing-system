@@ -335,7 +335,26 @@ export default function LayoutEditor() {
   // Queries
   const layoutsQuery = trpc.layoutEditor.vaultLayouts.list.useQuery();
   const cabinetGroupsQuery = trpc.cabinetGroups.list.useQuery();
+  const activeLayoutQuery = trpc.monitor.getActiveLayout.useQuery();
   const utils = trpc.useUtils();
+
+  // 组件挂载时自动加载已激活的布局（解决切换页面后内容丢失问题）
+  useEffect(() => {
+    if (!layoutData && activeLayoutQuery.data) {
+      const layout = activeLayoutQuery.data as any;
+      try {
+        const data = JSON.parse(layout.layoutData);
+        if (data.bounds && data.cabinets) {
+          setLayoutData(data as DxfLayoutData);
+          setCurrentLayoutId(layout.id);
+          setLayoutName(layout.name);
+          setLayoutDesc(layout.description || "");
+        }
+      } catch {
+        // 解析失败则忽略
+      }
+    }
+  }, [activeLayoutQuery.data]);  // eslint-disable-line react-hooks/exhaustive-deps
 
   // Mutations
   const parseDxf = trpc.layoutEditor.vaultLayouts.parseDxf.useMutation();
@@ -453,11 +472,39 @@ export default function LayoutEditor() {
 
   const handleSelectionRect = useCallback((rect: { x1: number; y1: number; x2: number; y2: number }) => {
     if (!layoutData) return;
+    const rotation = layoutData.rotation || 0;
     const selected = new Set<number>();
-    for (const cab of layoutData.cabinets) {
-      if (cab.centerX >= rect.x1 && cab.centerX <= rect.x2 &&
-          cab.centerY >= rect.y1 && cab.centerY <= rect.y2) {
-        selected.add(cab.id);
+
+    if (rotation === 0) {
+      // 无旋转时直接比较
+      for (const cab of layoutData.cabinets) {
+        if (cab.centerX >= rect.x1 && cab.centerX <= rect.x2 &&
+            cab.centerY >= rect.y1 && cab.centerY <= rect.y2) {
+          selected.add(cab.id);
+        }
+      }
+    } else {
+      // 有旋转时，需要将柜组的原始坐标旋转后再与框选矩形比较
+      // 旋转中心是viewBox的中心点
+      const { bounds } = layoutData;
+      const padding = Math.max(bounds.maxX - bounds.minX, bounds.maxY - bounds.minY) * 0.05;
+      const cx = bounds.minX - padding + ((bounds.maxX - bounds.minX) + padding * 2) / 2;
+      const cy = bounds.minY - padding + ((bounds.maxY - bounds.minY) + padding * 2) / 2;
+      const rad = rotation * Math.PI / 180;
+      const cosA = Math.cos(rad);
+      const sinA = Math.sin(rad);
+
+      for (const cab of layoutData.cabinets) {
+        // 将柜组中心点绕viewBox中心旋转（与SVG transform一致）
+        const dx = cab.centerX - cx;
+        const dy = cab.centerY - cy;
+        const rotX = cx + dx * cosA - dy * sinA;
+        const rotY = cy + dx * sinA + dy * cosA;
+
+        if (rotX >= rect.x1 && rotX <= rect.x2 &&
+            rotY >= rect.y1 && rotY <= rect.y2) {
+          selected.add(cab.id);
+        }
       }
     }
     setSelectedCabinetIds(selected);
