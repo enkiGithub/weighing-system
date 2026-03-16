@@ -1,6 +1,19 @@
 import { eq, desc, asc, and, gte, lte, inArray, sql } from "drizzle-orm";
 import { drizzle, type MySql2Database } from "drizzle-orm/mysql2";
 import mysql from "mysql2/promise";
+import { MySqlTimestamp } from "drizzle-orm/mysql-core/columns/timestamp";
+
+// Monkey-patch Drizzle's MySqlTimestamp.mapFromDriverValue
+// Drizzle's default implementation does: new Date(value + "+0000")
+// When mysql2 returns a Date object, this causes incorrect string concatenation
+// resulting in an 8-hour timezone offset. Fix: if value is already a Date, return it directly.
+const originalMapFromDriverValue = MySqlTimestamp.prototype.mapFromDriverValue;
+MySqlTimestamp.prototype.mapFromDriverValue = function(value: any) {
+  if (value instanceof Date) {
+    return value;
+  }
+  return originalMapFromDriverValue.call(this, value);
+};
 import { 
   InsertUser, 
   users,
@@ -42,11 +55,10 @@ let _db: MySql2Database | null = null;
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
-      // 创建连接池并显式设置时区为 Asia/Shanghai (UTC+8)
-      // 确保MySQL返回的时间戳与服务器本地时间一致
+      // 创建连接池（不设置timezone，使用MySQL服务器默认时区SYSTEM=CST）
+      // Drizzle的mapFromDriverValue已被monkey-patch修复，正确处理Date对象
       const pool = mysql.createPool({
         uri: process.env.DATABASE_URL,
-        timezone: '+08:00',
       });
       _db = drizzle(pool as any);
     } catch (error) {

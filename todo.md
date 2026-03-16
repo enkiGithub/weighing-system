@@ -602,3 +602,14 @@
 - [x] 排查数据记录中时间存储和显示的时区处理（mysql2连接未设置timezone）
 - [x] 修复：在db.ts中创建mysql2连接池时显式设置timezone:'+08:00'
 - [x] 构建并部署到现场服务器（server.mjs包含timezone配置，active running）
+
+## Bug修复：时区8小时偏移（Drizzle ORM源码级修复）
+- [x] 排查根因：Drizzle ORM的MySqlTimestamp.mapFromDriverValue将Date对象toString后拼接"+0000"导致8小时偏移
+- [x] 修改node_modules/drizzle-orm/mysql-core/columns/timestamp.js，添加instanceof Date检查
+- [x] 重新构建server.mjs（esbuild打包包含修改后的Drizzle源码）
+- [x] 重新构建前端（vite build）
+- [x] 部署server.mjs和前端文件到生产服务器（enkitek@58.33.106.19:1122）
+- [x] 创建缺失的systemSettings表（手动执行CREATE TABLE IF NOT EXISTS）
+- [x] 重启weighing-web.service
+- [x] 验证：数据记录页面时间戳正确（17:16:10 CST，无8小时偏移）
+- [x] 验证：报警管理页面时间戳正确（17:15:48 CST，无8小时偏移）
