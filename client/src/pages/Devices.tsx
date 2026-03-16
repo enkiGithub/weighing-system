@@ -66,8 +66,8 @@ function ChannelSubRows({ instrumentId }: { instrumentId: number }) {
   // 编辑表单状态
   const [editLabel, setEditLabel] = useState("");
   const [editEnabled, setEditEnabled] = useState(true);
-  const [editScale, setEditScale] = useState(1.0);
-  const [editOffset, setEditOffset] = useState(0.0);
+  const [editScale, setEditScale] = useState("1");
+  const [editOffset, setEditOffset] = useState("0");
   const [editUnit, setEditUnit] = useState("g");
   const [editPrecision, setEditPrecision] = useState(2);
   const [editRemark, setEditRemark] = useState("");
@@ -113,8 +113,8 @@ function ChannelSubRows({ instrumentId }: { instrumentId: number }) {
     setEditingChannel(channel);
     setEditLabel(channel.label);
     setEditEnabled(!!channel.enabled);
-    setEditScale(channel.scale);
-    setEditOffset(channel.offset);
+    setEditScale(String(channel.scale));
+    setEditOffset(String(channel.offset));
     setEditUnit(channel.unit);
     setEditPrecision(channel.precision);
     setEditRemark(channel.remark || "");
@@ -127,8 +127,8 @@ function ChannelSubRows({ instrumentId }: { instrumentId: number }) {
       id: editingChannel.id,
       label: editLabel,
       enabled: editEnabled ? 1 : 0,
-      scale: editScale,
-      offset: editOffset,
+      scale: parseFloat(editScale) || 0,
+      offset: parseFloat(editOffset) || 0,
       unit: editUnit,
       precision: editPrecision,
       remark: editRemark || undefined,
@@ -277,7 +277,7 @@ function ChannelSubRows({ instrumentId }: { instrumentId: number }) {
                   type="number"
                   step="0.001"
                   value={editScale}
-                  onChange={(e) => setEditScale(parseFloat(e.target.value) || 1.0)}
+                  onChange={(e) => setEditScale(e.target.value)}
                 />
                 <p className="text-xs text-muted-foreground">校准值 = 原始值 × 系数 + 偏移</p>
               </div>
@@ -288,7 +288,7 @@ function ChannelSubRows({ instrumentId }: { instrumentId: number }) {
                   type="number"
                   step="0.01"
                   value={editOffset}
-                  onChange={(e) => setEditOffset(parseFloat(e.target.value) || 0.0)}
+                  onChange={(e) => setEditOffset(e.target.value)}
                 />
               </div>
             </div>
