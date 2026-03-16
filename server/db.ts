@@ -5,14 +5,14 @@ import { MySqlTimestamp } from "drizzle-orm/mysql-core/columns/timestamp";
 
 // Monkey-patch Drizzle's MySqlTimestamp.mapFromDriverValue
 // Drizzle's default implementation does: new Date(value + "+0000")
-// When mysql2 returns a Date object, this causes incorrect string concatenation
-// resulting in an 8-hour timezone offset. Fix: if value is already a Date, return it directly.
-const originalMapFromDriverValue = MySqlTimestamp.prototype.mapFromDriverValue;
+// When mysql2 returns a string like "2026-03-16 17:48:48" (MySQL local time),
+// appending "+0000" makes new Date() interpret local time as UTC → 8-hour offset.
+// Fix: use new Date(value) directly, which treats the string as local time.
 MySqlTimestamp.prototype.mapFromDriverValue = function(value: any) {
   if (value instanceof Date) {
     return value;
   }
-  return originalMapFromDriverValue.call(this, value);
+  return new Date(value);
 };
 import { 
   InsertUser, 

@@ -1098,6 +1098,32 @@ export const appRouter = router({
         return { success: true };
       }),
 
+    /** 获取数据记录触发条件配置 */
+    getRecordTriggerConfig: adminProcedure.query(async () => {
+      const settings = await db.getAllSystemSettings();
+      const config: Record<string, string> = {};
+      for (const s of settings) {
+        config[s.settingKey] = s.settingValue;
+      }
+      return {
+        weightChangeMinDiff: parseFloat(config['weightChangeMinDiff'] || '0.001'),
+        weightChangeMinInterval: parseFloat(config['weightChangeMinInterval'] || '5'),
+      };
+    }),
+    /** 更新数据记录触发条件配置 */
+    updateRecordTriggerConfig: adminProcedure
+      .input(z.object({
+        weightChangeMinDiff: z.number().min(0).max(1000),
+        weightChangeMinInterval: z.number().min(0).max(86400),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        await db.setSystemSetting('weightChangeMinDiff', String(input.weightChangeMinDiff), '数据记录最小重量变化阈值(kg)');
+        await db.setSystemSetting('weightChangeMinInterval', String(input.weightChangeMinInterval), '数据记录最小时间间隔(秒)');
+        await audit(ctx.user.id, ctx.user.name, 'update', 'systemSettings', null,
+          `更新数据记录触发条件: 最小变化${input.weightChangeMinDiff}kg, 最小间隔${input.weightChangeMinInterval}秒`);
+        return { success: true };
+      }),
+
     /** 获取各表记录数统计 */
     getTableStats: adminProcedure.query(async () => {
       return await db.getTableRowCounts();

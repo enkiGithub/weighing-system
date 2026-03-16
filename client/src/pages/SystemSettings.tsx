@@ -26,10 +26,11 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
-import { Loader2, Database, Trash2, Clock, HardDrive, RefreshCw, Shield, Settings2 } from "lucide-react";
+import { Loader2, Database, Trash2, Clock, HardDrive, RefreshCw, Shield, Settings2, Activity } from "lucide-react";
 
 export default function SystemSettings() {
   const { data: config, isLoading: configLoading } = trpc.systemSettings.getCleanupConfig.useQuery();
+  const { data: triggerConfig, isLoading: triggerLoading } = trpc.systemSettings.getRecordTriggerConfig.useQuery();
   const { data: stats, isLoading: statsLoading, refetch: refetchStats } = trpc.systemSettings.getTableStats.useQuery();
   const utils = trpc.useUtils();
 
@@ -49,6 +50,26 @@ export default function SystemSettings() {
     },
     onError: (err) => toast.error(`清理失败: ${err.message}`),
   });
+
+  const updateTriggerConfig = trpc.systemSettings.updateRecordTriggerConfig.useMutation({
+    onSuccess: () => {
+      toast.success("数据记录触发条件已保存，将在60秒内生效");
+      utils.systemSettings.getRecordTriggerConfig.invalidate();
+    },
+    onError: (err) => toast.error(`保存失败: ${err.message}`),
+  });
+
+  // 数据记录触发条件表单
+  const [triggerForm, setTriggerForm] = useState({
+    weightChangeMinDiff: 0.001,
+    weightChangeMinInterval: 5,
+  });
+
+  useEffect(() => {
+    if (triggerConfig) {
+      setTriggerForm(triggerConfig);
+    }
+  }, [triggerConfig]);
 
   // 表单状态
   const [form, setForm] = useState({
@@ -109,6 +130,70 @@ export default function SystemSettings() {
         <h1 className="text-3xl font-bold tracking-tight text-foreground">系统设置</h1>
         <p className="text-muted-foreground mt-2">数据库维护与自动清理配置</p>
       </div>
+
+      {/* 数据记录触发条件 */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <Activity className="h-5 w-5 text-primary" />
+            <CardTitle>数据记录触发条件</CardTitle>
+          </div>
+          <CardDescription>配置重量变化记录的写入条件，同时满足两个条件时才会写入一条新记录</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="grid gap-6 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label className="text-base font-medium">最小重量变化阈值</Label>
+              <p className="text-sm text-muted-foreground">
+                柜组重量变化超过此值时才记录（单位：kg）
+              </p>
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  min={0}
+                  max={1000}
+                  step={0.001}
+                  value={triggerForm.weightChangeMinDiff}
+                  onChange={(e) => setTriggerForm(f => ({ ...f, weightChangeMinDiff: parseFloat(e.target.value) || 0 }))}
+                  className="max-w-[200px]"
+                />
+                <span className="text-sm text-muted-foreground whitespace-nowrap">kg</span>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-base font-medium">最小记录时间间隔</Label>
+              <p className="text-sm text-muted-foreground">
+                距离上次记录超过此时间才写入新记录（单位：秒）
+              </p>
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  min={0}
+                  max={86400}
+                  step={1}
+                  value={triggerForm.weightChangeMinInterval}
+                  onChange={(e) => setTriggerForm(f => ({ ...f, weightChangeMinInterval: parseFloat(e.target.value) || 0 }))}
+                  className="max-w-[200px]"
+                />
+                <span className="text-sm text-muted-foreground whitespace-nowrap">秒</span>
+              </div>
+            </div>
+          </div>
+          <div className="rounded-lg border border-border bg-muted/30 p-3">
+            <p className="text-sm text-muted-foreground">
+              <strong>当前规则：</strong>当柜组重量变化超过 <span className="text-foreground font-medium">{triggerForm.weightChangeMinDiff} kg</span>，
+              且距离上次记录超过 <span className="text-foreground font-medium">{triggerForm.weightChangeMinInterval} 秒</span> 时，写入一条新的重量变化记录。
+              修改后约60秒内自动生效，无需重启服务。
+            </p>
+          </div>
+          <div className="flex justify-end">
+            <Button onClick={() => updateTriggerConfig.mutate(triggerForm)} disabled={updateTriggerConfig.isPending}>
+              {updateTriggerConfig.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              保存触发条件
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* 数据库统计 */}
       <Card>

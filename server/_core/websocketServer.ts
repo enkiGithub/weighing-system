@@ -56,6 +56,10 @@ export class CollectionWebSocketServer {
   private _lastRecordedWeight: Map<number, number> = new Map();
   // 记录每个柜组上一次写入记录的时间，避免过于频繁写入
   private _lastRecordTime: Map<number, number> = new Map();
+  // 数据记录触发条件（可通过系统设置配置）
+  private _weightChangeMinDiff: number = 0.001; // 最小重量变化(kg)
+  private _weightChangeMinInterval: number = 5000; // 最小记录间隔(ms)
+  private _configCacheTime: number = 0;
 
   constructor(httpServer: HTTPServer) {
     this.wss = new WebSocketServer({ 
@@ -295,11 +299,21 @@ export class CollectionWebSocketServer {
     // 更新柜组重量和状态到数据库
     await db.updateCabinetGroupWeight(groupId, totalWeight, status);
 
-    // 写入重量变化记录（条件：重量变化超过0.001，且距上次记录至少5秒）
+    // 定期刷新配置（每60秒从数据库读取一次）
+    const now = Date.now();
+    if (now - this._configCacheTime > 60000) {
+      this._configCacheTime = now;
+      try {
+        const minDiffStr = await db.getSystemSetting('weightChangeMinDiff');
+        const minIntervalStr = await db.getSystemSetting('weightChangeMinInterval');
+        if (minDiffStr !== null) this._weightChangeMinDiff = parseFloat(minDiffStr);
+        if (minIntervalStr !== null) this._weightChangeMinInterval = parseFloat(minIntervalStr) * 1000; // 秒转毫秒
+      } catch (e) { /* 读取失败使用上次缓存值 */ }
+    }
+    // 写入重量变化记录（条件：重量变化超过阈值，且距上次记录超过最小间隔）
     const weightDiff = Math.abs(totalWeight - previousWeight);
     const lastRecordTime = this._lastRecordTime.get(groupId) || 0;
-    const now = Date.now();
-    if (weightDiff > 0.001 && (now - lastRecordTime > 5000)) {
+    if (weightDiff > this._weightChangeMinDiff && (now - lastRecordTime > this._weightChangeMinInterval)) {
       this._lastRecordTime.set(groupId, now);
       this._lastRecordedWeight.set(groupId, totalWeight);
       try {
