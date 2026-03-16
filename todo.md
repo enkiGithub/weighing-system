@@ -597,3 +597,8 @@
 - [x] 排查通道创建/编辑页面中scale和offset输入框的实现
 - [x] 修复：改用字符串状态管理输入框，允许中间态为空，仅提交时parseFloat
 - [x] 构建并部署到现场服务器（active running）
+
+## Bug修复：数据记录时间8小时时差
+- [x] 排查数据记录中时间存储和显示的时区处理（mysql2连接未设置timezone）
+- [x] 修复：在db.ts中创建mysql2连接池时显式设置timezone:'+08:00'
+- [x] 构建并部署到现场服务器（server.mjs包含timezone配置，active running）

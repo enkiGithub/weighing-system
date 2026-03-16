@@ -1,5 +1,6 @@
 import { eq, desc, asc, and, gte, lte, inArray, sql } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/mysql2";
+import { drizzle, type MySql2Database } from "drizzle-orm/mysql2";
+import mysql from "mysql2/promise";
 import { 
   InsertUser, 
   users,
@@ -35,13 +36,19 @@ import {
 import { ENV } from './_core/env';
 import bcrypt from 'bcryptjs';
 
-let _db: ReturnType<typeof drizzle> | null = null;
+let _db: MySql2Database | null = null;
 
 // Lazily create the drizzle instance so local tooling can run without a DB.
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
-      _db = drizzle(process.env.DATABASE_URL);
+      // 创建连接池并显式设置时区为 Asia/Shanghai (UTC+8)
+      // 确保MySQL返回的时间戳与服务器本地时间一致
+      const pool = mysql.createPool({
+        uri: process.env.DATABASE_URL,
+        timezone: '+08:00',
+      });
+      _db = drizzle(pool as any);
     } catch (error) {
       console.warn("[Database] Failed to connect:", error);
       _db = null;
