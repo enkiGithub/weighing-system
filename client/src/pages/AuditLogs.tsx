@@ -19,10 +19,31 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, ChevronLeft, ChevronRight, ClipboardList, CalendarDays, X } from "lucide-react";
+import { Loader2, ChevronLeft, ChevronRight, ClipboardList, CalendarDays, Filter, X } from "lucide-react";
 import { format } from "date-fns";
 
 const PAGE_SIZE_OPTIONS = [20, 50, 100, 200];
+
+const ACTION_OPTIONS = [
+  { value: "all", label: "全部操作" },
+  { value: "create", label: "创建" },
+  { value: "update", label: "更新" },
+  { value: "delete", label: "删除" },
+  { value: "batchDelete", label: "批量删除" },
+  { value: "addBinding", label: "添加绑定" },
+  { value: "updateBinding", label: "更新绑定" },
+  { value: "removeBinding", label: "移除绑定" },
+];
+
+const TARGET_OPTIONS = [
+  { value: "all", label: "全部类型" },
+  { value: "gateway", label: "网关" },
+  { value: "comPort", label: "COM端口" },
+  { value: "instrument", label: "仪表" },
+  { value: "channel", label: "通道" },
+  { value: "cabinetGroup", label: "柜组" },
+  { value: "groupChannelBinding", label: "通道绑定" },
+];
 
 const ACTION_LABELS: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
   create: { label: "创建", variant: "default" },
@@ -48,10 +69,14 @@ export default function AuditLogs() {
   const [pageSize, setPageSize] = useState(50);
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
+  const [actionFilter, setActionFilter] = useState<string>("all");
+  const [targetTypeFilter, setTargetTypeFilter] = useState<string>("all");
 
   const { data, isLoading } = trpc.auditLogs.list.useQuery({
     startDate: startDate || undefined,
     endDate: endDate || undefined,
+    action: actionFilter !== "all" ? actionFilter : undefined,
+    targetType: targetTypeFilter !== "all" ? targetTypeFilter : undefined,
     page: currentPage,
     pageSize,
   });
@@ -84,13 +109,25 @@ export default function AuditLogs() {
     setCurrentPage(1);
   };
 
-  const clearDateFilter = () => {
-    setStartDate("");
-    setEndDate("");
+  const handleActionFilterChange = (value: string) => {
+    setActionFilter(value);
     setCurrentPage(1);
   };
 
-  const hasDateFilter = startDate || endDate;
+  const handleTargetTypeFilterChange = (value: string) => {
+    setTargetTypeFilter(value);
+    setCurrentPage(1);
+  };
+
+  const clearAllFilters = () => {
+    setStartDate("");
+    setEndDate("");
+    setActionFilter("all");
+    setTargetTypeFilter("all");
+    setCurrentPage(1);
+  };
+
+  const hasAnyFilter = startDate || endDate || actionFilter !== "all" || targetTypeFilter !== "all";
 
   // 快捷日期范围
   const setQuickRange = (days: number) => {
@@ -114,9 +151,10 @@ export default function AuditLogs() {
         </p>
       </div>
 
-      {/* 日期范围筛选 */}
+      {/* 筛选区域 */}
       <Card>
-        <CardContent className="pt-4 pb-4">
+        <CardContent className="pt-4 pb-4 space-y-3">
+          {/* 第一行：日期范围筛选 */}
           <div className="flex items-center gap-3 flex-wrap">
             <CalendarDays className="h-5 w-5 text-muted-foreground shrink-0" />
             <span className="text-sm font-medium text-muted-foreground shrink-0">日期范围：</span>
@@ -135,18 +173,43 @@ export default function AuditLogs() {
               className="w-40 h-9"
               placeholder="结束日期"
             />
-            {hasDateFilter && (
-              <Button variant="ghost" size="sm" onClick={clearDateFilter} className="gap-1 text-muted-foreground hover:text-foreground">
-                <X className="h-4 w-4" />
-                清除
-              </Button>
-            )}
             <div className="h-5 w-px bg-border mx-1" />
             <span className="text-sm text-muted-foreground shrink-0">快捷：</span>
             <Button variant="outline" size="sm" className="h-8" onClick={() => setQuickRange(1)}>今天</Button>
             <Button variant="outline" size="sm" className="h-8" onClick={() => setQuickRange(3)}>近3天</Button>
             <Button variant="outline" size="sm" className="h-8" onClick={() => setQuickRange(7)}>近7天</Button>
             <Button variant="outline" size="sm" className="h-8" onClick={() => setQuickRange(30)}>近30天</Button>
+          </div>
+          {/* 第二行：操作类型和对象类型筛选 */}
+          <div className="flex items-center gap-3 flex-wrap">
+            <Filter className="h-5 w-5 text-muted-foreground shrink-0" />
+            <span className="text-sm font-medium text-muted-foreground shrink-0">条件筛选：</span>
+            <Select value={actionFilter} onValueChange={handleActionFilterChange}>
+              <SelectTrigger className="w-36 h-9">
+                <SelectValue placeholder="操作类型" />
+              </SelectTrigger>
+              <SelectContent>
+                {ACTION_OPTIONS.map(opt => (
+                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={targetTypeFilter} onValueChange={handleTargetTypeFilterChange}>
+              <SelectTrigger className="w-36 h-9">
+                <SelectValue placeholder="对象类型" />
+              </SelectTrigger>
+              <SelectContent>
+                {TARGET_OPTIONS.map(opt => (
+                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {hasAnyFilter && (
+              <Button variant="ghost" size="sm" onClick={clearAllFilters} className="gap-1 text-muted-foreground hover:text-foreground">
+                <X className="h-4 w-4" />
+                清除全部筛选
+              </Button>
+            )}
           </div>
         </CardContent>
       </Card>

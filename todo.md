@@ -695,3 +695,8 @@
 - [x] 后端：auditLogs.list API添加startDate/endDate参数支持
 - [x] 前端：AuditLogs.tsx添加日期范围选择器UI
 - [x] 构建并部署到现场服务器
+
+## 审计日志页面操作类型和对象类型筛选
+- [x] 后端：auditLogs.list API添加action/targetType筛选参数
+- [x] 前端：AuditLogs.tsx添加操作类型和对象类型下拉筛选UI
+- [x] 构建并部署到现场服务器

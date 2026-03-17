@@ -760,6 +760,8 @@ export async function createAuditLog(log: InsertAuditLog): Promise<number> {
 export async function getAuditLogsPaginated(options: {
   startDate?: string;
   endDate?: string;
+  action?: string;
+  targetType?: string;
   page?: number;
   pageSize?: number;
 } = {}) {
@@ -777,6 +779,12 @@ export async function getAuditLogsPaginated(options: {
     const endDateObj = new Date(options.endDate);
     endDateObj.setHours(23, 59, 59, 999);
     conditionList.push(lte(auditLogs.createdAt, endDateObj));
+  }
+  if (options.action) {
+    conditionList.push(eq(auditLogs.action, options.action));
+  }
+  if (options.targetType) {
+    conditionList.push(eq(auditLogs.targetType, options.targetType));
   }
   const conditions = conditionList.length > 0 ? and(...conditionList) : undefined;
 

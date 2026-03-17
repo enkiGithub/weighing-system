@@ -1008,6 +1008,8 @@ export const appRouter = router({
       .input(z.object({
         startDate: z.string().optional(),
         endDate: z.string().optional(),
+        action: z.string().optional(),
+        targetType: z.string().optional(),
         page: z.number().int().min(1).default(1),
         pageSize: z.number().int().min(1).max(200).default(50),
       }))
@@ -1015,6 +1017,8 @@ export const appRouter = router({
         return await db.getAuditLogsPaginated({
           startDate: input.startDate,
           endDate: input.endDate,
+          action: input.action,
+          targetType: input.targetType,
           page: input.page,
           pageSize: input.pageSize,
         });
