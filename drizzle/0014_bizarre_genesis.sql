@@ -1,0 +1,1 @@
+ALTER TABLE `instrumentChannels` MODIFY COLUMN `scale` float NOT NULL DEFAULT 0.1;

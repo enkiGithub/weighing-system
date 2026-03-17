@@ -119,7 +119,7 @@ export const instrumentChannels = mysqlTable("instrumentChannels", {
   /** 是否启用 */
   enabled: int("enabled").notNull().default(1),
   /** 校准系数 scale: 实际值 = rawValue * scale + offset */
-  scale: float("scale").notNull().default(1.0),
+  scale: float("scale").notNull().default(0.1),
   /** 校准偏移 */
   offset: float("offset").notNull().default(0.0),
   /** 单位，如 kg, g */

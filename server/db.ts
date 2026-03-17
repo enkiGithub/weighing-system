@@ -436,7 +436,7 @@ export async function autoGenerateChannels(instrumentId: number, modelType: "DY7
       channelNo: i,
       label: `CH${i}`,
       enabled: 1,
-      scale: 1.0,
+      scale: 0.1,
       offset: 0.0,
       unit: "kg",
       precision: 2,
