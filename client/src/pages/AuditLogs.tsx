@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -45,15 +45,14 @@ export default function AuditLogs() {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
 
-  const { data: logs, isLoading } = trpc.auditLogs.list.useQuery({ limit: 500 });
+  const { data, isLoading } = trpc.auditLogs.list.useQuery({
+    page: currentPage,
+    pageSize,
+  });
 
-  const totalItems = logs?.length || 0;
+  const logs = data?.items || [];
+  const totalItems = data?.total || 0;
   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
-  const paginatedLogs = useMemo(() => {
-    if (!logs) return [];
-    const start = (currentPage - 1) * pageSize;
-    return logs.slice(start, start + pageSize);
-  }, [logs, currentPage, pageSize]);
 
   const getActionBadge = (action: string) => {
     const info = ACTION_LABELS[action] || { label: action, variant: "secondary" as const };
@@ -62,6 +61,11 @@ export default function AuditLogs() {
 
   const getTargetLabel = (targetType: string) => {
     return TARGET_LABELS[targetType] || targetType;
+  };
+
+  const handlePageSizeChange = (val: string) => {
+    setPageSize(Number(val));
+    setCurrentPage(1);
   };
 
   return (
@@ -79,7 +83,7 @@ export default function AuditLogs() {
       <Card>
         <CardHeader>
           <CardTitle>操作记录</CardTitle>
-          <CardDescription>按时间倒序显示最近的配置变更记录</CardDescription>
+          <CardDescription>按时间倒序显示配置变更记录，共 {totalItems} 条</CardDescription>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -101,34 +105,37 @@ export default function AuditLogs() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {paginatedLogs.length === 0 ? (
+                  {logs.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
                         暂无审计日志
                       </TableCell>
                     </TableRow>
                   ) : (
-                    paginatedLogs.map((log: any, index: number) => (
-                      <TableRow key={log.id}>
-                        <TableCell className="text-muted-foreground">
-                          {(currentPage - 1) * pageSize + index + 1}
-                        </TableCell>
-                        <TableCell className="text-sm whitespace-nowrap">
-                          {new Date(log.createdAt).toLocaleString()}
-                        </TableCell>
-                        <TableCell className="font-medium">
-                          {log.userName || `用户#${log.userId}`}
-                        </TableCell>
-                        <TableCell>{getActionBadge(log.action)}</TableCell>
-                        <TableCell>{getTargetLabel(log.targetType)}</TableCell>
-                        <TableCell className="font-mono text-sm">
-                          {log.targetId || "-"}
-                        </TableCell>
-                        <TableCell className="max-w-md truncate text-sm">
-                          {log.summary}
-                        </TableCell>
-                      </TableRow>
-                    ))
+                    logs.map((log: any, index: number) => {
+                      const globalIndex = (currentPage - 1) * pageSize + index + 1;
+                      return (
+                        <TableRow key={log.id}>
+                          <TableCell className="text-muted-foreground">
+                            {globalIndex}
+                          </TableCell>
+                          <TableCell className="text-sm whitespace-nowrap">
+                            {new Date(log.createdAt).toLocaleString()}
+                          </TableCell>
+                          <TableCell className="font-medium">
+                            {log.userName || `用户#${log.userId}`}
+                          </TableCell>
+                          <TableCell>{getActionBadge(log.action)}</TableCell>
+                          <TableCell>{getTargetLabel(log.targetType)}</TableCell>
+                          <TableCell className="font-mono text-sm">
+                            {log.targetId || "-"}
+                          </TableCell>
+                          <TableCell className="max-w-md truncate text-sm">
+                            {log.summary}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
                   )}
                 </TableBody>
               </Table>
@@ -139,7 +146,7 @@ export default function AuditLogs() {
                   <span>共 {totalItems} 条</span>
                   <span>·</span>
                   <span>每页</span>
-                  <Select value={pageSize.toString()} onValueChange={(val) => { setPageSize(Number(val)); setCurrentPage(1); }}>
+                  <Select value={pageSize.toString()} onValueChange={handlePageSizeChange}>
                     <SelectTrigger className="w-20 h-8">
                       <SelectValue />
                     </SelectTrigger>
@@ -151,6 +158,9 @@ export default function AuditLogs() {
                   </Select>
                 </div>
                 <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" onClick={() => setCurrentPage(1)} disabled={currentPage <= 1}>
+                    首页
+                  </Button>
                   <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage <= 1}>
                     <ChevronLeft className="h-4 w-4" />
                   </Button>
@@ -159,6 +169,9 @@ export default function AuditLogs() {
                   </span>
                   <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage >= totalPages}>
                     <ChevronRight className="h-4 w-4" />
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => setCurrentPage(totalPages)} disabled={currentPage >= totalPages}>
+                    末页
                   </Button>
                 </div>
               </div>

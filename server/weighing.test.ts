@@ -546,8 +546,10 @@ describe("Weight Records", () => {
   it("should list weight records", async () => {
     const ctx = createAdminContext();
     const caller = appRouter.createCaller(ctx);
-    const result = await caller.weightRecords.list({ limit: 100 });
-    expect(Array.isArray(result)).toBe(true);
+    const result = await caller.weightRecords.list({ page: 1, pageSize: 100 });
+    expect(result).toHaveProperty('items');
+    expect(result).toHaveProperty('total');
+    expect(Array.isArray(result.items)).toBe(true);
   });
 });
 
@@ -555,8 +557,10 @@ describe("Alarm Management", () => {
   it("should list alarms", async () => {
     const ctx = createAdminContext();
     const caller = appRouter.createCaller(ctx);
-    const result = await caller.alarms.list({ limit: 100 });
-    expect(Array.isArray(result)).toBe(true);
+    const result = await caller.alarms.list({ page: 1, pageSize: 100 });
+    expect(result).toHaveProperty('items');
+    expect(result).toHaveProperty('total');
+    expect(Array.isArray(result.items)).toBe(true);
   });
 
   it("should get unhandled alarms", async () => {
@@ -572,9 +576,11 @@ describe("Audit Logs", () => {
   it("should list audit logs", async () => {
     const ctx = createAdminContext();
     const caller = appRouter.createCaller(ctx);
-    const result = await caller.auditLogs.list({ limit: 50 });
-    expect(Array.isArray(result)).toBe(true);
-    expect(result.length).toBeGreaterThan(0);
+    const result = await caller.auditLogs.list({ page: 1, pageSize: 50 });
+    expect(result).toHaveProperty('items');
+    expect(result).toHaveProperty('total');
+    expect(Array.isArray(result.items)).toBe(true);
+    expect(result.items.length).toBeGreaterThan(0);
   });
 });
 

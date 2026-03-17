@@ -744,6 +744,30 @@ export async function createAuditLog(log: InsertAuditLog): Promise<number> {
   return Number(result[0].insertId);
 }
 
+export async function getAuditLogsPaginated(options: {
+  page?: number;
+  pageSize?: number;
+} = {}) {
+  const db = await getDb();
+  if (!db) return { items: [], total: 0 };
+  const page = options.page || 1;
+  const pageSize = options.pageSize || 50;
+  const offset = (page - 1) * pageSize;
+
+  const countResult = await db.select({ count: sql<number>`COUNT(*)` })
+    .from(auditLogs);
+  const total = countResult[0]?.count || 0;
+
+  const items = await db.select()
+    .from(auditLogs)
+    .orderBy(desc(auditLogs.createdAt))
+    .limit(pageSize)
+    .offset(offset);
+
+  return { items, total };
+}
+
+// 保留旧函数兼容
 export async function getAuditLogs(limit = 200) {
   const db = await getDb();
   if (!db) return [];

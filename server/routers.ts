@@ -998,10 +998,14 @@ export const appRouter = router({
   auditLogs: router({
     list: auditView
       .input(z.object({
-        limit: z.number().int().min(1).max(500).default(200),
+        page: z.number().int().min(1).default(1),
+        pageSize: z.number().int().min(1).max(200).default(50),
       }))
       .query(async ({ input }) => {
-        return await db.getAuditLogs(input.limit);
+        return await db.getAuditLogsPaginated({
+          page: input.page,
+          pageSize: input.pageSize,
+        });
       }),
     
     getByTarget: auditView

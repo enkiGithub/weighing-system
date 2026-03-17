@@ -667,8 +667,9 @@
 
 ## 需求：数据记录和报警管理页面分页显示
 - [ ] 参照审计日志页面的分页实现
-- [ ] 后端：修改weightRecords.list和alarmRecords.list API支持分页查询（page, pageSize, total）
-- [ ] 前端：修改Records.tsx数据记录页面添加分页UI
-- [ ] 前端：修改Alarms.tsx报警管理页面添加分页UI
-- [ ] 清空现场数据库alarmRecords、collectionData、weightChangeRecords三张表数据
-- [ ] 构建并部署到现场服务器
+- [x] 后端：修改weightRecords.list和alarmRecords.list API支持分页查询（page, pageSize, total）
+- [x] 前端：修改Records.tsx数据记录页面添加分页UI
+- [x] 前端：修改Alarms.tsx报警管理页面添加分页UI
+- [x] 清空现场数据库alarmRecords、collectionData、weightChangeRecords三张表数据
+- [x] 构建并部署到现场服务器
+- [x] 审计日志页面改为服务端分页（与数据记录、报警管理页面一致）
