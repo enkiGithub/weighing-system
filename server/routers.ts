@@ -1106,8 +1106,8 @@ export const appRouter = router({
         config[s.settingKey] = s.settingValue;
       }
       return {
-        weightChangeMinDiff: parseFloat(config['weightChangeMinDiff'] || '0.001'),
-        weightChangeMinInterval: parseFloat(config['weightChangeMinInterval'] || '5'),
+        weightChangeMinDiff: parseFloat(config['weightChangeMinDiff'] || '1'),
+        weightChangeMinInterval: parseFloat(config['weightChangeMinInterval'] || '15'),
       };
     }),
     /** 更新数据记录触发条件配置 */

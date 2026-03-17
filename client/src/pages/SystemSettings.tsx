@@ -70,8 +70,8 @@ export default function SystemSettings() {
 
   // 数据记录触发条件表单（用字符串状态允许用户清空输入框）
   const [triggerForm, setTriggerForm] = useState({
-    weightChangeMinDiff: '0.001',
-    weightChangeMinInterval: '5',
+    weightChangeMinDiff: '1',
+    weightChangeMinInterval: '15',
   });
 
   useEffect(() => {
@@ -180,7 +180,7 @@ export default function SystemSettings() {
                   type="number"
                   min={0}
                   max={1000}
-                  step={0.001}
+                  step={0.1}
                   value={triggerForm.weightChangeMinDiff}
                   onChange={(e) => setTriggerForm(f => ({ ...f, weightChangeMinDiff: e.target.value }))}
                   className="max-w-[200px]"

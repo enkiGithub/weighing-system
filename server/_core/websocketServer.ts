@@ -57,8 +57,8 @@ export class CollectionWebSocketServer {
   // 记录每个柜组上一次写入记录的时间，避免过于频繁写入
   private _lastRecordTime: Map<number, number> = new Map();
   // 数据记录触发条件（可通过系统设置配置）
-  private _weightChangeMinDiff: number = 0.001; // 最小重量变化(kg)
-  private _weightChangeMinInterval: number = 5000; // 最小记录间隔(ms)
+  private _weightChangeMinDiff: number = 1; // 最小重量变化(kg)
+  private _weightChangeMinInterval: number = 15000; // 最小记录间隔(ms)
   private _configCacheTime: number = 0;
 
   constructor(httpServer: HTTPServer) {
