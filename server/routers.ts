@@ -953,6 +953,8 @@ export const appRouter = router({
       .input(z.object({
         cabinetGroupId: z.number().optional(),
         handlingStatus: z.enum(['pending', 'handled', 'auto_resolved']).optional(),
+        startDate: z.string().optional(),
+        endDate: z.string().optional(),
         page: z.number().int().min(1).default(1),
         pageSize: z.number().int().min(1).max(200).default(50),
       }))
@@ -960,6 +962,8 @@ export const appRouter = router({
         return await db.getAlarmRecordsPaginated({
           cabinetGroupId: input.cabinetGroupId,
           handlingStatus: input.handlingStatus,
+          startDate: input.startDate,
+          endDate: input.endDate,
           page: input.page,
           pageSize: input.pageSize,
         });

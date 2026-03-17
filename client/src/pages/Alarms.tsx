@@ -17,8 +17,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, AlertTriangle, CheckCircle2, Clock, RotateCcw, ChevronLeft, ChevronRight, Bell } from "lucide-react";
+import { Loader2, AlertTriangle, CheckCircle2, Clock, RotateCcw, ChevronLeft, ChevronRight, Bell, CalendarDays, X } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -33,6 +34,8 @@ export default function Alarms() {
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
+  const [startDate, setStartDate] = useState<string>("");
+  const [endDate, setEndDate] = useState<string>("");
   const utils = trpc.useUtils();
 
   const { data: cabinets } = trpc.cabinetGroups.list.useQuery();
@@ -46,6 +49,8 @@ export default function Alarms() {
   const { data, isLoading } = trpc.alarms.list.useQuery({
     cabinetGroupId: selectedCabinetId,
     handlingStatus: handlingStatusFilter,
+    startDate: startDate || undefined,
+    endDate: endDate || undefined,
     page: currentPage,
     pageSize,
   });
@@ -129,6 +134,34 @@ export default function Alarms() {
     setCurrentPage(1);
   };
 
+  const handleStartDateChange = (value: string) => {
+    setStartDate(value);
+    setCurrentPage(1);
+  };
+
+  const handleEndDateChange = (value: string) => {
+    setEndDate(value);
+    setCurrentPage(1);
+  };
+
+  const clearDateFilter = () => {
+    setStartDate("");
+    setEndDate("");
+    setCurrentPage(1);
+  };
+
+  const hasDateFilter = startDate || endDate;
+
+  // 快捷日期范围
+  const setQuickRange = (days: number) => {
+    const end = new Date();
+    const start = new Date();
+    start.setDate(start.getDate() - days);
+    setStartDate(format(start, "yyyy-MM-dd"));
+    setEndDate(format(end, "yyyy-MM-dd"));
+    setCurrentPage(1);
+  };
+
   const showActions = selectedStatus !== "handled";
 
   return (
@@ -171,6 +204,43 @@ export default function Alarms() {
           </Select>
         </div>
       </div>
+
+      {/* 日期范围筛选 */}
+      <Card>
+        <CardContent className="pt-4 pb-4">
+          <div className="flex items-center gap-3 flex-wrap">
+            <CalendarDays className="h-5 w-5 text-muted-foreground shrink-0" />
+            <span className="text-sm font-medium text-muted-foreground shrink-0">日期范围：</span>
+            <Input
+              type="date"
+              value={startDate}
+              onChange={(e) => handleStartDateChange(e.target.value)}
+              className="w-40 h-9"
+              placeholder="开始日期"
+            />
+            <span className="text-muted-foreground">至</span>
+            <Input
+              type="date"
+              value={endDate}
+              onChange={(e) => handleEndDateChange(e.target.value)}
+              className="w-40 h-9"
+              placeholder="结束日期"
+            />
+            {hasDateFilter && (
+              <Button variant="ghost" size="sm" onClick={clearDateFilter} className="gap-1 text-muted-foreground hover:text-foreground">
+                <X className="h-4 w-4" />
+                清除
+              </Button>
+            )}
+            <div className="h-5 w-px bg-border mx-1" />
+            <span className="text-sm text-muted-foreground shrink-0">快捷：</span>
+            <Button variant="outline" size="sm" className="h-8" onClick={() => setQuickRange(1)}>今天</Button>
+            <Button variant="outline" size="sm" className="h-8" onClick={() => setQuickRange(3)}>近3天</Button>
+            <Button variant="outline" size="sm" className="h-8" onClick={() => setQuickRange(7)}>近7天</Button>
+            <Button variant="outline" size="sm" className="h-8" onClick={() => setQuickRange(30)}>近30天</Button>
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="grid gap-4 md:grid-cols-3">
         <Card>

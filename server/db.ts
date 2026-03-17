@@ -887,6 +887,8 @@ export async function getAlarmRecordsPaginated(options: {
   handlingStatus?: string;
   cabinetGroupId?: number;
   alarmType?: string;
+  startDate?: string;
+  endDate?: string;
   page?: number;
   pageSize?: number;
 } = {}) {
@@ -905,6 +907,14 @@ export async function getAlarmRecordsPaginated(options: {
   }
   if (options.alarmType) {
     conditions.push(eq(alarmRecords.alarmType, options.alarmType as any));
+  }
+  if (options.startDate) {
+    conditions.push(gte(alarmRecords.lastOccurredAt, new Date(options.startDate)));
+  }
+  if (options.endDate) {
+    const endDateObj = new Date(options.endDate);
+    endDateObj.setHours(23, 59, 59, 999);
+    conditions.push(lte(alarmRecords.lastOccurredAt, endDateObj));
   }
 
   const whereClause = conditions.length > 0 ? and(...conditions) : undefined;

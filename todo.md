@@ -685,3 +685,8 @@
 - [x] 后端：weightRecords.list API添加startDate/endDate参数支持
 - [x] 前端：Records.tsx添加日期范围选择器UI
 - [x] 构建并部署到现场服务器
+
+## 报警管理页面日期范围筛选
+- [x] 后端：alarms.list API添加startDate/endDate参数支持
+- [x] 前端：Alarms.tsx添加日期范围选择器UI
+- [x] 构建并部署到现场服务器
