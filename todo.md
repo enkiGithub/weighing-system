@@ -673,3 +673,10 @@
 - [x] 清空现场数据库alarmRecords、collectionData、weightChangeRecords三张表数据
 - [x] 构建并部署到现场服务器
 - [x] 审计日志页面改为服务端分页（与数据记录、报警管理页面一致）
+
+## Bug修复：分页API返回格式不兼容
+- [x] 数据记录页面(Records.tsx)：filter is not a function报错（根因：现场服务器使用旧前端文件，scp复制嵌套目录导致）
+- [x] 报警管理页面(Alarms.tsx)：filter is not a function报错（同上）
+- [x] 数据分析页面(Analytics.tsx)：filter is not a function报错（同上）
+- [x] 审计日志页面(AuditLogs.tsx)：slice is not a function报错（同上）
+- [x] 重新构建并部署到现场服务器（清理旧文件后正确上传）
