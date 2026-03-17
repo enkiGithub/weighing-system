@@ -287,14 +287,14 @@ export class CollectionWebSocketServer {
       totalWeight += channelValue * binding.coefficient + binding.offset;
     }
 
-    // 计算状态
-    const changeValue = totalWeight - group.initialWeight;
+    // 上一次记录的重量（用于判断是否有变化）
+    const previousWeight = group.currentWeight;
+    // 计算本次重量变化量（当前重量 - 上次重量）
+    const changeValue = totalWeight - previousWeight;
+    // 报警判断：本次重量变化的绝对值超过报警阈值时触发报警
     const isAlarm = Math.abs(changeValue) > group.alarmThreshold;
     const isWarning = Math.abs(changeValue) > group.alarmThreshold * 0.7;
     const status = isAlarm ? 'alarm' : isWarning ? 'warning' : 'normal';
-
-    // 上一次记录的重量（用于判断是否有变化）
-    const previousWeight = group.currentWeight;
 
     // 更新柜组重量和状态到数据库
     await db.updateCabinetGroupWeight(groupId, totalWeight, status);
@@ -334,7 +334,7 @@ export class CollectionWebSocketServer {
             rawValue: totalWeight,
             calibratedValue: totalWeight,
             threshold: group.alarmThreshold,
-            exceedValue: Math.abs(changeValue) - group.alarmThreshold,
+            exceedValue: Math.abs(changeValue) - group.alarmThreshold,  // 本次变化量超出阈值的部分
           });
         }
       } catch (err: any) {
