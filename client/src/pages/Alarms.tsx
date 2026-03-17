@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,25 +18,42 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, AlertTriangle, CheckCircle2, Clock, RotateCcw } from "lucide-react";
+import { Loader2, AlertTriangle, CheckCircle2, Clock, RotateCcw, ChevronLeft, ChevronRight, Bell } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { usePermissions } from "@/hooks/usePermissions";
 
+const PAGE_SIZE_OPTIONS = [20, 50, 100, 200];
+
 export default function Alarms() {
   const { canOperate } = usePermissions();
   const canEdit = canOperate('alarm_management');
   const [selectedCabinetId, setSelectedCabinetId] = useState<number | undefined>(undefined);
+  const [selectedStatus, setSelectedStatus] = useState<string>("all");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
   const utils = trpc.useUtils();
 
   const { data: cabinets } = trpc.cabinetGroups.list.useQuery();
-  const { data: allAlarms, isLoading } = trpc.alarms.list.useQuery({
+  
+  // 根据选中的状态tab过滤
+  const handlingStatusFilter = selectedStatus === "all" ? undefined 
+    : selectedStatus === "pending" ? "pending" as const
+    : selectedStatus === "handled" ? "handled" as const
+    : "auto_resolved" as const;
+
+  const { data, isLoading } = trpc.alarms.list.useQuery({
     cabinetGroupId: selectedCabinetId,
-    limit: 200,
+    handlingStatus: handlingStatusFilter,
+    page: currentPage,
+    pageSize,
   });
   const { data: unhandledCount } = trpc.alarms.getUnhandled.useQuery();
+
+  const alarms = data?.items || [];
+  const totalItems = data?.total || 0;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
 
   const handleMutation = trpc.alarms.updateStatus.useMutation({
     onSuccess: () => {
@@ -97,120 +114,50 @@ export default function Alarms() {
     }
   };
 
-  // 统计数据
-  const pendingAlarms = useMemo(() => {
-    return allAlarms?.filter((a: any) => a.handlingStatus === 'pending') || [];
-  }, [allAlarms]);
+  const handleCabinetChange = (value: string) => {
+    setSelectedCabinetId(value === "all" ? undefined : parseInt(value));
+    setCurrentPage(1);
+  };
 
-  const handledAlarms = useMemo(() => {
-    return allAlarms?.filter((a: any) => a.handlingStatus !== 'pending') || [];
-  }, [allAlarms]);
+  const handleStatusChange = (value: string) => {
+    setSelectedStatus(value);
+    setCurrentPage(1);
+  };
 
-  const AlarmTable = ({ alarms, showActions = true }: { alarms: any[]; showActions?: boolean }) => (
-    <div className="rounded-lg border border-border">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>柜组名称</TableHead>
-            <TableHead>报警类型</TableHead>
-            <TableHead>校准值</TableHead>
-            <TableHead>阈值</TableHead>
-            <TableHead>超出量</TableHead>
-            <TableHead>发生次数</TableHead>
-            <TableHead>首次时间</TableHead>
-            <TableHead>最后时间</TableHead>
-            <TableHead>处理状态</TableHead>
-            {showActions && <TableHead className="text-right">操作</TableHead>}
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {alarms?.length === 0 ? (
-            <TableRow>
-              <TableCell colSpan={showActions ? 10 : 9} className="text-center text-muted-foreground py-8">
-                暂无报警记录
-              </TableCell>
-            </TableRow>
-          ) : (
-            alarms?.map((alarm: any) => {
-              const isPending = alarm.handlingStatus === 'pending';
-              
-              return (
-                <TableRow key={alarm.id} className={cn(isPending && "bg-destructive/5")}>
-                  <TableCell className="font-medium">
-                    {getCabinetName(alarm.cabinetGroupId)}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className="gap-1">
-                      <AlertTriangle className="h-3 w-3" />
-                      {getAlarmTypeText(alarm.alarmType)}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="font-mono text-sm">
-                    {alarm.calibratedValue != null ? `${alarm.calibratedValue.toFixed(2)} kg` : '-'}
-                  </TableCell>
-                  <TableCell className="font-mono text-sm">
-                    {alarm.threshold != null ? `${alarm.threshold.toFixed(2)} kg` : '-'}
-                  </TableCell>
-                  <TableCell className="font-mono text-sm text-red-400">
-                    {alarm.exceedValue != null && alarm.exceedValue > 0
-                      ? `+${alarm.exceedValue.toFixed(2)} kg`
-                      : '-'}
-                  </TableCell>
-                  <TableCell className="text-center">
-                    {alarm.occurrenceCount || 1}
-                  </TableCell>
-                  <TableCell className="font-mono text-sm">
-                    {alarm.firstOccurredAt
-                      ? format(new Date(alarm.firstOccurredAt), "yyyy-MM-dd HH:mm:ss")
-                      : '-'}
-                  </TableCell>
-                  <TableCell className="font-mono text-sm">
-                    {alarm.lastOccurredAt
-                      ? format(new Date(alarm.lastOccurredAt), "yyyy-MM-dd HH:mm:ss")
-                      : '-'}
-                  </TableCell>
-                  <TableCell>
-                    {getHandlingStatusBadge(alarm.handlingStatus)}
-                  </TableCell>
-                  {showActions && (
-                    <TableCell className="text-right">
-                      {isPending && canEdit && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleAlarm(alarm.id)}
-                          disabled={handleMutation.isPending}
-                        >
-                          {handleMutation.isPending && (
-                            <Loader2 className="mr-2 h-3 w-3 animate-spin" />
-                          )}
-                          处理
-                        </Button>
-                      )}
-                    </TableCell>
-                  )}
-                </TableRow>
-              );
-            })
-          )}
-        </TableBody>
-      </Table>
-    </div>
-  );
+  const handlePageSizeChange = (val: string) => {
+    setPageSize(Number(val));
+    setCurrentPage(1);
+  };
+
+  const showActions = selectedStatus !== "handled";
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-foreground">报警管理</h1>
+          <h1 className="text-3xl font-bold tracking-tight text-foreground flex items-center gap-3">
+            <Bell className="h-8 w-8" />
+            报警管理
+          </h1>
           <p className="text-muted-foreground mt-2">查看和处理所有报警事件</p>
         </div>
-        <div className="w-64">
+        <div className="flex items-center gap-3">
+          <Select value={selectedStatus} onValueChange={handleStatusChange}>
+            <SelectTrigger className="w-36">
+              <SelectValue placeholder="处理状态" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">全部状态</SelectItem>
+              <SelectItem value="pending">待处理</SelectItem>
+              <SelectItem value="handled">已处理</SelectItem>
+              <SelectItem value="auto_resolved">自动解除</SelectItem>
+            </SelectContent>
+          </Select>
           <Select
             value={selectedCabinetId?.toString() || "all"}
-            onValueChange={(value) => setSelectedCabinetId(value === "all" ? undefined : parseInt(value))}
+            onValueChange={handleCabinetChange}
           >
-            <SelectTrigger>
+            <SelectTrigger className="w-48">
               <SelectValue placeholder="筛选柜组" />
             </SelectTrigger>
             <SelectContent>
@@ -225,13 +172,13 @@ export default function Alarms() {
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-3">
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-muted-foreground">总报警数</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-foreground">{allAlarms?.length || 0}</div>
+            <div className="text-2xl font-bold text-foreground">{totalItems}</div>
           </CardContent>
         </Card>
         <Card>
@@ -246,22 +193,10 @@ export default function Alarms() {
         </Card>
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground">已处理</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">当前筛选</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-success">
-              {allAlarms?.filter((a: any) => a.handlingStatus === 'handled').length || 0}
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground">自动解除</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-blue-500">
-              {allAlarms?.filter((a: any) => a.handlingStatus === 'auto_resolved').length || 0}
-            </div>
+            <div className="text-2xl font-bold text-primary">{totalItems} 条</div>
           </CardContent>
         </Card>
       </div>
@@ -277,28 +212,138 @@ export default function Alarms() {
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
           ) : (
-            <Tabs defaultValue="all" className="w-full">
-              <TabsList className="grid w-full max-w-lg grid-cols-3">
-                <TabsTrigger value="all">
-                  全部 ({allAlarms?.length || 0})
-                </TabsTrigger>
-                <TabsTrigger value="pending">
-                  待处理 ({pendingAlarms.length})
-                </TabsTrigger>
-                <TabsTrigger value="handled">
-                  已处理 ({handledAlarms.length})
-                </TabsTrigger>
-              </TabsList>
-              <TabsContent value="all" className="mt-6">
-                <AlarmTable alarms={allAlarms || []} />
-              </TabsContent>
-              <TabsContent value="pending" className="mt-6">
-                <AlarmTable alarms={pendingAlarms} />
-              </TabsContent>
-              <TabsContent value="handled" className="mt-6">
-                <AlarmTable alarms={handledAlarms} showActions={false} />
-              </TabsContent>
-            </Tabs>
+            <>
+              <div className="rounded-lg border border-border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-16">序号</TableHead>
+                      <TableHead>柜组名称</TableHead>
+                      <TableHead>报警类型</TableHead>
+                      <TableHead>校准值</TableHead>
+                      <TableHead>阈值</TableHead>
+                      <TableHead>超出量</TableHead>
+                      <TableHead>发生次数</TableHead>
+                      <TableHead>首次时间</TableHead>
+                      <TableHead>最后时间</TableHead>
+                      <TableHead>处理状态</TableHead>
+                      {showActions && <TableHead className="text-right">操作</TableHead>}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {alarms.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={showActions ? 11 : 10} className="text-center text-muted-foreground py-8">
+                          暂无报警记录
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      alarms.map((alarm: any, index: number) => {
+                        const isPending = alarm.handlingStatus === 'pending';
+                        const globalIndex = (currentPage - 1) * pageSize + index + 1;
+                        
+                        return (
+                          <TableRow key={alarm.id} className={cn(isPending && "bg-destructive/5")}>
+                            <TableCell className="font-mono text-sm text-muted-foreground">
+                              {globalIndex}
+                            </TableCell>
+                            <TableCell className="font-medium">
+                              {getCabinetName(alarm.cabinetGroupId)}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className="gap-1">
+                                <AlertTriangle className="h-3 w-3" />
+                                {getAlarmTypeText(alarm.alarmType)}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="font-mono text-sm">
+                              {alarm.calibratedValue != null ? `${alarm.calibratedValue.toFixed(2)} kg` : '-'}
+                            </TableCell>
+                            <TableCell className="font-mono text-sm">
+                              {alarm.threshold != null ? `${alarm.threshold.toFixed(2)} kg` : '-'}
+                            </TableCell>
+                            <TableCell className="font-mono text-sm text-red-400">
+                              {alarm.exceedValue != null && alarm.exceedValue > 0
+                                ? `+${alarm.exceedValue.toFixed(2)} kg`
+                                : '-'}
+                            </TableCell>
+                            <TableCell className="text-center">
+                              {alarm.occurrenceCount || 1}
+                            </TableCell>
+                            <TableCell className="font-mono text-sm">
+                              {alarm.firstOccurredAt
+                                ? format(new Date(alarm.firstOccurredAt), "yyyy-MM-dd HH:mm:ss")
+                                : '-'}
+                            </TableCell>
+                            <TableCell className="font-mono text-sm">
+                              {alarm.lastOccurredAt
+                                ? format(new Date(alarm.lastOccurredAt), "yyyy-MM-dd HH:mm:ss")
+                                : '-'}
+                            </TableCell>
+                            <TableCell>
+                              {getHandlingStatusBadge(alarm.handlingStatus)}
+                            </TableCell>
+                            {showActions && (
+                              <TableCell className="text-right">
+                                {isPending && canEdit && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => handleAlarm(alarm.id)}
+                                    disabled={handleMutation.isPending}
+                                  >
+                                    {handleMutation.isPending && (
+                                      <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                                    )}
+                                    处理
+                                  </Button>
+                                )}
+                              </TableCell>
+                            )}
+                          </TableRow>
+                        );
+                      })
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {/* 分页控件 */}
+              <div className="flex items-center justify-between mt-4 pt-4 border-t">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <span>共 {totalItems} 条</span>
+                  <span>·</span>
+                  <span>每页</span>
+                  <Select value={pageSize.toString()} onValueChange={handlePageSizeChange}>
+                    <SelectTrigger className="w-20 h-8">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PAGE_SIZE_OPTIONS.map(size => (
+                        <SelectItem key={size} value={size.toString()}>{size} 条</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" onClick={() => setCurrentPage(1)} disabled={currentPage <= 1}>
+                    首页
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage <= 1}>
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <span className="text-sm text-muted-foreground px-2">
+                    第 {currentPage} / {totalPages} 页
+                  </span>
+                  <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage >= totalPages}>
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => setCurrentPage(totalPages)} disabled={currentPage >= totalPages}>
+                    末页
+                  </Button>
+                </div>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>

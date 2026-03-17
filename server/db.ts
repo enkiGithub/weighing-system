@@ -622,6 +622,37 @@ export async function createWeightChangeRecord(record: InsertWeightChangeRecord)
   await db.insert(weightChangeRecords).values(record);
 }
 
+export async function getWeightChangeRecordsPaginated(options: {
+  cabinetGroupId?: number;
+  page?: number;
+  pageSize?: number;
+} = {}) {
+  const db = await getDb();
+  if (!db) return { items: [], total: 0 };
+  const page = options.page || 1;
+  const pageSize = options.pageSize || 50;
+  const offset = (page - 1) * pageSize;
+
+  const conditions = options.cabinetGroupId
+    ? eq(weightChangeRecords.cabinetGroupId, options.cabinetGroupId)
+    : undefined;
+
+  const countResult = await db.select({ count: sql<number>`COUNT(*)` })
+    .from(weightChangeRecords)
+    .where(conditions);
+  const total = countResult[0]?.count || 0;
+
+  const items = await db.select()
+    .from(weightChangeRecords)
+    .where(conditions)
+    .orderBy(desc(weightChangeRecords.recordedAt))
+    .limit(pageSize)
+    .offset(offset);
+
+  return { items, total };
+}
+
+// 保留旧函数兼容
 export async function getWeightChangeRecordsByCabinetGroup(cabinetGroupId: number, limit = 100) {
   const db = await getDb();
   if (!db) return [];
@@ -631,7 +662,6 @@ export async function getWeightChangeRecordsByCabinetGroup(cabinetGroupId: numbe
     .orderBy(desc(weightChangeRecords.recordedAt))
     .limit(limit);
 }
-
 export async function getAllWeightChangeRecords(limit = 1000) {
   const db = await getDb();
   if (!db) return [];
@@ -816,6 +846,48 @@ export async function createAlarmRecord(data: InsertAlarmRecord) {
 /**
  * 查询报警记录（分页）
  */
+export async function getAlarmRecordsPaginated(options: {
+  handlingStatus?: string;
+  cabinetGroupId?: number;
+  alarmType?: string;
+  page?: number;
+  pageSize?: number;
+} = {}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not connected");
+  const page = options.page || 1;
+  const pageSize = options.pageSize || 50;
+  const offset = (page - 1) * pageSize;
+
+  const conditions: any[] = [];
+  if (options.handlingStatus) {
+    conditions.push(eq(alarmRecords.handlingStatus, options.handlingStatus as any));
+  }
+  if (options.cabinetGroupId) {
+    conditions.push(eq(alarmRecords.cabinetGroupId, options.cabinetGroupId));
+  }
+  if (options.alarmType) {
+    conditions.push(eq(alarmRecords.alarmType, options.alarmType as any));
+  }
+
+  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+  const countResult = await db.select({ count: sql<number>`COUNT(*)` })
+    .from(alarmRecords)
+    .where(whereClause);
+  const total = countResult[0]?.count || 0;
+
+  const items = await db.select()
+    .from(alarmRecords)
+    .where(whereClause)
+    .orderBy(desc(alarmRecords.lastOccurredAt))
+    .limit(pageSize)
+    .offset(offset);
+
+  return { items, total };
+}
+
+// 保留旧函数兼容
 export async function getAlarmRecords(options: {
   handlingStatus?: string;
   cabinetGroupId?: number;
@@ -838,7 +910,6 @@ export async function getAlarmRecords(options: {
     query = query.where(eq(alarmRecords.alarmType, options.alarmType as any));
   }
   
-  // 按最后发生时间倒序
   query = query.orderBy(desc(alarmRecords.lastOccurredAt));
   
   if (options.limit) {

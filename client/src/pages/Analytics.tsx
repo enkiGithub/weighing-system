@@ -43,14 +43,18 @@ export default function Analytics() {
   const [timeRange, setTimeRange] = useState<number>(7); // 默认7天
 
   const { data: cabinets } = trpc.cabinetGroups.list.useQuery();
-  const { data: records, isLoading } = trpc.weightRecords.list.useQuery({
+  const { data: recordsData, isLoading } = trpc.weightRecords.list.useQuery({
     cabinetGroupId: selectedCabinetId,
-    limit: 1000,
+    page: 1,
+    pageSize: 200,
   });
-  const { data: alarms } = trpc.alarms.list.useQuery({
+  const records = recordsData?.items;
+  const { data: alarmsData } = trpc.alarms.list.useQuery({
     cabinetGroupId: selectedCabinetId,
-    limit: 1000,
+    page: 1,
+    pageSize: 200,
   });
+  const alarms = alarmsData?.items;
 
   // 过滤时间范围内的数据
   const filteredRecords = useMemo(() => {
@@ -142,7 +146,7 @@ export default function Analytics() {
   const totalAlarms = alarms?.filter((a: any) => {
     if (!timeRange) return true;
     const startDate = subDays(new Date(), timeRange);
-    return new Date(a.createdAt) >= startDate;
+    return new Date(a.lastOccurredAt || a.createdAt) >= startDate;
   }).length || 0;
   
   const avgChange = useMemo(() => {

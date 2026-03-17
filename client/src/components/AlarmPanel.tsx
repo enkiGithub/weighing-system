@@ -28,7 +28,7 @@ export function AlarmPanel({
 
   // 查询未处理报警
   const alarmsQuery = trpc.alarms.list.useQuery(
-    { handlingStatus: "pending", limit: 50 },
+    { handlingStatus: "pending", page: 1, pageSize: 50 },
     { enabled: isOpen, refetchInterval: 3000 }
   );
 
@@ -47,7 +47,7 @@ export function AlarmPanel({
   });
 
   useEffect(() => {
-    setAlarms(alarmsQuery.data || []);
+    setAlarms(alarmsQuery.data?.items || []);
   }, [alarmsQuery.data]);
 
   const getCabinetName = (cabinetGroupId: number) => {

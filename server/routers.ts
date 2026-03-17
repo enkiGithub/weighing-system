@@ -922,13 +922,15 @@ export const appRouter = router({
     list: recordsView
       .input(z.object({
         cabinetGroupId: z.number().optional(),
-        limit: z.number().int().min(1).max(1000).default(100),
+        page: z.number().int().min(1).default(1),
+        pageSize: z.number().int().min(1).max(200).default(50),
       }))
       .query(async ({ input }) => {
-        if (input.cabinetGroupId) {
-          return await db.getWeightChangeRecordsByCabinetGroup(input.cabinetGroupId, input.limit);
-        }
-        return await db.getAllWeightChangeRecords(input.limit);
+        return await db.getWeightChangeRecordsPaginated({
+          cabinetGroupId: input.cabinetGroupId,
+          page: input.page,
+          pageSize: input.pageSize,
+        });
       }),
     
     getByDateRange: recordsView
@@ -947,15 +949,15 @@ export const appRouter = router({
       .input(z.object({
         cabinetGroupId: z.number().optional(),
         handlingStatus: z.enum(['pending', 'handled', 'auto_resolved']).optional(),
-        limit: z.number().int().min(1).max(1000).default(100),
-        offset: z.number().int().min(0).default(0),
+        page: z.number().int().min(1).default(1),
+        pageSize: z.number().int().min(1).max(200).default(50),
       }))
       .query(async ({ input }) => {
-        return await db.getAlarmRecords({
+        return await db.getAlarmRecordsPaginated({
           cabinetGroupId: input.cabinetGroupId,
           handlingStatus: input.handlingStatus,
-          limit: input.limit,
-          offset: input.offset,
+          page: input.page,
+          pageSize: input.pageSize,
         });
       }),
     

@@ -664,3 +664,11 @@
 - [x] 最小记录时间间隔默认值从5秒改为15秒
 - [x] 确认运行时使用系统设置值：websocketServer.ts每60秒从DB读取配置更新缓存
 - [x] 构建并部署到现场服务器，数据库设置已更新为minDiff=1kg, minInterval=15s
+
+## 需求：数据记录和报警管理页面分页显示
+- [ ] 参照审计日志页面的分页实现
+- [ ] 后端：修改weightRecords.list和alarmRecords.list API支持分页查询（page, pageSize, total）
+- [ ] 前端：修改Records.tsx数据记录页面添加分页UI
+- [ ] 前端：修改Alarms.tsx报警管理页面添加分页UI
+- [ ] 清空现场数据库alarmRecords、collectionData、weightChangeRecords三张表数据
+- [ ] 构建并部署到现场服务器
