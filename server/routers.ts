@@ -922,12 +922,16 @@ export const appRouter = router({
     list: recordsView
       .input(z.object({
         cabinetGroupId: z.number().optional(),
+        startDate: z.string().optional(),
+        endDate: z.string().optional(),
         page: z.number().int().min(1).default(1),
         pageSize: z.number().int().min(1).max(200).default(50),
       }))
       .query(async ({ input }) => {
         return await db.getWeightChangeRecordsPaginated({
           cabinetGroupId: input.cabinetGroupId,
+          startDate: input.startDate,
+          endDate: input.endDate,
           page: input.page,
           pageSize: input.pageSize,
         });

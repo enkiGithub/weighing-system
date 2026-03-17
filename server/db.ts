@@ -624,6 +624,8 @@ export async function createWeightChangeRecord(record: InsertWeightChangeRecord)
 
 export async function getWeightChangeRecordsPaginated(options: {
   cabinetGroupId?: number;
+  startDate?: string;
+  endDate?: string;
   page?: number;
   pageSize?: number;
 } = {}) {
@@ -633,9 +635,20 @@ export async function getWeightChangeRecordsPaginated(options: {
   const pageSize = options.pageSize || 50;
   const offset = (page - 1) * pageSize;
 
-  const conditions = options.cabinetGroupId
-    ? eq(weightChangeRecords.cabinetGroupId, options.cabinetGroupId)
-    : undefined;
+  const conditionList = [];
+  if (options.cabinetGroupId) {
+    conditionList.push(eq(weightChangeRecords.cabinetGroupId, options.cabinetGroupId));
+  }
+  if (options.startDate) {
+    conditionList.push(gte(weightChangeRecords.recordedAt, new Date(options.startDate)));
+  }
+  if (options.endDate) {
+    // endDate设为当天结束（23:59:59）
+    const endDateObj = new Date(options.endDate);
+    endDateObj.setHours(23, 59, 59, 999);
+    conditionList.push(lte(weightChangeRecords.recordedAt, endDateObj));
+  }
+  const conditions = conditionList.length > 0 ? and(...conditionList) : undefined;
 
   const countResult = await db.select({ count: sql<number>`COUNT(*)` })
     .from(weightChangeRecords)

@@ -680,3 +680,8 @@
 - [x] 数据分析页面(Analytics.tsx)：filter is not a function报错（同上）
 - [x] 审计日志页面(AuditLogs.tsx)：slice is not a function报错（同上）
 - [x] 重新构建并部署到现场服务器（清理旧文件后正确上传）
+
+## 数据记录页面日期范围筛选
+- [x] 后端：weightRecords.list API添加startDate/endDate参数支持
+- [x] 前端：Records.tsx添加日期范围选择器UI
+- [x] 构建并部署到现场服务器
