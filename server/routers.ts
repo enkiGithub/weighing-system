@@ -1124,6 +1124,37 @@ export const appRouter = router({
         return { success: true };
       }),
 
+    /** 获取采集服务轮询间隔配置 */
+    getPollingIntervalConfig: adminProcedure.query(async () => {
+      const settings = await db.getAllSystemSettings();
+      const config: Record<string, string> = {};
+      for (const s of settings) {
+        config[s.settingKey] = s.settingValue;
+      }
+      return {
+        pollingIntervalMs: parseInt(config['pollingIntervalMs'] || '5000'),
+      };
+    }),
+    /** 更新采集服务轮询间隔配置 */
+    updatePollingIntervalConfig: adminProcedure
+      .input(z.object({
+        pollingIntervalMs: z.number().min(500).max(60000),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        // 保存到系统设置
+        await db.setSystemSetting('pollingIntervalMs', String(input.pollingIntervalMs), '采集服务轮询间隔(ms)');
+        // 同步更新所有COM端口的collectionIntervalMs
+        await db.updateAllComPortsPollingInterval(input.pollingIntervalMs);
+        // 通知采集服务重载配置
+        const ws = getWsServer();
+        if (ws) {
+          ws.sendReloadConfig(`更新轮询间隔为${input.pollingIntervalMs}ms`);
+        }
+        await audit(ctx.user.id, ctx.user.name, 'update', 'systemSettings', null,
+          `更新采集轮询间隔: ${input.pollingIntervalMs}ms (${input.pollingIntervalMs / 1000}秒)`);
+        return { success: true };
+      }),
+
     /** 获取各表记录数统计 */
     getTableStats: adminProcedure.query(async () => {
       return await db.getTableRowCounts();

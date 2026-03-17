@@ -1,0 +1,1 @@
+ALTER TABLE `gatewayComPorts` MODIFY COLUMN `collectionIntervalMs` int NOT NULL DEFAULT 5000;

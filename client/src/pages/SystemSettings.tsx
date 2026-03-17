@@ -31,6 +31,7 @@ import { Loader2, Database, Trash2, Clock, HardDrive, RefreshCw, Shield, Setting
 export default function SystemSettings() {
   const { data: config, isLoading: configLoading } = trpc.systemSettings.getCleanupConfig.useQuery();
   const { data: triggerConfig, isLoading: triggerLoading } = trpc.systemSettings.getRecordTriggerConfig.useQuery();
+  const { data: pollingConfig, isLoading: pollingLoading } = trpc.systemSettings.getPollingIntervalConfig.useQuery();
   const { data: stats, isLoading: statsLoading, refetch: refetchStats } = trpc.systemSettings.getTableStats.useQuery();
   const utils = trpc.useUtils();
 
@@ -59,17 +60,44 @@ export default function SystemSettings() {
     onError: (err) => toast.error(`保存失败: ${err.message}`),
   });
 
-  // 数据记录触发条件表单
+  const updatePollingConfig = trpc.systemSettings.updatePollingIntervalConfig.useMutation({
+    onSuccess: () => {
+      toast.success("轮询间隔已保存，采集服务将自动重载配置");
+      utils.systemSettings.getPollingIntervalConfig.invalidate();
+    },
+    onError: (err) => toast.error(`保存失败: ${err.message}`),
+  });
+
+  // 数据记录触发条件表单（用字符串状态允许用户清空输入框）
   const [triggerForm, setTriggerForm] = useState({
-    weightChangeMinDiff: 0.001,
-    weightChangeMinInterval: 5,
+    weightChangeMinDiff: '0.001',
+    weightChangeMinInterval: '5',
   });
 
   useEffect(() => {
     if (triggerConfig) {
-      setTriggerForm(triggerConfig);
+      setTriggerForm({
+        weightChangeMinDiff: String(triggerConfig.weightChangeMinDiff),
+        weightChangeMinInterval: String(triggerConfig.weightChangeMinInterval),
+      });
     }
   }, [triggerConfig]);
+
+  const parsedTriggerForm = {
+    weightChangeMinDiff: parseFloat(triggerForm.weightChangeMinDiff) || 0,
+    weightChangeMinInterval: parseFloat(triggerForm.weightChangeMinInterval) || 0,
+  };
+
+  // 采集轮询间隔表单（字符串状态允许清空）
+  const [pollingIntervalSec, setPollingIntervalSec] = useState('5');
+
+  useEffect(() => {
+    if (pollingConfig) {
+      setPollingIntervalSec(String(pollingConfig.pollingIntervalMs / 1000));
+    }
+  }, [pollingConfig]);
+
+  const parsedPollingIntervalMs = Math.round((parseFloat(pollingIntervalSec) || 5) * 1000);
 
   // 表单状态
   const [form, setForm] = useState({
@@ -154,7 +182,7 @@ export default function SystemSettings() {
                   max={1000}
                   step={0.001}
                   value={triggerForm.weightChangeMinDiff}
-                  onChange={(e) => setTriggerForm(f => ({ ...f, weightChangeMinDiff: parseFloat(e.target.value) || 0 }))}
+                  onChange={(e) => setTriggerForm(f => ({ ...f, weightChangeMinDiff: e.target.value }))}
                   className="max-w-[200px]"
                 />
                 <span className="text-sm text-muted-foreground whitespace-nowrap">kg</span>
@@ -172,7 +200,7 @@ export default function SystemSettings() {
                   max={86400}
                   step={1}
                   value={triggerForm.weightChangeMinInterval}
-                  onChange={(e) => setTriggerForm(f => ({ ...f, weightChangeMinInterval: parseFloat(e.target.value) || 0 }))}
+                  onChange={(e) => setTriggerForm(f => ({ ...f, weightChangeMinInterval: e.target.value }))}
                   className="max-w-[200px]"
                 />
                 <span className="text-sm text-muted-foreground whitespace-nowrap">秒</span>
@@ -181,15 +209,58 @@ export default function SystemSettings() {
           </div>
           <div className="rounded-lg border border-border bg-muted/30 p-3">
             <p className="text-sm text-muted-foreground">
-              <strong>当前规则：</strong>当柜组重量变化超过 <span className="text-foreground font-medium">{triggerForm.weightChangeMinDiff} kg</span>，
-              且距离上次记录超过 <span className="text-foreground font-medium">{triggerForm.weightChangeMinInterval} 秒</span> 时，写入一条新的重量变化记录。
+              <strong>当前规则：</strong>当柜组重量变化超过 <span className="text-foreground font-medium">{parsedTriggerForm.weightChangeMinDiff} kg</span>，
+              且距离上次记录超过 <span className="text-foreground font-medium">{parsedTriggerForm.weightChangeMinInterval} 秒</span> 时，写入一条新的重量变化记录。
               修改后约60秒内自动生效，无需重启服务。
             </p>
           </div>
           <div className="flex justify-end">
-            <Button onClick={() => updateTriggerConfig.mutate(triggerForm)} disabled={updateTriggerConfig.isPending}>
+            <Button onClick={() => updateTriggerConfig.mutate(parsedTriggerForm)} disabled={updateTriggerConfig.isPending}>
               {updateTriggerConfig.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               保存触发条件
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 采集服务轮询间隔 */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <RefreshCw className="h-5 w-5 text-primary" />
+            <CardTitle>采集服务轮询间隔</CardTitle>
+          </div>
+          <CardDescription>配置采集服务读取称重仪表数据的轮询频率，影响所有COM端口</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="space-y-2">
+            <Label className="text-base font-medium">轮询间隔</Label>
+            <p className="text-sm text-muted-foreground">
+              采集服务每隔此时间读取一次仪表数据（单位：秒，最小0.5秒，最大60秒）
+            </p>
+            <div className="flex items-center gap-2">
+              <Input
+                type="number"
+                min={0.5}
+                max={60}
+                step={0.5}
+                value={pollingIntervalSec}
+                onChange={(e) => setPollingIntervalSec(e.target.value)}
+                className="max-w-[200px]"
+              />
+              <span className="text-sm text-muted-foreground whitespace-nowrap">秒</span>
+            </div>
+          </div>
+          <div className="rounded-lg border border-border bg-muted/30 p-3">
+            <p className="text-sm text-muted-foreground">
+              <strong>当前设置：</strong>采集服务每 <span className="text-foreground font-medium">{parseFloat(pollingIntervalSec) || 5} 秒</span> 读取一次称重仪表数据。
+              保存后采集服务将自动重载配置。
+            </p>
+          </div>
+          <div className="flex justify-end">
+            <Button onClick={() => updatePollingConfig.mutate({ pollingIntervalMs: parsedPollingIntervalMs })} disabled={updatePollingConfig.isPending}>
+              {updatePollingConfig.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              保存轮询间隔
             </Button>
           </div>
         </CardContent>

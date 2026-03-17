@@ -65,8 +65,8 @@ export const gatewayComPorts = mysqlTable("gatewayComPorts", {
   timeoutMs: int("timeoutMs").notNull().default(1000),
   /** 重试次数 */
   retryCount: int("retryCount").notNull().default(3),
-  /** 采集频率(ms)，默认500ms */
-  collectionIntervalMs: int("collectionIntervalMs").notNull().default(500),
+  /** 采集频率(ms)，默认5000ms */
+  collectionIntervalMs: int("collectionIntervalMs").notNull().default(5000),
   remark: text("remark"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),

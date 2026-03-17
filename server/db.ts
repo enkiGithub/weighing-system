@@ -1281,3 +1281,14 @@ export async function getAllGatewaysWithStatus() {
   
   return gatewaysWithStatus;
 }
+
+/**
+ * 批量更新所有COM端口的采集轮询间隔
+ */
+export async function updateAllComPortsPollingInterval(intervalMs: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not connected");
+  
+  await db.update(gatewayComPorts)
+    .set({ collectionIntervalMs: intervalMs });
+}

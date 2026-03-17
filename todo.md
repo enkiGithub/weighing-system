@@ -635,3 +635,16 @@
 - [x] 前端：在系统设置页面添加"数据记录触发条件"配置UI
 - [x] 构建并部署到现场服务器(58.33.106.19:1122)
 - [x] 验证配置可正常修改并生效
+
+## Bug修复：数据记录触发条件输入框无法清空
+- [x] 修复最小重量变化阈值和最小记录时间间隔输入框无法用Backspace清空值的问题
+- [x] 构建并部署到现场服务器
+
+## 需求：采集服务轮询间隔可配置
+- [x] 查看当前轮询间隔代码（collection-service/src/index.ts，第155行 comPort.collectionIntervalMs）
+- [x] 后端：在systemSettings中添加pollingIntervalMs配置项（默认5000ms）
+- [x] 后端：添加updateAllComPortsPollingInterval函数批量更新COM端口
+- [x] 后端：在routers.ts中添加getPollingIntervalConfig和updatePollingIntervalConfig API
+- [x] 前端：在系统设置页面添加"采集服务轮询间隔"配置卡片
+- [x] 修改schema默认值从500ms到5000ms
+- [x] 构建并部署到现场服务器，更新现有COM端口数据，重启采集服务
