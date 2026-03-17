@@ -1006,11 +1006,15 @@ export const appRouter = router({
   auditLogs: router({
     list: auditView
       .input(z.object({
+        startDate: z.string().optional(),
+        endDate: z.string().optional(),
         page: z.number().int().min(1).default(1),
         pageSize: z.number().int().min(1).max(200).default(50),
       }))
       .query(async ({ input }) => {
         return await db.getAuditLogsPaginated({
+          startDate: input.startDate,
+          endDate: input.endDate,
           page: input.page,
           pageSize: input.pageSize,
         });

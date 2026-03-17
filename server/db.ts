@@ -758,6 +758,8 @@ export async function createAuditLog(log: InsertAuditLog): Promise<number> {
 }
 
 export async function getAuditLogsPaginated(options: {
+  startDate?: string;
+  endDate?: string;
   page?: number;
   pageSize?: number;
 } = {}) {
@@ -767,12 +769,25 @@ export async function getAuditLogsPaginated(options: {
   const pageSize = options.pageSize || 50;
   const offset = (page - 1) * pageSize;
 
+  const conditionList = [];
+  if (options.startDate) {
+    conditionList.push(gte(auditLogs.createdAt, new Date(options.startDate)));
+  }
+  if (options.endDate) {
+    const endDateObj = new Date(options.endDate);
+    endDateObj.setHours(23, 59, 59, 999);
+    conditionList.push(lte(auditLogs.createdAt, endDateObj));
+  }
+  const conditions = conditionList.length > 0 ? and(...conditionList) : undefined;
+
   const countResult = await db.select({ count: sql<number>`COUNT(*)` })
-    .from(auditLogs);
+    .from(auditLogs)
+    .where(conditions);
   const total = countResult[0]?.count || 0;
 
   const items = await db.select()
     .from(auditLogs)
+    .where(conditions)
     .orderBy(desc(auditLogs.createdAt))
     .limit(pageSize)
     .offset(offset);

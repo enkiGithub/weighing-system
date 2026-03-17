@@ -690,3 +690,8 @@
 - [x] 后端：alarms.list API添加startDate/endDate参数支持
 - [x] 前端：Alarms.tsx添加日期范围选择器UI
 - [x] 构建并部署到现场服务器
+
+## 审计日志页面日期范围筛选
+- [x] 后端：auditLogs.list API添加startDate/endDate参数支持
+- [x] 前端：AuditLogs.tsx添加日期范围选择器UI
+- [x] 构建并部署到现场服务器
